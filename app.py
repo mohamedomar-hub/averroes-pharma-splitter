@@ -3,7 +3,7 @@ import pandas as pd
 from io import BytesIO
 
 # ------------------ إعدادات الصفحة ------------------
-st.set_page_config(page_title="Averroes Pharma Splitter", page_icon="💊", layout="centered")
+st.set_page_config(page_title="Averroes Pharma Splitter", page_icon="💊", layout="wide")
 
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
 hide_default = """
@@ -18,26 +18,42 @@ st.markdown(hide_default, unsafe_allow_html=True)
 # ------------------ ستايل مخصص ------------------
 custom_css = """
     <style>
-    body {
-        background-color: #f4f6f9;
+    .stApp {
+        background-color: #001f3f; /* كحلي */
+        color: white;
+        font-size: 18px;
         font-family: 'Cairo', sans-serif;
+    }
+    .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 20px;
+    }
+    .logo {
+        max-height: 100px;
+    }
+    .admin-text {
+        font-size: 20px;
+        font-weight: bold;
+        color: #FFD700; /* ذهبي */
     }
     .title {
         text-align: center;
-        color: #2e86de;
-        font-size: 38px;
+        color: #FFD700;
+        font-size: 40px;
         font-weight: bold;
         margin-bottom: 5px;
     }
     .subtitle {
         text-align: center;
-        color: #555;
-        font-size: 18px;
+        color: white;
+        font-size: 20px;
         margin-bottom: 30px;
     }
     .stButton>button {
-        background-color: #2e86de;
-        color: white;
+        background-color: #FFD700;
+        color: black;
         border-radius: 10px;
         padding: 10px 20px;
         font-size: 18px;
@@ -45,14 +61,26 @@ custom_css = """
         cursor: pointer;
     }
     .stButton>button:hover {
-        background-color: #1b4f72;
+        background-color: #daa520;
     }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ اللوجو والعنوان ------------------
-st.image("logo.png", width=170)
+# ------------------ الهيدر ------------------
+st.markdown(
+    f"""
+    <div class="header-container">
+        <img src="logo.png" class="logo">
+        <div class="admin-text">
+            By Admin Mohamed Abd ELGhany – 01554694554
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ------------------ العنوان ------------------
 st.markdown("<div class='title'>Averroes Pharma File Splitter</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>✂ تقسيم ملفات Excel بسهولة وسرعة</div>", unsafe_allow_html=True)
 
