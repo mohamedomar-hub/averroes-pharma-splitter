@@ -1,37 +1,78 @@
 import streamlit as st
 import pandas as pd
-import zipfile
-import io
+from io import BytesIO
 
-st.set_page_config(page_title="Averroes Pharma", layout="wide")
-st.title("Averroes Pharma - Excel Splitter")
+# ------------------ إعدادات الصفحة ------------------
+st.set_page_config(page_title="Averroes Pharma Splitter", page_icon="💊", layout="centered")
 
-uploaded_file = st.file_uploader("ارفع ملف Excel", type=["xlsx"])
+# ------------------ إخفاء شعار Streamlit والفوتر ------------------
+hide_default = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_default, unsafe_allow_html=True)
+
+# ------------------ ستايل مخصص ------------------
+custom_css = """
+    <style>
+    body {
+        background-color: #f4f6f9;
+        font-family: 'Cairo', sans-serif;
+    }
+    .title {
+        text-align: center;
+        color: #2e86de;
+        font-size: 38px;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .subtitle {
+        text-align: center;
+        color: #555;
+        font-size: 18px;
+        margin-bottom: 30px;
+    }
+    .stButton>button {
+        background-color: #2e86de;
+        color: white;
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-size: 18px;
+        border: none;
+        cursor: pointer;
+    }
+    .stButton>button:hover {
+        background-color: #1b4f72;
+    }
+    </style>
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
+
+# ------------------ اللوجو والعنوان ------------------
+st.image("logo.png", width=170)
+st.markdown("<div class='title'>Averroes Pharma File Splitter</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>✂ تقسيم ملفات Excel بسهولة وسرعة</div>", unsafe_allow_html=True)
+
+# ------------------ رفع الملف ------------------
+uploaded_file = st.file_uploader("📂 ارفع ملف Excel", type=["xlsx"])
 
 if uploaded_file:
-    # قراءة الملف
     df = pd.read_excel(uploaded_file)
-    st.subheader("📄 محتوى الملف:")
+    st.success("✅ تم تحميل الملف بنجاح!")
     st.dataframe(df)
 
-    # اختيار العمود للتقطيع
-    column_to_split = st.selectbox("اختر العمود للتقطيع", df.columns)
+    col = st.selectbox("📌 اختر العمود للتقسيم", df.columns)
 
-    if st.button("✂️ تقطيع الملف"):
-        unique_values = df[column_to_split].dropna().unique()
-
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for value in unique_values:
-                part_df = df[df[column_to_split] == value]
-                file_buffer = io.BytesIO()
-                part_df.to_excel(file_buffer, index=False)
-                zip_file.writestr(f"{value}.xlsx", file_buffer.getvalue())
-
-        zip_buffer.seek(0)
-        st.download_button(
-            label="⬇️ تحميل الملفات كـ ZIP",
-            data=zip_buffer,
-            file_name="split_files.zip",
-            mime="application/zip"
-        )
+    if st.button("🚀 تقسيم الملف"):
+        for value, group in df.groupby(col):
+            output = BytesIO()
+            group.to_excel(output, index=False)
+            st.download_button(
+                label=f"⬇ تحميل {value}.xlsx",
+                data=output.getvalue(),
+                file_name=f"{value}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
