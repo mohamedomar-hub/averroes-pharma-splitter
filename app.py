@@ -73,7 +73,14 @@ custom_css = """
     .stFileUploader div div button {
         background-color: #FFD700 !important;
         color: black !important;
-        font-weight: bold;
+        font-weight: bold !important;
+        font-size: 18px !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        border: none !important;
+    }
+    .stFileUploader div div button:hover {
+        background-color: #daa520 !important;
     }
     </style>
 """
