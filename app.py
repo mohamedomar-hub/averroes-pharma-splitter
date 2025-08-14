@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import base64
 
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(page_title="Averroes Pharma Splitter", page_icon="💊", layout="wide")
@@ -31,24 +32,24 @@ custom_css = """
         padding: 10px 20px;
     }
     .logo {
-        max-height: 100px;
+        max-height: 120px;
     }
     .admin-text {
-        font-size: 20px;
+        font-size: 22px;
         font-weight: bold;
         color: #FFD700; /* ذهبي */
     }
     .title {
         text-align: center;
         color: #FFD700;
-        font-size: 40px;
+        font-size: 42px;
         font-weight: bold;
         margin-bottom: 5px;
     }
     .subtitle {
         text-align: center;
         color: white;
-        font-size: 20px;
+        font-size: 22px;
         margin-bottom: 30px;
     }
     .stButton>button {
@@ -63,15 +64,34 @@ custom_css = """
     .stButton>button:hover {
         background-color: #daa520;
     }
+    /* تعديل زر رفع الملفات */
+    .stFileUploader label {
+        color: white !important;
+        font-size: 20px !important;
+        font-weight: bold;
+    }
+    .stFileUploader div div button {
+        background-color: #FFD700 !important;
+        color: black !important;
+        font-weight: bold;
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ الهيدر ------------------
+# ------------------ عرض اللوجو من فولدر المشروع ------------------
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+logo_path = "logo.png"  # تأكد أن الصورة موجودة في نفس الفولدر
+logo_base64 = get_base64_of_bin_file(logo_path)
+
 st.markdown(
     f"""
     <div class="header-container">
-        <img src="logo.png" class="logo">
+        <img src="data:image/png;base64,{logo_base64}" class="logo">
         <div class="admin-text">
             By Admin Mohamed Abd ELGhany – 01554694554
         </div>
