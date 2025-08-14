@@ -64,19 +64,20 @@ custom_css = """
     .stButton>button:hover {
         background-color: #daa520;
     }
-    /* تعديل زر رفع الملفات */
+    /* تعديل شكل نص زر رفع الملفات */
     .stFileUploader label {
-        color: #FFD700; /* ذهبي */ !important;
+        color: white !important;
         font-size: 20px !important;
-        font-weight: bold;
+        font-weight: bold !important;
     }
+    /* تعديل الزر نفسه (Browse files) */
     .stFileUploader div div button {
         background-color: #FFD700 !important;
         color: black !important;
         font-weight: bold !important;
         font-size: 18px !important;
         border-radius: 8px !important;
-        padding: 8px 16px !important;
+        padding: 8px 20px !important;
         border: none !important;
     }
     .stFileUploader div div button:hover {
@@ -131,4 +132,3 @@ if uploaded_file:
                 file_name=f"{value}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
