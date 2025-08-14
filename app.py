@@ -66,7 +66,7 @@ custom_css = """
     }
     /* تعديل زر رفع الملفات */
     .stFileUploader label {
-        color: white !important;
+        color: #FFD700; /* ذهبي */ !important;
         font-size: 20px !important;
         font-weight: bold;
     }
@@ -131,3 +131,4 @@ if uploaded_file:
                 file_name=f"{value}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
