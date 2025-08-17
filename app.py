@@ -64,37 +64,29 @@ custom_css = """
     .stButton>button:hover {
         background-color: #daa520;
     }
-
-    /* تعديل شكل نص رفع الملف (label) */
     .stFileUploader label {
         color: white !important;
         font-size: 20px !important;
         font-weight: bold !important;
         text-align: center;
     }
-
-    /* تعديل زر رفع الملف (Browse files) ليكون أكثر وضوحًا */
     .stFileUploader div div button {
         background-color: #FFD700 !important;
-        color: black !important;           /* لون نص واضح */
+        color: black !important;
         font-weight: bold !important;
         font-size: 18px !important;
         border-radius: 8px !important;
         padding: 10px 20px !important;
-        border: 2px solid #FFA500 !important; /* حدود ذهبية فاتحة لزيادة الوضوح */
+        border: 2px solid #FFA500 !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
         transition: all 0.3s ease !important;
     }
-
-    /* تأثير عند التحويم على زر الرفع */
     .stFileUploader div div button:hover {
         background-color: #FFC107 !important;
         color: #1a1a1a !important;
         transform: scale(1.05);
         border-color: #FF8C00 !important;
     }
-
-    /* تأكيد وضوح النص داخل الزر حتى في الحالات النشطة */
     .stFileUploader div div button:active {
         background-color: #FFB300 !important;
         color: #000 !important;
@@ -103,20 +95,19 @@ custom_css = """
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو من فولدر المشروع ------------------
+# ------------------ عرض اللوجو ------------------
 def get_base64_of_bin_file(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
     return base64.b64encode(data).decode()
 
-logo_path = "logo.png"  # تأكد أن الصورة موجودة في نفس الفولدر
+logo_path = "logo.png"
 try:
     logo_base64 = get_base64_of_bin_file(logo_path)
 except FileNotFoundError:
     st.error("❌ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
-    logo_base64 = ""  # في حالة عدم وجود اللوجو
+    logo_base64 = ""
 
-# عرض الهيدر فقط إذا كان اللوجو متاحًا
 if logo_base64:
     st.markdown(
         f"""
@@ -148,22 +139,30 @@ uploaded_file = st.file_uploader("📂 ارفع ملف Excel", type=["xlsx"])
 
 if uploaded_file:
     try:
-        df = pd.read_excel(uploaded_file)
-        st.success("✅ تم تحميل الملف بنجاح!")
-        st.dataframe(df)
+        excel_file = pd.ExcelFile(uploaded_file)
+        st.success(f"✅ تم تحميل الملف وفيه {len(excel_file.sheet_names)} شيت.")
 
-        col = st.selectbox("📌 اختر العمود للتقسيم", df.columns)
+        for sheet_name in excel_file.sheet_names:
+            df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
 
-        if st.button("🚀 تقسيم الملف"):
-            for value, group in df.groupby(col):
-                output = BytesIO()
-                group.to_excel(output, index=False)
-                output.seek(0)  # تأكد من إعادة المؤشر للبداية
-                st.download_button(
-                    label=f"⬇ تحميل {value}.xlsx",
-                    data=output.getvalue(),
-                    file_name=f"{value}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            # معالجة merge cells
+            df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
+
+            # عرض بيانات أول 20 صف
+            with st.expander(f"📊 بيانات شيت {sheet_name}"):
+                st.dataframe(df.head(20))
+
+            # تجهيز ملف Excel للتحميل
+            output = BytesIO()
+            df.to_excel(output, index=False, sheet_name=sheet_name)
+            output.seek(0)
+
+            st.download_button(
+                label=f"⬇ تحميل {sheet_name}.xlsx",
+                data=output.getvalue(),
+                file_name=f"{sheet_name}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
     except Exception as e:
         st.error(f"❌ حدث خطأ أثناء قراءة الملف: {e}")
