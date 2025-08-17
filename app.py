@@ -155,8 +155,15 @@ if uploaded_file:
             with st.expander(f"📊 Data View {selected_sheet}"):
                 st.dataframe(df)
 
+            # ================= Sidebar Options ==================
+            st.sidebar.title("⚙️ إعدادات التقسيم")
+            st.sidebar.markdown("---")  # خط فاصل للتوضيح
+
             # اختيار العمود للتقسيم
-            col_to_split = st.sidebar.selectbox("✂ Select Coulmn to Spilit :", df.columns)
+            col_to_split = st.sidebar.selectbox(
+                "✂ اختر العمود المراد التقسيم بناءً عليه:",
+                df.columns
+            )
 
             if st.sidebar.button("🚀 Spilit Now"):
                 split_dfs = {str(value): df[df[col_to_split] == value] for value in df[col_to_split].unique()}
@@ -196,4 +203,3 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ حدث خطأ أثناء قراءة الملف: {e}")
-
