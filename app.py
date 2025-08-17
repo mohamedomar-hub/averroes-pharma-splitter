@@ -142,66 +142,56 @@ if uploaded_file:
         excel_file = pd.ExcelFile(uploaded_file)
         st.success(f"✅ تم تحميل الملف وفيه {len(excel_file.sheet_names)} شيت.")
 
-        # لتجميع كل الشيتات في ملف واحد
+        # اختيار الشيت من سايدبار
+        selected_sheet = st.sidebar.selectbox("📑 اختر الشيت للتقسيم:", excel_file.sheet_names)
+
+        if selected_sheet:
+            df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+
+            # معالجة merge cells
+            df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
+
+            # عرض بيانات الشيت بالكامل
+            with st.expander(f"📊 بيانات شيت {selected_sheet}"):
+                st.dataframe(df)
+
+            # اختيار العمود للتقسيم
+            col_to_split = st.sidebar.selectbox("✂ اختر العمود للتقسيم:", df.columns)
+
+            if st.sidebar.button("🚀 نفذ عملية التقسيم"):
+                split_dfs = {str(value): df[df[col_to_split] == value] for value in df[col_to_split].unique()}
+
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    for key, sub_df in split_dfs.items():
+                        sub_df.to_excel(writer, sheet_name=str(key), index=False)
+
+                output.seek(0)
+                st.success("✅ تم تقسيم الملف بنجاح!")
+
+                st.download_button(
+                    label="📥 تحميل الملف المقسم",
+                    data=output.getvalue(),
+                    file_name=f"Split_{selected_sheet}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+        # ---------------- تحميل كل الشيتات مع بعض ----------------
         all_sheets_output = BytesIO()
         with pd.ExcelWriter(all_sheets_output, engine="openpyxl") as writer:
             for sheet_name in excel_file.sheet_names:
                 df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
-
-                # معالجة merge cells
                 df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
-
-                # عرض بيانات الشيت بالكامل
-                with st.expander(f"📊 بيانات شيت {sheet_name}"):
-                    st.dataframe(df)
-
-                # تجهيز ملف Excel لكل شيت منفصل
-                output = BytesIO()
-                df.to_excel(output, index=False, sheet_name=sheet_name)
-                output.seek(0)
-
-                st.download_button(
-                    label=f"⬇ تحميل {sheet_name}.xlsx",
-                    data=output.getvalue(),
-                    file_name=f"{sheet_name}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
-                # كتابة كل الشيتات في ملف واحد
                 df.to_excel(writer, index=False, sheet_name=sheet_name)
 
         all_sheets_output.seek(0)
-
-        # زر تحميل الكل
-        st.markdown(
-            """
-            <style>
-            .big-download button {
-                background-color: #28a745 !important;
-                color: white !important;
-                font-size: 20px !important;
-                font-weight: bold !important;
-                border-radius: 12px !important;
-                padding: 15px 30px !important;
-                border: 3px solid #1e7e34 !important;
-                box-shadow: 0px 4px 8px rgba(0,0,0,0.3);
-            }
-            .big-download button:hover {
-                background-color: #218838 !important;
-                border-color: #18632a !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
 
         st.download_button(
             label="⬇⬇ تحميل كل الشيتات مرة واحدة ⬇⬇",
             data=all_sheets_output.getvalue(),
             file_name="All_Sheets.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="all_sheets",
-            help="تحميل ملف Excel يحتوي على كل الشيتات"
+            key="all_sheets"
         )
 
     except Exception as e:
