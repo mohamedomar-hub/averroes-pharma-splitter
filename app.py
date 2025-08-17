@@ -132,7 +132,7 @@ else:
 
 # ------------------ العنوان ------------------
 st.markdown("<div class='title'>Averroes Pharma File Splitter</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>✂ تقسيم ملفات Excel بسهولة وسرعة</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>✂ Spilit & Merge Files  Excel Fast & Easily</div>", unsafe_allow_html=True)
 
 # ------------------ رفع الملف ------------------
 uploaded_file = st.file_uploader("📂 ارفع ملف Excel", type=["xlsx"])
@@ -143,7 +143,7 @@ if uploaded_file:
         st.success(f"✅ تم تحميل الملف وفيه {len(excel_file.sheet_names)} شيت.")
 
         # اختيار الشيت من سايدبار
-        selected_sheet = st.sidebar.selectbox("📑 اختر الشيت للتقسيم:", excel_file.sheet_names)
+        selected_sheet = st.sidebar.selectbox("📑 Select Sheet to Spilt:", excel_file.sheet_names)
 
         if selected_sheet:
             df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
@@ -152,13 +152,13 @@ if uploaded_file:
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
             # عرض بيانات الشيت بالكامل
-            with st.expander(f"📊 بيانات شيت {selected_sheet}"):
+            with st.expander(f"📊 Data View {selected_sheet}"):
                 st.dataframe(df)
 
             # اختيار العمود للتقسيم
-            col_to_split = st.sidebar.selectbox("✂ اختر العمود للتقسيم:", df.columns)
+            col_to_split = st.sidebar.selectbox("✂ Select Coulmn to Spilit :", df.columns)
 
-            if st.sidebar.button("🚀 نفذ عملية التقسيم"):
+            if st.sidebar.button("🚀 Spilit Now"):
                 split_dfs = {str(value): df[df[col_to_split] == value] for value in df[col_to_split].unique()}
 
                 output = BytesIO()
@@ -167,10 +167,10 @@ if uploaded_file:
                         sub_df.to_excel(writer, sheet_name=str(key), index=False)
 
                 output.seek(0)
-                st.success("✅ تم تقسيم الملف بنجاح!")
+                st.success("✅ Done Spiliting Sucessfully!")
 
                 st.download_button(
-                    label="📥 تحميل الملف المقسم",
+                    label="📥 Download by file spilit",
                     data=output.getvalue(),
                     file_name=f"Split_{selected_sheet}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -187,7 +187,7 @@ if uploaded_file:
         all_sheets_output.seek(0)
 
         st.download_button(
-            label="⬇⬇ تحميل كل الشيتات مرة واحدة ⬇⬇",
+            label="⬇⬇ Download All Files ⬇⬇",
             data=all_sheets_output.getvalue(),
             file_name="All_Sheets.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -196,3 +196,4 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ حدث خطأ أثناء قراءة الملف: {e}")
+
