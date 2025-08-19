@@ -7,7 +7,7 @@ import base64
 st.set_page_config(
     page_title="Averroes Pharma Splitter",
     page_icon="💊",
-    layout="wide",  # يمكن تركه wide
+    layout="centered",  # يمكن تركه wide
     initial_sidebar_state="expanded"  # ← هذا مهم: يفتح Sidebar تلقائيًا
 )
 
@@ -182,6 +182,7 @@ uploaded_file = st.file_uploader("📂 ارفع ملف Excel", type=["xlsx"])
 
 if uploaded_file:
     try:
+        st.sidebar.write("✅ Sidebar Working!")
         excel_file = pd.ExcelFile(uploaded_file)
         st.success(f"✅ تم تحميل الملف وفيه {len(excel_file.sheet_names)} شيت.")
 
@@ -253,3 +254,4 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ حدث خطأ أثناء قراءة الملف: {e}")
+
