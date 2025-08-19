@@ -4,7 +4,12 @@ from io import BytesIO
 import base64
 
 # ------------------ إعدادات الصفحة ------------------
-st.set_page_config(page_title="Averroes Pharma Splitter", page_icon="💊", layout="wide")
+st.set_page_config(
+    page_title="Averroes Pharma Splitter",
+    page_icon="💊",
+    layout="wide",  # يمكن تركه wide
+    initial_sidebar_state="expanded"  # ← هذا مهم: يفتح Sidebar تلقائيًا
+)
 
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
 hide_default = """
@@ -20,37 +25,43 @@ st.markdown(hide_default, unsafe_allow_html=True)
 custom_css = """
     <style>
     .stApp {
-        background-color: #001f3f; /* كحلي */
+        background-color: #001f3f;
         color: white;
-        font-size: 18px;
         font-family: 'Cairo', sans-serif;
     }
 
-    /* تخصيص الـ Sidebar */
+    /* جعل Sidebar واضحًا وبارزًا */
     [data-testid="stSidebar"] {
-        background-color: #003366 !important; /* أزرق داكن أوضح */
+        background-color: #003366 !important;
         color: white !important;
-        border-right: 3px solid #FFD700; /* حد ذهبي */
-        padding: 20px;
+        border-right: 4px solid #FFD700 !important;
+        width: 300px !important; /* عرض ثابت */
+        min-height: 100vh;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.3);
     }
-    [data-testid="stSidebar"] .css-1d391kg { /* عناوين الـ sidebar */
+
+    [data-testid="stSidebar"] .css-1d391kg {
         color: #FFD700 !important;
         font-size: 22px !important;
-        font-weight: bold !important;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 15px;
     }
-    [data-testid="stSidebar"] .css-1v3fvvy, 
+
+    [data-testid="stSidebar"] .css-1v3fvvy,
     [data-testid="stSidebar"] .css-1l02zno {
         color: white !important;
         font-size: 18px !important;
     }
+
     [data-testid="stSidebar"] .stButton>button {
         background-color: #FFD700 !important;
         color: black !important;
-        border-radius: 10px !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-        padding: 12px 20px !important;
-        border: none !important;
+        border-radius: 10px;
+        font-weight: bold;
+        font-size: 18px;
+        padding: 12px 20px;
+        border: none;
         width: 100%;
         margin: 10px 0;
     }
@@ -58,23 +69,21 @@ custom_css = """
         background-color: #daa520 !important;
         transform: scale(1.03);
     }
-    [data-testid="stSidebar"] .stSelectbox label,
-    [data-testid="stSidebar"] .stTextInput label {
+
+    [data-testid="stSidebar"] .stSelectbox label {
         color: #FFD700 !important;
-        font-weight: bold !important;
-        font-size: 20px !important;
-    }
-    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
-        color: white !important;
-        background-color: #002b4d !important;
-        border: 2px solid #FFD700 !important;
-        border-radius: 8px !important;
-    }
-    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div:first-child {
-        color: white !important;
+        font-weight: bold;
+        font-size: 18px;
     }
 
-    /* تحسينات عامة */
+    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
+        background-color: #002b4d !important;
+        color: white !important;
+        border: 2px solid #FFD700 !important;
+        border-radius: 8px;
+    }
+
+    /* تنسيق الصفحة الرئيسية */
     .header-container {
         display: flex;
         justify-content: space-between;
@@ -87,7 +96,7 @@ custom_css = """
     .admin-text {
         font-size: 22px;
         font-weight: bold;
-        color: #FFD700; /* ذهبي */
+        color: #FFD700;
     }
     .title {
         text-align: center;
@@ -101,18 +110,6 @@ custom_css = """
         color: white;
         font-size: 22px;
         margin-bottom: 30px;
-    }
-    .stButton>button {
-        background-color: #FFD700;
-        color: black;
-        border-radius: 10px;
-        padding: 10px 20px;
-        font-size: 18px;
-        border: none;
-        cursor: pointer;
-    }
-    .stButton>button:hover {
-        background-color: #daa520;
     }
     .stFileUploader label {
         color: white !important;
@@ -136,10 +133,6 @@ custom_css = """
         color: #1a1a1a !important;
         transform: scale(1.05);
         border-color: #FF8C00 !important;
-    }
-    .stFileUploader div div button:active {
-        background-color: #FFB300 !important;
-        color: #000 !important;
     }
     </style>
 """
@@ -207,14 +200,13 @@ if uploaded_file:
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
             # عرض بيانات الشيت بالكامل
-            with st.expander(f"📊 عرض البيانات - {selected_sheet}", expanded=False):
+            with st.expander(f"📊 عرض البيانات - {selected_sheet}"):
                 st.dataframe(df, use_container_width=True)
 
             # ================= Sidebar Options ==================
-            st.sidebar.markdown("---")  # خط فاصل
+            st.sidebar.markdown("---")
             st.sidebar.markdown("<h3 style='color:#FFD700; text-align:center;'>⚙️ إعدادات التقسيم</h3>", unsafe_allow_html=True)
 
-            # اختيار العمود للتقسيم
             col_to_split = st.sidebar.selectbox(
                 "اختر العمود المراد التقسيم بناءً عليه:",
                 df.columns,
@@ -228,8 +220,7 @@ if uploaded_file:
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine="openpyxl") as writer:
                         for key, sub_df in split_dfs.items():
-                            # تجنب أسماء الأوراق الطويلة أو غير الصالحة
-                            sheet_name = str(key)[:30]  # أول 30 حرف فقط
+                            sheet_name = str(key)[:30]
                             sub_df.to_excel(writer, sheet_name=sheet_name, index=False)
 
                     output.seek(0)
