@@ -25,6 +25,56 @@ custom_css = """
         font-size: 18px;
         font-family: 'Cairo', sans-serif;
     }
+
+    /* تخصيص الـ Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #003366 !important; /* أزرق داكن أوضح */
+        color: white !important;
+        border-right: 3px solid #FFD700; /* حد ذهبي */
+        padding: 20px;
+    }
+    [data-testid="stSidebar"] .css-1d391kg { /* عناوين الـ sidebar */
+        color: #FFD700 !important;
+        font-size: 22px !important;
+        font-weight: bold !important;
+    }
+    [data-testid="stSidebar"] .css-1v3fvvy, 
+    [data-testid="stSidebar"] .css-1l02zno {
+        color: white !important;
+        font-size: 18px !important;
+    }
+    [data-testid="stSidebar"] .stButton>button {
+        background-color: #FFD700 !important;
+        color: black !important;
+        border-radius: 10px !important;
+        font-weight: bold !important;
+        font-size: 18px !important;
+        padding: 12px 20px !important;
+        border: none !important;
+        width: 100%;
+        margin: 10px 0;
+    }
+    [data-testid="stSidebar"] .stButton>button:hover {
+        background-color: #daa520 !important;
+        transform: scale(1.03);
+    }
+    [data-testid="stSidebar"] .stSelectbox label,
+    [data-testid="stSidebar"] .stTextInput label {
+        color: #FFD700 !important;
+        font-weight: bold !important;
+        font-size: 20px !important;
+    }
+    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
+        color: white !important;
+        background-color: #002b4d !important;
+        border: 2px solid #FFD700 !important;
+        border-radius: 8px !important;
+    }
+    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div:first-child {
+        color: white !important;
+    }
+
+    /* تحسينات عامة */
     .header-container {
         display: flex;
         justify-content: space-between;
@@ -132,7 +182,7 @@ else:
 
 # ------------------ العنوان ------------------
 st.markdown("<div class='title'>Averroes Pharma File Splitter</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>✂ Spilit & Merge Files  Excel Fast & Easily</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>✂ Spilit & Merge Files Excel Fast & Easily</div>", unsafe_allow_html=True)
 
 # ------------------ رفع الملف ------------------
 uploaded_file = st.file_uploader("📂 ارفع ملف Excel", type=["xlsx"])
@@ -143,7 +193,12 @@ if uploaded_file:
         st.success(f"✅ تم تحميل الملف وفيه {len(excel_file.sheet_names)} شيت.")
 
         # اختيار الشيت من سايدبار
-        selected_sheet = st.sidebar.selectbox("📑 Select Sheet to Spilt:", excel_file.sheet_names)
+        st.sidebar.markdown("<h3 style='color:#FFD700; text-align:center;'>📑 اختيار الورقة</h3>", unsafe_allow_html=True)
+        selected_sheet = st.sidebar.selectbox(
+            "اختر الورقة المراد معالجتها:",
+            excel_file.sheet_names,
+            key="select_sheet"
+        )
 
         if selected_sheet:
             df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
@@ -152,36 +207,40 @@ if uploaded_file:
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
             # عرض بيانات الشيت بالكامل
-            with st.expander(f"📊 Data View {selected_sheet}"):
-                st.dataframe(df)
+            with st.expander(f"📊 عرض البيانات - {selected_sheet}", expanded=False):
+                st.dataframe(df, use_container_width=True)
 
             # ================= Sidebar Options ==================
-            st.sidebar.title("⚙️ إعدادات التقسيم")
-            st.sidebar.markdown("---")  # خط فاصل للتوضيح
+            st.sidebar.markdown("---")  # خط فاصل
+            st.sidebar.markdown("<h3 style='color:#FFD700; text-align:center;'>⚙️ إعدادات التقسيم</h3>", unsafe_allow_html=True)
 
             # اختيار العمود للتقسيم
             col_to_split = st.sidebar.selectbox(
-                "✂ اختر العمود المراد التقسيم بناءً عليه:",
-                df.columns
+                "اختر العمود المراد التقسيم بناءً عليه:",
+                df.columns,
+                key="select_col"
             )
 
-            if st.sidebar.button("🚀 Spilit Now"):
-                split_dfs = {str(value): df[df[col_to_split] == value] for value in df[col_to_split].unique()}
+            if st.sidebar.button("🚀 بدء التقسيم"):
+                with st.spinner("جاري التقسيم..."):
+                    split_dfs = {str(value): df[df[col_to_split] == value] for value in df[col_to_split].unique()}
 
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                    for key, sub_df in split_dfs.items():
-                        sub_df.to_excel(writer, sheet_name=str(key), index=False)
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                        for key, sub_df in split_dfs.items():
+                            # تجنب أسماء الأوراق الطويلة أو غير الصالحة
+                            sheet_name = str(key)[:30]  # أول 30 حرف فقط
+                            sub_df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-                output.seek(0)
-                st.success("✅ Done Spiliting Sucessfully!")
+                    output.seek(0)
+                    st.success("✅ تم التقسيم بنجاح!")
 
-                st.download_button(
-                    label="📥 Download by file spilit",
-                    data=output.getvalue(),
-                    file_name=f"Split_{selected_sheet}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                    st.download_button(
+                        label="📥 تنزيل الملف المنقسم",
+                        data=output.getvalue(),
+                        file_name=f"Split_{selected_sheet}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
 
         # ---------------- تحميل كل الشيتات مع بعض ----------------
         all_sheets_output = BytesIO()
@@ -194,9 +253,9 @@ if uploaded_file:
         all_sheets_output.seek(0)
 
         st.download_button(
-            label="⬇⬇ Download All Files ⬇⬇",
+            label="⬇️ تنزيل جميع الأوراق (نسخة نظيفة)",
             data=all_sheets_output.getvalue(),
-            file_name="All_Sheets.xlsx",
+            file_name="All_Sheets_Cleaned.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="all_sheets"
         )
