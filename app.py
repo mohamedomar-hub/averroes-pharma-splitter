@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="Averroes Pharma Splitter",
     page_icon="💊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
@@ -29,30 +29,9 @@ custom_css = """
         color: white;
         font-family: 'Cairo', sans-serif;
     }
-    [data-testid="stSidebar"] {
-        background-color: #003366 !important;
-        color: white !important;
-        border-right: 4px solid #FFD700 !important;
-        width: 300px !important;
-        min-height: 100vh;
-        box-shadow: 2px 0 5px rgba(0,0,0,0.3);
-    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
-# ------------------ Sidebar ثابت بعناصر إرشادية ------------------
-st.sidebar.image("logo.png", width=150)  # تأكد من وجود ملف اللوجو في نفس المجلد
-st.sidebar.header("📌 تعليمات الاستخدام")
-st.sidebar.markdown("""
-1. قم برفع ملف Excel بصيغة `.xlsx` فقط.
-2. الحد الأقصى لحجم الملف: **200MB**.
-3. بعد رفع الملف، اختر الورقة المطلوبة ثم العمود الذي تريد التقسيم بناءً عليه.
-4. يمكنك تحميل الملف المنقسم أو نسخة نظيفة من جميع الأوراق.
-5. للتواصل: **01554694554**
-""")
-st.sidebar.success("جاهز لرفع الملف؟")
-st.sidebar.markdown("---")
 
 # ------------------ عرض اللوجو والمعلومات ------------------
 def get_base64_of_bin_file(bin_file):
@@ -99,21 +78,20 @@ if uploaded_file:
         excel_file = pd.ExcelFile(uploaded_file)
         st.success(f"✅ تم تحميل الملف وفيه {len(excel_file.sheet_names)} شيت.")
 
-        # اختيار الشيت من سايدبار
-        st.sidebar.markdown("📑 اختر الورقة:")
-        selected_sheet = st.sidebar.selectbox("اختر الورقة:", excel_file.sheet_names)
+        selected_sheet = st.selectbox("📑 اختر الورقة:", excel_file.sheet_names)
 
         if selected_sheet:
             df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
-            with st.expander(f"📊 عرض البيانات - {selected_sheet}"):
-                st.dataframe(df, use_container_width=True)
+            st.markdown(f"### 📊 عرض البيانات – {selected_sheet}")
+            st.dataframe(df, use_container_width=True)
 
-            st.sidebar.markdown("⚙️ إعدادات التقسيم")
-            col_to_split = st.sidebar.selectbox("اختر العمود:", df.columns)
+            # ✅ Dropdown لاختيار العمود بعد عرض البيانات
+            st.markdown("### ✂ اختر العمود الذي تريد التقسيم بناءً عليه:")
+            col_to_split = st.selectbox("اختر العمود:", df.columns)
 
-            if st.sidebar.button("🚀 بدء التقسيم"):
+            if st.button("🚀 بدء التقسيم"):
                 with st.spinner("جاري التقسيم..."):
                     split_dfs = {str(value): df[df[col_to_split] == value] for value in df[col_to_split].unique()}
                     output = BytesIO()
