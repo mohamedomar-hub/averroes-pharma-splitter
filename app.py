@@ -7,8 +7,8 @@ import base64
 st.set_page_config(
     page_title="Averroes Pharma Splitter",
     page_icon="💊",
-    layout="centered",  # يمكن تركه wide
-    initial_sidebar_state="expanded"  # ← هذا مهم: يفتح Sidebar تلقائيًا
+    layout="wide",  # ← تم تغييره من centered إلى wide
+    initial_sidebar_state="expanded"
 )
 
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
@@ -21,6 +21,10 @@ hide_default = """
 """
 st.markdown(hide_default, unsafe_allow_html=True)
 
+# ------------------ Sidebar يظهر دائمًا ------------------
+st.sidebar.markdown("📌 الرجاء رفع ملف Excel لبدء العمل")
+st.sidebar.markdown("---")
+
 # ------------------ ستايل مخصص ------------------
 custom_css = """
     <style>
@@ -29,110 +33,13 @@ custom_css = """
         color: white;
         font-family: 'Cairo', sans-serif;
     }
-
-    /* جعل Sidebar واضحًا وبارزًا */
     [data-testid="stSidebar"] {
         background-color: #003366 !important;
         color: white !important;
         border-right: 4px solid #FFD700 !important;
-        width: 300px !important; /* عرض ثابت */
+        width: 300px !important;
         min-height: 100vh;
         box-shadow: 2px 0 5px rgba(0,0,0,0.3);
-    }
-
-    [data-testid="stSidebar"] .css-1d391kg {
-        color: #FFD700 !important;
-        font-size: 22px !important;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 15px;
-    }
-
-    [data-testid="stSidebar"] .css-1v3fvvy,
-    [data-testid="stSidebar"] .css-1l02zno {
-        color: white !important;
-        font-size: 18px !important;
-    }
-
-    [data-testid="stSidebar"] .stButton>button {
-        background-color: #FFD700 !important;
-        color: black !important;
-        border-radius: 10px;
-        font-weight: bold;
-        font-size: 18px;
-        padding: 12px 20px;
-        border: none;
-        width: 100%;
-        margin: 10px 0;
-    }
-    [data-testid="stSidebar"] .stButton>button:hover {
-        background-color: #daa520 !important;
-        transform: scale(1.03);
-    }
-
-    [data-testid="stSidebar"] .stSelectbox label {
-        color: #FFD700 !important;
-        font-weight: bold;
-        font-size: 18px;
-    }
-
-    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
-        background-color: #002b4d !important;
-        color: white !important;
-        border: 2px solid #FFD700 !important;
-        border-radius: 8px;
-    }
-
-    /* تنسيق الصفحة الرئيسية */
-    .header-container {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 20px;
-    }
-    .logo {
-        max-height: 120px;
-    }
-    .admin-text {
-        font-size: 22px;
-        font-weight: bold;
-        color: #FFD700;
-    }
-    .title {
-        text-align: center;
-        color: #FFD700;
-        font-size: 42px;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-    .subtitle {
-        text-align: center;
-        color: white;
-        font-size: 22px;
-        margin-bottom: 30px;
-    }
-    .stFileUploader label {
-        color: white !important;
-        font-size: 20px !important;
-        font-weight: bold !important;
-        text-align: center;
-    }
-    .stFileUploader div div button {
-        background-color: #FFD700 !important;
-        color: black !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-        border-radius: 8px !important;
-        padding: 10px 20px !important;
-        border: 2px solid #FFA500 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
-        transition: all 0.3s ease !important;
-    }
-    .stFileUploader div div button:hover {
-        background-color: #FFC107 !important;
-        color: #1a1a1a !important;
-        transform: scale(1.05);
-        border-color: #FF8C00 !important;
     }
     </style>
 """
@@ -154,11 +61,9 @@ except FileNotFoundError:
 if logo_base64:
     st.markdown(
         f"""
-        <div class="header-container">
-            <img src="data:image/png;base64,{logo_base64}" class="logo">
-            <div class="admin-text">
-                By Admin Mohamed Abd ELGhany – 01554694554
-            </div>
+        <div style='display:flex; justify-content:space-between; align-items:center; padding:10px 20px;'>
+            <img src="data:image/png;base64,{logo_base64}" style='max-height:120px;'>
+            <div style='font-size:22px; font-weight:bold; color:#FFD700;'>By Admin Mohamed Abd ELGhany – 01554694554</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -166,7 +71,7 @@ if logo_base64:
 else:
     st.markdown(
         """
-        <div class="admin-text" style="text-align: center; margin-bottom: 20px;">
+        <div style='text-align:center; margin-bottom:20px; font-size:22px; font-weight:bold; color:#FFD700;'>
             By Admin Mohamed Abd ELGhany – 01554694554
         </div>
         """,
@@ -174,59 +79,41 @@ else:
     )
 
 # ------------------ العنوان ------------------
-st.markdown("<div class='title'>Averroes Pharma File Splitter</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>✂ Spilit & Merge Files Excel Fast & Easily</div>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#FFD700;'>Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel Files Fast & Easily</h3>", unsafe_allow_html=True)
 
 # ------------------ رفع الملف ------------------
 uploaded_file = st.file_uploader("📂 ارفع ملف Excel", type=["xlsx"])
 
 if uploaded_file:
     try:
-        st.sidebar.write("✅ Sidebar Working!")
         excel_file = pd.ExcelFile(uploaded_file)
         st.success(f"✅ تم تحميل الملف وفيه {len(excel_file.sheet_names)} شيت.")
 
         # اختيار الشيت من سايدبار
-        st.sidebar.markdown("<h3 style='color:#FFD700; text-align:center;'>📑 اختيار الورقة</h3>", unsafe_allow_html=True)
-        selected_sheet = st.sidebar.selectbox(
-            "اختر الورقة المراد معالجتها:",
-            excel_file.sheet_names,
-            key="select_sheet"
-        )
+        st.sidebar.markdown("📑 اختر الورقة:")
+        selected_sheet = st.sidebar.selectbox("اختر الورقة:", excel_file.sheet_names)
 
         if selected_sheet:
             df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
-
-            # معالجة merge cells
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
-            # عرض بيانات الشيت بالكامل
             with st.expander(f"📊 عرض البيانات - {selected_sheet}"):
                 st.dataframe(df, use_container_width=True)
 
-            # ================= Sidebar Options ==================
-            st.sidebar.markdown("---")
-            st.sidebar.markdown("<h3 style='color:#FFD700; text-align:center;'>⚙️ إعدادات التقسيم</h3>", unsafe_allow_html=True)
-
-            col_to_split = st.sidebar.selectbox(
-                "اختر العمود المراد التقسيم بناءً عليه:",
-                df.columns,
-                key="select_col"
-            )
+            st.sidebar.markdown("⚙️ إعدادات التقسيم")
+            col_to_split = st.sidebar.selectbox("اختر العمود:", df.columns)
 
             if st.sidebar.button("🚀 بدء التقسيم"):
                 with st.spinner("جاري التقسيم..."):
                     split_dfs = {str(value): df[df[col_to_split] == value] for value in df[col_to_split].unique()}
-
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine="openpyxl") as writer:
                         for key, sub_df in split_dfs.items():
                             sheet_name = str(key)[:30]
                             sub_df.to_excel(writer, sheet_name=sheet_name, index=False)
-
                     output.seek(0)
                     st.success("✅ تم التقسيم بنجاح!")
-
                     st.download_button(
                         label="📥 تنزيل الملف المنقسم",
                         data=output.getvalue(),
@@ -234,24 +121,20 @@ if uploaded_file:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
-        # ---------------- تحميل كل الشيتات مع بعض ----------------
+        # تحميل كل الشيتات مع بعض
         all_sheets_output = BytesIO()
         with pd.ExcelWriter(all_sheets_output, engine="openpyxl") as writer:
             for sheet_name in excel_file.sheet_names:
                 df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
                 df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
                 df.to_excel(writer, index=False, sheet_name=sheet_name)
-
         all_sheets_output.seek(0)
-
         st.download_button(
             label="⬇️ تنزيل جميع الأوراق (نسخة نظيفة)",
             data=all_sheets_output.getvalue(),
             file_name="All_Sheets_Cleaned.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="all_sheets"
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
     except Exception as e:
         st.error(f"❌ حدث خطأ أثناء قراءة الملف: {e}")
-
