@@ -64,12 +64,10 @@ custom_css = """
         text-decoration: none;
     }
     .logo-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        text-align: center;
         margin: 20px 0;
     }
-    .logo-img {
+    .logo-container img {
         max-width: 200px;
         max-height: 150px;
         border-radius: 12px;
@@ -80,23 +78,16 @@ custom_css = """
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو في المنتصف (مع استخدام markdown + CSS) ------------------
+# ------------------ عرض اللوجو في المنتصف (باستخدام st.image فقط) ------------------
 logo_path = "logo.png"
 
+# 👇 نتأكد من وجود الملف
 if os.path.exists(logo_path):
     try:
-        with open(logo_path, "rb") as f:
-            logo_data = f.read()
-        logo_base64 = base64.b64encode(logo_data).decode()
-
-        st.markdown(
-            f"""
-            <div class="logo-container">
-                <img src="data:image/png;base64,{logo_base64}" class="logo-img">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        # 👇 نستخدم st.image مع width لضبط الحجم
+        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+        st.image(logo_path, width=200)  # ← هذه الطريقة الأفضل والأبسط
+        st.markdown('</div>', unsafe_allow_html=True)
     except Exception as e:
         st.warning("⚠️ تعذر تحميل اللوجو.")
 else:
