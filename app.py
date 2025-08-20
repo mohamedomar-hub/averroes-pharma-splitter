@@ -16,7 +16,7 @@ st.set_page_config(
     page_title="Averroes Pharma Splitter",
     page_icon="💊",
     layout="wide",
-    initial_sidebar_state="collapsed"  # ← مهم علشان ما يظهرش Sidebar
+    initial_sidebar_state="collapsed"
 )
 
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
@@ -174,7 +174,8 @@ uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept
 
 if uploaded_file:
     try:
-        excel_file = pd.ExcelFile(uploaded_file)
+        # قراءة الملف مع الحفاظ على المحرك (للحصول على التنسيق لاحقًا)
+        excel_file = pd.ExcelFile(uploaded_file, engine="openpyxl")
         st.success(f"✅ File uploaded successfully. Sheets found: {len(excel_file.sheet_names)}")
 
         selected_sheet = st.selectbox("📑 Select Sheet", excel_file.sheet_names)
@@ -194,17 +195,32 @@ if uploaded_file:
             )
 
             if st.button("🚀 Start Split"):
-                with st.spinner("Splitting files..."):
+                with st.spinner("Splitting files with original column width..."):
                     zip_buffer = BytesIO()
                     with ZipFile(zip_buffer, "w") as zip_file:
                         for value in df[col_to_split].dropna().unique():
                             sub_df = df[df[col_to_split] == value]
-                            row_count = len(sub_df)
-                            st.write(f"📁 **{value}**: {row_count} rows")
 
                             file_buffer = BytesIO()
                             with pd.ExcelWriter(file_buffer, engine="openpyxl") as writer:
                                 sub_df.to_excel(writer, index=False, sheet_name=str(value)[:30])
+
+                                # استرجاع workbook و worksheet
+                                workbook = writer.book
+                                worksheet = writer.sheets[str(value)[:30]]
+
+                                # نسخ عرض الأعمدة من الشيت الأصلي
+                                try:
+                                    original_ws = excel_file.book[selected_sheet]
+                                    for col_idx, col in enumerate(sub_df.columns, 1):
+                                        col_letter = worksheet.cell(1, col_idx).column_letter
+                                        original_width = original_ws.column_dimensions[col_letter].width
+                                        if original_width:
+                                            worksheet.column_dimensions[col_letter].width = original_width
+                                except Exception as e:
+                                    # إذا ما نجح، يستخدم العرض الافتراضي
+                                    pass
+
                             file_buffer.seek(0)
                             safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value))
                             zip_file.writestr(f"{safe_name}.xlsx", file_buffer.read())
@@ -212,7 +228,7 @@ if uploaded_file:
                     zip_buffer.seek(0)
 
                     if zip_buffer.getvalue():
-                        st.success("✅ Files split successfully!")
+                        st.success("✅ Files split successfully! (Original column width preserved)")
                         st.download_button(
                             label="📥 Download Split Files (ZIP)",
                             data=zip_buffer.getvalue(),
@@ -223,13 +239,9 @@ if uploaded_file:
                         st.error("❌ Failed to generate zip file.")
 
         # -----------------------------------------------
-        # ✅ فاصل أنيق قبل قسم الدمج
+        # ✅ دمج ملفات Excel متعددة
         # -----------------------------------------------
         st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-
-        # -----------------------------------------------
-        # ✅ دمج ملفات Excel متعددة (ليس صفحات)
-        # -----------------------------------------------
         st.markdown("### 🔄 Merge Multiple Excel Files into One")
         merge_files = st.file_uploader("📤 Upload Excel Files to Merge", type=["xlsx"], accept_multiple_files=True)
 
@@ -245,6 +257,7 @@ if uploaded_file:
                     combined_buffer = BytesIO()
                     with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
                         combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
+
                     combined_buffer.seek(0)
 
                     st.success("✅ Files merged successfully!")
@@ -256,13 +269,9 @@ if uploaded_file:
                     )
 
         # -----------------------------------------------
-        # ✅ فاصل قبل التحميل
-        # -----------------------------------------------
-        st.markdown("<hr class='divider'>", unsafe_allow_html=True)
-
-        # -----------------------------------------------
         # ✅ تحميل كل الشيتات كما هي (مصفاة فقط)
         # -----------------------------------------------
+        st.markdown("<hr class='divider'>", unsafe_allow_html=True)
         st.markdown("### 📥 Download Full Cleaned File (All Sheets)")
         all_sheets_output = BytesIO()
         with pd.ExcelWriter(all_sheets_output, engine="openpyxl") as writer:
@@ -270,6 +279,19 @@ if uploaded_file:
                 df_sheet = pd.read_excel(uploaded_file, sheet_name=sheet_name)
                 df_sheet = df_sheet.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
                 df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
+
+                # حفظ عرض الأعمدة في كل شيت
+                worksheet = writer.sheets[sheet_name]
+                try:
+                    original_ws = excel_file.book[sheet_name]
+                    for col_idx, col in enumerate(df_sheet.columns, 1):
+                        col_letter = worksheet.cell(1, col_idx).column_letter
+                        original_width = original_ws.column_dimensions[col_letter].width
+                        if original_width:
+                            worksheet.column_dimensions[col_letter].width = original_width
+                except:
+                    pass
+
         all_sheets_output.seek(0)
 
         st.download_button(
