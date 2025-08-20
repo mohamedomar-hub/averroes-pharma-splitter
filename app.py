@@ -230,7 +230,7 @@ with st.expander("📖 طريقة الاستخدام - اضغط لعرض الت�
 
     ---
 
-    🙋‍♂️ إذا واجهتك أي مشكلة، راسل المطور عبر الواتساب.
+    🙋‍♂️ لو واجهتك أي مشكلة، ابعتلي علي الواتساب.
     """, unsafe_allow_html=True)
 
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
@@ -354,3 +354,4 @@ if uploaded_file:
 
 else:
     st.markdown('<p style="text-align:center; color:#FFD700;">⚠️ No file uploaded yet.</p></div>', unsafe_allow_html=True)
+
