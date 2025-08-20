@@ -16,7 +16,7 @@ st.set_page_config(
     page_title="Averroes Pharma Splitter",
     page_icon="💊",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"  # Sidebar مفتوح من البداية
 )
 
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
@@ -29,7 +29,7 @@ hide_default = """
 """
 st.markdown(hide_default, unsafe_allow_html=True)
 
-# ------------------ ستايل مخصص (محسّن بالكامل) ------------------
+# ------------------ ستايل مخصص ------------------
 custom_css = """
     <style>
     /* تطبيق الخط والخلفية */
@@ -37,15 +37,6 @@ custom_css = """
         background-color: #001f3f;
         color: white;
         font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-
-    /* تأثير دخول تدريجي */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    .fade-in {
-        animation: fadeIn 1.5s ease-in;
     }
 
     /* تحسين المحتوى العام */
@@ -82,43 +73,23 @@ custom_css = """
         box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
     }
 
-    /* مربع المعلومات (الاسم ورقم الواتساب) */
+    /* مربع المعلومات في الـ Sidebar */
     .info-box {
-        text-align: center;
-        font-size: 18px;
+        font-size: 17px;
         color: #FFD700;
-        margin-top: 10px;
         line-height: 1.8;
+        text-align: center;
     }
     .info-box a {
         color: #FFD700;
         text-decoration: none;
     }
 
-    /* حاوية اللوجو في المنتصف */
-    .logo-container {
-        text-align: center;
-        margin: 25px 0;
-    }
-    .logo-container img {
-        max-width: 220px;
-        max-height: 160px;
-        border-radius: 14px;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-        object-fit: contain;
-    }
-
-    /* فواصل أنيقة بين الأقسام */
+    /* فواصل أنيقة */
     hr.divider {
         border: 1px solid #FFD700;
         opacity: 0.6;
-        margin: 30px 0;
-        border-radius: 1px;
-    }
-    hr.divider-dashed {
-        border: 1px dashed #FFD700;
-        opacity: 0.7;
-        margin: 25px 0;
+        margin: 20px 0;
     }
 
     /* تحسين مظهر الجداول */
@@ -137,7 +108,7 @@ custom_css = """
         background-color: rgba(255, 215, 0, 0.1);
     }
 
-    /* تحسين شرح الاستخدام */
+    /* عنوان الشرح */
     .guide-title {
         color: #FFD700;
         font-weight: bold;
@@ -147,98 +118,88 @@ custom_css = """
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ بدء التأثير التدريجي ------------------
-st.markdown('<div class="fade-in">', unsafe_allow_html=True)
+# ------------------ Sidebar (الشريط الجانبي) ------------------
+with st.sidebar:
+    # لوجو في الأعلى
+    logo_path = "logo.png"
+    if os.path.exists(logo_path):
+        try:
+            st.image(logo_path, width=140)
+        except:
+            pass
 
-# ------------------ عرض اللوجو في المنتصف ------------------
-logo_path = "logo.png"
+    st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
-if os.path.exists(logo_path):
-    try:
-        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-        st.image(logo_path, width=200)
-        st.markdown('</div>', unsafe_allow_html=True)
-    except Exception as e:
-        st.warning("⚠️ تعذر تحميل اللوجو.")
-else:
-    st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
+    # --- بيانات المطور ---
+    st.markdown("<p class='info-box'>", unsafe_allow_html=True)
+    st.markdown("**Created by**")
+    st.markdown("""
+    <strong>Mohamed Abd ELGhany</strong><br>
+    💬 <a href="https://wa.me/201554694554" target="_blank">01554694554 (WhatsApp)</a><br>
+    📍 Head Office - 5 Settelment
+    """, unsafe_allow_html=True)
+    st.markdown("</p>", unsafe_allow_html=True)
 
-# ------------------ معلومات المطور (تحت اللوجو) ------------------
-st.markdown(
-    """
-    <div class="info-box">
-        <strong>Mohamed Abd ELGhany</strong><br>
-        💬 
-        <a href="https://wa.me/201554694554" target="_blank">
-            01554694554 (WhatsApp)
-        </a><br>
-        📍 Head Office - 5 Settelment
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+    st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
-# ------------------ العنوان ------------------
+    # --- شرح الاستخدام ---
+    with st.expander("ℹ️ Info - طريقة الاستخدام"):
+        st.markdown("""
+        <div class='guide-title'>🎯 مرحبًا بك في أداة Averroes Pharma!</div>
+        
+        هذه الأداة تساعدك على **تقسيم ودمج ملفات الإكسل بسرعة ودقة** بدون برامج إضافية.
+
+        ---
+
+        ### 🔧 أولًا: تقسيم ملف Excel
+        1. **ارفع ملف الإكسل** من زر "Upload Excel File".
+        2. اختر **الشيت اللي عاوزه** من القائمة.
+        3. اختر **العمود اللي عاوز تقسم عليه** (مثل: "الفرع"، "المنطقة"، "المندوب").
+        4. اضغط على **🚀 Start Split**.
+        5. هتلاقي زر لتحميل ملف ZIP يحتوي على كل جزء منفصل.
+
+        ✅ مثال: لو قسمت على "الفرع"، هيكون عندك: `القاهرة.xlsx`, `الإسكندرية.xlsx`, إلخ.
+
+        ---
+
+        ### 🔗 ثانيًا: دمج ملفات Excel (منفصلة)
+        1. في الأسفل، اضغط على **"Upload Excel Files to Merge"**.
+        2. ارفع **أكثر من ملف Excel** (مثلاً: `يناير.xlsx`, `فبراير.xlsx`).
+        3. اضغط على **✨ Merge Selected Files**.
+        4. هتلاقي زر لتحميل ملف واحد يحتوي على كل البيانات.
+
+        ✅ ملاحظة: كل صف هيكون فيه عمود "Source File" يوضح منين جاي.
+
+        ---
+
+        ### 💾 ثالثًا: تحميل الملفات
+        - **📥 Download Split Files (ZIP)**: الملفات المقسمة.
+        - **📥 Download Merged File**: الملفات المدموجة.
+        - **⬇️ Download All Sheets (Cleaned)**: نفس الملف اللي رفعته، بس تم تنظيف الخلايا الفارغة.
+
+        ---
+
+        ### ❓ أسئلة شائعة
+        - **هل يتم تعديل البيانات؟**  
+          لا، فقط يتم "ملء" الخلايا الفارغة بالقيمة السابقة (لتحسين العرض).
+        - **هل يدعم CSV؟**  
+          لا، حاليًا يدعم فقط `.xlsx`.
+        - **هل البيانات تُحفظ على سيرفر؟**  
+          لا، كل شيء يتم على جهازك، وما يُرفع يُمسح بعد التحديث.
+
+        ---
+
+        🙋‍♂️ لو واجهتك أي مشكلة، ابعتلي علي الواتساب.
+        """, unsafe_allow_html=True)
+
+# ------------------ العنوان الرئيسي ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel Files Fast & Easily</h3>", unsafe_allow_html=True)
-
-# ------------------ شرح طريقة الاستخدام ------------------
-st.markdown("<hr class='divider'>", unsafe_allow_html=True)
-
-with st.expander("📖 طريقة الاستخدام - اضغط لعرض التعليمات"):
-    st.markdown("""
-    <div class='guide-title'>🎯 مرحبًا بك في أداة Averroes Pharma!</div>
-    هذه الأداة تساعدك على **تقسيم ودمج ملفات الإكسل بسرعة ودقة** بدون برامج إضافية.
-
-    ---
-
-    ### 🔧 أولًا: تقسيم ملف Excel
-    1. **ارفع ملف الإكسل** من زر "Upload Excel File".
-    2. اختر **الشيت اللي عاوزه** من القائمة.
-    3. اختر **العمود اللي عاوز تقسم عليه** (مثل: "الفرع"، "المنطقة"، "المندوب").
-    4. اضغط على **🚀 Start Split**.
-    5. هتلاقي زر لتحميل ملف ZIP يحتوي على كل جزء منفصل.
-
-    ✅ مثال: لو قسمت على "الفرع"، هيكون عندك: `القاهرة.xlsx`, `الإسكندرية.xlsx`, إلخ.
-
-    ---
-
-    ### 🔗 ثانيًا: دمج ملفات Excel (منفصلة)
-    1. في الأسفل، اضغط على **"Upload Excel Files to Merge"**.
-    2. ارفع **أكثر من ملف Excel** (مثلاً: `يناير.xlsx`, `فبراير.xlsx`).
-    3. اضغط على **✨ Merge Selected Files**.
-    4. هتلاقي زر لتحميل ملف واحد يحتوي على كل البيانات.
-
-    ✅ ملاحظة: كل صف هيكون فيه عمود "Source File" يوضح منين جاي.
-
-    ---
-
-    ### 💾 ثالثًا: تحميل الملفات
-    - **📥 Download Split Files (ZIP)**: الملفات المقسمة.
-    - **📥 Download Merged File**: الملفات المدموجة.
-    - **⬇️ Download All Sheets (Cleaned)**: نفس الملف اللي رفعته، بس تم تنظيف الخلايا الفارغة.
-
-    ---
-
-    ### ❓ أسئلة شائعة
-    - **هل يتم تعديل البيانات؟**  
-      لا، فقط يتم "ملء" الخلايا الفارغة بالقيمة السابقة (لتحسين العرض).
-    - **هل يدعم CSV؟**  
-      لا، حاليًا يدعم فقط `.xlsx`.
-    - **هل البيانات تُحفظ على سيرفر؟**  
-      لا، كل شيء يتم على جهازك، وما يُرفع يُمسح بعد التحديث.
-
-    ---
-
-    🙋‍♂️ لو واجهتك أي مشكلة، ابعتلي علي الواتساب.
-    """, unsafe_allow_html=True)
-
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 
 # ------------------ رفع الملفات ------------------
 uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
 
-# ✅ المعالجة داخل if-else بدون انقطاع
 if uploaded_file:
     try:
         excel_file = pd.ExcelFile(uploaded_file)
@@ -348,10 +309,5 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ Error while processing the file: {e}")
-
-    # ✅ إغلاق التأثير التدريجي
-    st.markdown('</div>', unsafe_allow_html=True)
-
 else:
-    st.markdown('<p style="text-align:center; color:#FFD700;">⚠️ No file uploaded yet.</p></div>', unsafe_allow_html=True)
-
+    st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet.</p>", unsafe_allow_html=True)
