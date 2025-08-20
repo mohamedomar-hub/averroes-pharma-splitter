@@ -35,7 +35,7 @@ custom_css = """
         font-size: 18px !important;
         font-weight: bold !important;
     }
-    .stButton>button {
+    .stButton>button, .stDownloadButton>button {
         background-color: #FFD700 !important;
         color: black !important;
         font-weight: bold !important;
@@ -45,40 +45,15 @@ custom_css = """
         border: none !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
         transition: all 0.3s ease !important;
+        margin-top: 10px !important;
     }
-    .stButton>button:hover {
+    .stButton>button:hover, .stDownloadButton>button:hover {
         background-color: #FFC107 !important;
         transform: scale(1.05);
     }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
-# ------------------ زر تحميل مخصص ------------------
-def get_download_link(data, filename, label):
-    b64 = base64.b64encode(data).decode()
-    href = f"""
-        <a href="data:application/octet-stream;base64,{b64}" download="{filename}" 
-        style="
-            background-color: #FFD700;
-            color: black;
-            font-weight: bold;
-            font-size: 18px;
-            border-radius: 8px;
-            padding: 10px 20px;
-            text-decoration: none;
-            display: inline-block;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            transition: all 0.3s ease;
-            margin-top: 10px;
-        "
-        onmouseover="this.style.backgroundColor='#FFC107'; this.style.transform='scale(1.05)'"
-        onmouseout="this.style.backgroundColor='#FFD700'; this.style.transform='scale(1)'"
-        >
-        📥 {label}
-        </a>
-    """
-    return href
 
 # ------------------ عرض اللوجو والمعلومات ------------------
 def get_base64_of_bin_file(bin_file):
@@ -161,8 +136,12 @@ if uploaded_file:
 
                     zip_buffer.seek(0)
                     st.success("✅ Files split successfully!")
-                    download_link = get_download_link(zip_buffer.getvalue(), f"Split_{selected_sheet}.zip", "Download Split Files (ZIP)")
-                    st.markdown(download_link, unsafe_allow_html=True)
+                    st.download_button(
+                        label="📥 Download Split Files (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"Split_{selected_sheet}.zip",
+                        mime="application/zip"
+                    )
 
         # تحميل كل الشيتات مع بعض
         all_sheets_output = BytesIO()
@@ -172,8 +151,12 @@ if uploaded_file:
                 df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
                 df.to_excel(writer, index=False, sheet_name=sheet_name)
         all_sheets_output.seek(0)
-        download_all_link = get_download_link(all_sheets_output.getvalue(), "All_Sheets_Cleaned.xlsx", "Download All Sheets (Cleaned)")
-        st.markdown(download_all_link, unsafe_allow_html=True)
+        st.download_button(
+            label="⬇️ Download All Sheets (Cleaned)",
+            data=all_sheets_output.getvalue(),
+            file_name="All_Sheets_Cleaned.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
     except Exception as e:
         st.error(f"❌ Error while processing the file: {e}")
