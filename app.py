@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import base64
-import os
+from zipfile import ZipFile
 
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(
@@ -123,9 +123,7 @@ if uploaded_file:
             if st.button("🚀 Start Split"):
                 with st.spinner("Splitting files..."):
                     zip_buffer = BytesIO()
-                    from zipfile import ZipFile
-
-                    with ZipFile(zip_buffer, "a") as zip_file:
+                    with ZipFile(zip_buffer, "w") as zip_file:  # تم التصحيح: استخدام "w"
                         for value in df[col_to_split].dropna().unique():
                             sub_df = df[df[col_to_split] == value]
                             file_buffer = BytesIO()
@@ -134,23 +132,31 @@ if uploaded_file:
                             file_buffer.seek(0)
                             zip_file.writestr(f"{str(value)}.xlsx", file_buffer.read())
 
-                    zip_buffer.seek(0)
-                    st.success("✅ Files split successfully!")
-                    st.download_button(
-                        label="📥 Download Split Files (ZIP)",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"Split_{selected_sheet}.zip",
-                        mime="application/zip"
-                    )
+                    zip_buffer.seek(0)  # إعادة المؤشر للبداية بعد الإغلاق
 
-        # تحميل كل الشيتات مع بعض
+                    if zip_buffer.getvalue():
+                        st.success("✅ Files split successfully!")
+                        st.download_button(
+                            label="📥 Download Split Files (ZIP)",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"Split_{selected_sheet}.zip",
+                            mime="application/zip"
+                        )
+                    else:
+                        st.error("❌ Failed to generate zip file.")
+
+        # -----------------------------------------------
+        # ✅ تحميل كل الشيتات (يظهر دايمًا بعد اختيار الملف)
+        # -----------------------------------------------
+        st.markdown("### 📥 Download Full Cleaned File")
         all_sheets_output = BytesIO()
         with pd.ExcelWriter(all_sheets_output, engine="openpyxl") as writer:
             for sheet_name in excel_file.sheet_names:
-                df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
-                df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
-                df.to_excel(writer, index=False, sheet_name=sheet_name)
+                df_sheet = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+                df_sheet = df_sheet.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
+                df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
         all_sheets_output.seek(0)
+
         st.download_button(
             label="⬇️ Download All Sheets (Cleaned)",
             data=all_sheets_output.getvalue(),
