@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-import base64
 from zipfile import ZipFile
 import re
 
@@ -63,28 +62,27 @@ custom_css = """
         color: #FFD700;
         text-decoration: none;
     }
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        margin: 20px 0;
+    }
+    .logo-img {
+        max-height: 150px;
+        border-radius: 12px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو في المنتصف ------------------
-def get_base64_of_bin_file(bin_file):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
+# ------------------ عرض اللوجو في المنتصف (بدون base64) ------------------
 logo_path = "logo.png"
 try:
-    logo_base64 = get_base64_of_bin_file(logo_path)
-    st.markdown(
-        f"""
-        <div style="text-align:center; margin:20px 0;">
-            <img src="image/png;base64,{logo_base64}" style="max-height:150px; border-radius:12px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-except FileNotFoundError:
+    st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+    st.image(logo_path, use_column_width="auto", output_format="PNG")
+    st.markdown('</div>', unsafe_allow_html=True)
+except Exception as e:
     st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
 
 # ------------------ معلومات المطور (تحت اللوجو) ------------------
@@ -106,8 +104,8 @@ st.markdown(
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel Files Fast & Easily</h3>", unsafe_allow_html=True)
 
-# ------------------ رفع الملف ------------------
-uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"])
+# ------------------ رفع الملفات ------------------
+uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
 
 if uploaded_file:
     try:
@@ -160,18 +158,18 @@ if uploaded_file:
                         st.error("❌ Failed to generate zip file.")
 
         # -----------------------------------------------
-        # ✅ دمج الشيتات: اختياري
+        # ✅ دمج ملفات Excel متعددة (ليس صفحات)
         # -----------------------------------------------
-        st.markdown("### 🔄 Merge Selected Sheets into One")
-        selected_sheets = st.multiselect("Choose sheets to merge", excel_file.sheet_names)
+        st.markdown("### 🔄 Merge Multiple Excel Files into One")
+        merge_files = st.file_uploader("📤 Upload Excel Files to Merge", type=["xlsx"], accept_multiple_files=True)
 
-        if selected_sheets:
-            if st.button("✨ Merge Selected Sheets"):
-                with st.spinner("Merging selected sheets..."):
+        if merge_files:
+            if st.button("✨ Merge Selected Files"):
+                with st.spinner("Merging Excel files..."):
                     combined_df = pd.DataFrame()
-                    for sheet in selected_sheets:
-                        df_temp = pd.read_excel(uploaded_file, sheet_name=sheet)
-                        df_temp["Source Sheet"] = sheet
+                    for file in merge_files:
+                        df_temp = pd.read_excel(file)
+                        df_temp["Source File"] = file.name
                         combined_df = pd.concat([combined_df, df_temp], ignore_index=True)
 
                     combined_buffer = BytesIO()
@@ -179,11 +177,11 @@ if uploaded_file:
                         combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
                     combined_buffer.seek(0)
 
-                    st.success("✅ Selected sheets merged!")
+                    st.success("✅ Files merged successfully!")
                     st.download_button(
                         label="📥 Download Merged File",
                         data=combined_buffer.getvalue(),
-                        file_name="Merged_Selected_Sheets.xlsx",
+                        file_name="Merged_Excel_Files.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
