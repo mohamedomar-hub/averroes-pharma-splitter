@@ -178,6 +178,7 @@ st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel
 # ------------------ رفع الملفات ------------------
 uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
 
+# ✅ الـ if والـ else لازم يكونوا متتاليين بدون انقطاع
 if uploaded_file:
     try:
         excel_file = pd.ExcelFile(uploaded_file)
@@ -288,9 +289,9 @@ if uploaded_file:
     except Exception as e:
         st.error(f"❌ Error while processing the file: {e}")
 
-# ------------------ إنهاء التأثير التدريجي ------------------
-st.markdown('</div>', unsafe_allow_html=True)
+    # ✅ إغلاق الـ fade-in هنا، بعد انتهاء كود if
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ------------------ حالة عدم رفع ملف ------------------
 else:
-    st.markdown('<div class="fade-in"><p style="text-align:center; color:#FFD700;">⚠️ No file uploaded yet.</p></div>', unsafe_allow_html=True)
+    # ✅ الـ else يجب أن يكون مباشرة بعد الـ try-except داخل if
+    st.markdown('<p style="text-align:center; color:#FFD700;">⚠️ No file uploaded yet.</p></div>', unsafe_allow_html=True)
