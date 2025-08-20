@@ -68,19 +68,29 @@ custom_css = """
         margin: 20px 0;
     }
     .logo-img {
+        max-width: 200px; /* ضبط الحجم */
         max-height: 150px;
         border-radius: 12px;
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        object-fit: contain; /* تجنب التكبير غير الطبيعي */
+    }
+    .warning-box {
+        background-color: #1e3a8a;
+        color: white;
+        padding: 10px;
+        border-radius: 8px;
+        margin: 10px 0;
+        font-size: 14px;
     }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو في المنتصف (بدون base64) ------------------
+# ------------------ عرض اللوجو في المنتصف (مع تحكم في الحجم) ------------------
 logo_path = "logo.png"
 try:
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    st.image(logo_path, use_column_width="auto", output_format="PNG")
+    st.image(logo_path, use_column_width=False, width=200)  # ضبط العرض بالبكسل
     st.markdown('</div>', unsafe_allow_html=True)
 except Exception as e:
     st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
@@ -119,7 +129,7 @@ if uploaded_file:
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
             st.markdown(f"### 📊 Data View – {selected_sheet}")
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, use_container_width=True)  # ← استخدم use_container_width
 
             st.markdown("### ✂ Select the column to split by")
             col_to_split = st.selectbox(
