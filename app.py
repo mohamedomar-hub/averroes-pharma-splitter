@@ -291,5 +291,6 @@ if uploaded_file:
 # ------------------ إنهاء التأثير التدريجي ------------------
 st.markdown('</div>', unsafe_allow_html=True)
 
+# ------------------ حالة عدم رفع ملف ------------------
 else:
     st.markdown('<div class="fade-in"><p style="text-align:center; color:#FFD700;">⚠️ No file uploaded yet.</p></div>', unsafe_allow_html=True)
