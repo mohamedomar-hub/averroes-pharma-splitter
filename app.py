@@ -79,7 +79,7 @@ try:
     st.markdown(
         f"""
         <div style="text-align:center; margin:20px 0;">
-            <img src="data:image/png;base64,{logo_base64}" style="max-height:150px; border-radius:12px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
+            <img src="image/png;base64,{logo_base64}" style="max-height:150px; border-radius:12px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
         </div>
         """,
         unsafe_allow_html=True
@@ -92,7 +92,7 @@ st.markdown(
     """
     <div class="info-box">
         <strong>Mohamed Abd ELGhany</strong><br>
-        📱 
+        💬 
         <a href="https://wa.me/201554694554" target="_blank">
             01554694554 (WhatsApp)
         </a><br>
@@ -143,7 +143,6 @@ if uploaded_file:
                             with pd.ExcelWriter(file_buffer, engine="openpyxl") as writer:
                                 sub_df.to_excel(writer, index=False, sheet_name=str(value)[:30])
                             file_buffer.seek(0)
-                            # تنظيف اسم الملف من رموز غير مسموحة
                             safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value))
                             zip_file.writestr(f"{safe_name}.xlsx", file_buffer.read())
 
@@ -161,29 +160,32 @@ if uploaded_file:
                         st.error("❌ Failed to generate zip file.")
 
         # -----------------------------------------------
-        # ✅ دمج كل الشيتات في شيت واحد
+        # ✅ دمج الشيتات: اختياري
         # -----------------------------------------------
-        st.markdown("### 🔄 Merge All Sheets into One")
-        if st.button("✨ Merge All Sheets into One File"):
-            with st.spinner("Merging all sheets..."):
-                combined_df = pd.DataFrame()
-                for sheet in excel_file.sheet_names:
-                    df_temp = pd.read_excel(uploaded_file, sheet_name=sheet)
-                    df_temp["Source Sheet"] = sheet
-                    combined_df = pd.concat([combined_df, df_temp], ignore_index=True)
+        st.markdown("### 🔄 Merge Selected Sheets into One")
+        selected_sheets = st.multiselect("Choose sheets to merge", excel_file.sheet_names)
 
-                combined_buffer = BytesIO()
-                with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
-                    combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
-                combined_buffer.seek(0)
+        if selected_sheets:
+            if st.button("✨ Merge Selected Sheets"):
+                with st.spinner("Merging selected sheets..."):
+                    combined_df = pd.DataFrame()
+                    for sheet in selected_sheets:
+                        df_temp = pd.read_excel(uploaded_file, sheet_name=sheet)
+                        df_temp["Source Sheet"] = sheet
+                        combined_df = pd.concat([combined_df, df_temp], ignore_index=True)
 
-                st.success("✅ All sheets merged into one!")
-                st.download_button(
-                    label="📥 Download Merged File (Single Sheet)",
-                    data=combined_buffer.getvalue(),
-                    file_name="Merged_All_Sheets.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                    combined_buffer = BytesIO()
+                    with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
+                        combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
+                    combined_buffer.seek(0)
+
+                    st.success("✅ Selected sheets merged!")
+                    st.download_button(
+                        label="📥 Download Merged File",
+                        data=combined_buffer.getvalue(),
+                        file_name="Merged_Selected_Sheets.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
 
         # -----------------------------------------------
         # ✅ تحميل كل الشيتات كما هي (مصفاة فقط)
