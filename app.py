@@ -15,8 +15,8 @@ st.markdown(
 st.set_page_config(
     page_title="Averroes Pharma Splitter",
     page_icon="💊",
-    layout="wide",
-    initial_sidebar_state="expanded"  # Sidebar مفتوح من البداية
+    layout="centered",  # ← هذه هي التعديلة الأساسية
+    initial_sidebar_state="expanded"
 )
 
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
