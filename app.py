@@ -80,15 +80,23 @@ custom_css = """
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو في المنتصف (باستخدام st.image) ------------------
+# ------------------ عرض اللوجو في المنتصف (مع استخدام markdown + CSS) ------------------
 logo_path = "logo.png"
 
-# التحقق من وجود الملف
 if os.path.exists(logo_path):
     try:
-        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-        st.image(logo_path, width=200)  # استخدام width بدل use_column_width
-        st.markdown('</div>', unsafe_allow_html=True)
+        with open(logo_path, "rb") as f:
+            logo_data = f.read()
+        logo_base64 = base64.b64encode(logo_data).decode()
+
+        st.markdown(
+            f"""
+            <div class="logo-container">
+                <img src="data:image/png;base64,{logo_base64}" class="logo-img">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     except Exception as e:
         st.warning("⚠️ تعذر تحميل اللوجو.")
 else:
