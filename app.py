@@ -195,11 +195,13 @@ if uploaded_file:
             )
 
             if st.button("🚀 Start Split"):
-                with st.spinner("Splitting files with original column width..."):
+                with st.spinner("Splitting files with original format..."):
                     zip_buffer = BytesIO()
                     with ZipFile(zip_buffer, "w") as zip_file:
                         for value in df[col_to_split].dropna().unique():
                             sub_df = df[df[col_to_split] == value]
+                            row_count = len(sub_df)
+                            st.write(f"📁 **{value}**: {row_count} rows")
 
                             file_buffer = BytesIO()
                             with pd.ExcelWriter(file_buffer, engine="openpyxl") as writer:
@@ -218,17 +220,21 @@ if uploaded_file:
                                         if original_width:
                                             worksheet.column_dimensions[col_letter].width = original_width
                                 except Exception as e:
-                                    # إذا ما نجح، يستخدم العرض الافتراضي
                                     pass
 
                             file_buffer.seek(0)
-                            safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value))
-                            zip_file.writestr(f"{safe_name}.xlsx", file_buffer.read())
+
+                            # ✅ إنشاء اسم الملف: "اسم الشيت + قيمة العمود"
+                            clean_sheet = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', selected_sheet.strip())
+                            clean_value = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value).strip())
+                            file_name = f"{clean_sheet} {clean_value}.xlsx"
+
+                            zip_file.writestr(file_name, file_buffer.read())
 
                     zip_buffer.seek(0)
 
                     if zip_buffer.getvalue():
-                        st.success("✅ Files split successfully! (Original column width preserved)")
+                        st.success("✅ Files split successfully!")
                         st.download_button(
                             label="📥 Download Split Files (ZIP)",
                             data=zip_buffer.getvalue(),
@@ -264,7 +270,7 @@ if uploaded_file:
                     st.download_button(
                         label="📥 Download Merged File",
                         data=combined_buffer.getvalue(),
-                        file_name="Merged_Excel_Files.xlsx",
+                        file_name=f"Merged_{selected_sheet}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
@@ -280,7 +286,7 @@ if uploaded_file:
                 df_sheet = df_sheet.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
                 df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
 
-                # حفظ عرض الأعمدة في كل شيت
+                # حفظ عرض الأعمدة
                 worksheet = writer.sheets[sheet_name]
                 try:
                     original_ws = excel_file.book[sheet_name]
@@ -297,7 +303,7 @@ if uploaded_file:
         st.download_button(
             label="⬇️ Download All Sheets (Cleaned)",
             data=all_sheets_output.getvalue(),
-            file_name="All_Sheets_Cleaned.xlsx",
+            file_name=f"Cleaned_{selected_sheet}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
