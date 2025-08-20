@@ -15,7 +15,7 @@ st.markdown(
 st.set_page_config(
     page_title="Averroes Pharma Splitter",
     page_icon="💊",
-    layout="centered",  # ← هذه هي التعديلة الأساسية
+    layout="Wide",  # ← هذه هي التعديلة الأساسية
     initial_sidebar_state="expanded"
 )
 
@@ -311,3 +311,4 @@ if uploaded_file:
         st.error(f"❌ Error while processing the file: {e}")
 else:
     st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet.</p>", unsafe_allow_html=True)
+
