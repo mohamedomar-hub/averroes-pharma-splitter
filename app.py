@@ -5,6 +5,12 @@ from zipfile import ZipFile
 import re
 import os
 
+# ------------------ ربط بخط عربي جميل (Cairo) ------------------
+st.markdown(
+    '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
+    unsafe_allow_html=True
+)
+
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(
     page_title="Averroes Pharma Splitter",
@@ -23,35 +29,60 @@ hide_default = """
 """
 st.markdown(hide_default, unsafe_allow_html=True)
 
-# ------------------ ستايل مخصص ------------------
+# ------------------ ستايل مخصص (محسّن بالكامل) ------------------
 custom_css = """
     <style>
+    /* تطبيق الخط والخلفية */
     .stApp {
         background-color: #001f3f;
         color: white;
-        font-family: 'Cairo', sans-serif;
+        font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
+
+    /* تأثير دخول تدريجي */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+        animation: fadeIn 1.5s ease-in;
+    }
+
+    /* تحسين المحتوى العام */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+        padding-left: 4rem;
+        padding-right: 4rem;
+    }
+
+    /* عناوين التحديد والرفع */
     label, .stSelectbox label, .stFileUploader label {
         color: #FFD700 !important;
         font-size: 18px !important;
         font-weight: bold !important;
     }
+
+    /* أزرار احترافية */
     .stButton>button, .stDownloadButton>button {
         background-color: #FFD700 !important;
         color: black !important;
         font-weight: bold !important;
         font-size: 18px !important;
-        border-radius: 8px !important;
-        padding: 10px 20px !important;
+        border-radius: 12px !important;
+        padding: 12px 24px !important;
         border: none !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
         transition: all 0.3s ease !important;
         margin-top: 10px !important;
     }
     .stButton>button:hover, .stDownloadButton>button:hover {
         background-color: #FFC107 !important;
-        transform: scale(1.05);
+        transform: scale(1.08) !important;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
     }
+
+    /* مربع المعلومات (الاسم ورقم الواتساب) */
     .info-box {
         text-align: center;
         font-size: 18px;
@@ -63,30 +94,62 @@ custom_css = """
         color: #FFD700;
         text-decoration: none;
     }
+
+    /* حاوية اللوجو في المنتصف */
     .logo-container {
         text-align: center;
-        margin: 20px 0;
+        margin: 25px 0;
     }
     .logo-container img {
-        max-width: 200px;
-        max-height: 150px;
-        border-radius: 12px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        max-width: 220px;
+        max-height: 160px;
+        border-radius: 14px;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.3);
         object-fit: contain;
+    }
+
+    /* فواصل أنيقة بين الأقسام */
+    hr.divider {
+        border: 1px solid #FFD700;
+        opacity: 0.6;
+        margin: 30px 0;
+        border-radius: 1px;
+    }
+    hr.divider-dashed {
+        border: 1px dashed #FFD700;
+        opacity: 0.7;
+        margin: 25px 0;
+    }
+
+    /* تحسين مظهر الجداول */
+    .stDataFrame {
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        border-radius: 12px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+
+    /* تحسين زر الرفع */
+    .stFileUploader {
+        border: 2px dashed #FFD700;
+        border-radius: 10px;
+        padding: 15px;
+        background-color: rgba(255, 215, 0, 0.1);
     }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو في المنتصف (باستخدام st.image فقط) ------------------
+# ------------------ بدء التأثير التدريجي ------------------
+st.markdown('<div class="fade-in">', unsafe_allow_html=True)
+
+# ------------------ عرض اللوجو في المنتصف ------------------
 logo_path = "logo.png"
 
-# 👇 نتأكد من وجود الملف
 if os.path.exists(logo_path):
     try:
-        # 👇 نستخدم st.image مع width لضبط الحجم
         st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-        st.image(logo_path, width=200)  # ← هذه الطريقة الأفضل والأبسط
+        st.image(logo_path, width=200)
         st.markdown('</div>', unsafe_allow_html=True)
     except Exception as e:
         st.warning("⚠️ تعذر تحميل اللوجو.")
@@ -109,7 +172,7 @@ st.markdown(
 )
 
 # ------------------ العنوان ------------------
-st.markdown("<h1 style='text-align:center; color:#FFD700;'>Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel Files Fast & Easily</h3>", unsafe_allow_html=True)
 
 # ------------------ رفع الملفات ------------------
@@ -166,6 +229,11 @@ if uploaded_file:
                         st.error("❌ Failed to generate zip file.")
 
         # -----------------------------------------------
+        # ✅ فاصل أنيق قبل قسم الدمج
+        # -----------------------------------------------
+        st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+
+        # -----------------------------------------------
         # ✅ دمج ملفات Excel متعددة (ليس صفحات)
         # -----------------------------------------------
         st.markdown("### 🔄 Merge Multiple Excel Files into One")
@@ -194,6 +262,11 @@ if uploaded_file:
                     )
 
         # -----------------------------------------------
+        # ✅ فاصل قبل التحميل
+        # -----------------------------------------------
+        st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+
+        # -----------------------------------------------
         # ✅ تحميل كل الشيتات كما هي (مصفاة فقط)
         # -----------------------------------------------
         st.markdown("### 📥 Download Full Cleaned File (All Sheets)")
@@ -214,5 +287,9 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ Error while processing the file: {e}")
+
+# ------------------ إنهاء التأثير التدريجي ------------------
+st.markdown('</div>', unsafe_allow_html=True)
+
 else:
-    st.warning("⚠️ No file uploaded yet.")
+    st.markdown('<div class="fade-in"><p style="text-align:center; color:#FFD700;">⚠️ No file uploaded yet.</p></div>', unsafe_allow_html=True)
