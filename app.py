@@ -3,6 +3,7 @@ import pandas as pd
 from io import BytesIO
 import base64
 from zipfile import ZipFile
+import re
 
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(
@@ -51,11 +52,22 @@ custom_css = """
         background-color: #FFC107 !important;
         transform: scale(1.05);
     }
+    .info-box {
+        text-align: center;
+        font-size: 18px;
+        color: #FFD700;
+        margin-top: 10px;
+        line-height: 1.8;
+    }
+    .info-box a {
+        color: #FFD700;
+        text-decoration: none;
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو والمعلومات ------------------
+# ------------------ عرض اللوجو في المنتصف ------------------
 def get_base64_of_bin_file(bin_file):
     with open(bin_file, 'rb') as f:
         data = f.read()
@@ -64,37 +76,31 @@ def get_base64_of_bin_file(bin_file):
 logo_path = "logo.png"
 try:
     logo_base64 = get_base64_of_bin_file(logo_path)
-except FileNotFoundError:
-    st.error("❌ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
-    logo_base64 = ""
-
-if logo_base64:
     st.markdown(
         f"""
-        <div style='display:flex; justify-content:space-between; align-items:center; padding:10px 20px;'>
-            <img src="data:image/png;base64,{logo_base64}" style='max-height:120px;'>
-            <div style='font-size:22px; font-weight:bold; color:#FFD700;'>
-                By Admin Mohamed Abd ELGhany – 📱 
-                <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
-                    01554694554 (WhatsApp)
-                </a>
-            </div>
+        <div style="text-align:center; margin:20px 0;">
+            <img src="data:image/png;base64,{logo_base64}" style="max-height:150px; border-radius:12px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
         </div>
         """,
         unsafe_allow_html=True
     )
-else:
-    st.markdown(
-        """
-        <div style='text-align:center; margin-bottom:20px; font-size:22px; font-weight:bold; color:#FFD700;'>
-            By Admin Mohamed Abd ELGhany – 📱 
-            <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
-                01554694554 (WhatsApp)
-            </a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+except FileNotFoundError:
+    st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
+
+# ------------------ معلومات المطور (تحت اللوجو) ------------------
+st.markdown(
+    """
+    <div class="info-box">
+        <strong>Mohamed Abd ELGhany</strong><br>
+        📱 
+        <a href="https://wa.me/201554694554" target="_blank">
+            01554694554 (WhatsApp)
+        </a><br>
+        📍 Head Office - 5 Settelment
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
@@ -118,21 +124,30 @@ if uploaded_file:
             st.dataframe(df, use_container_width=True)
 
             st.markdown("### ✂ Select the column to split by")
-            col_to_split = st.selectbox("Split by Column", df.columns)
+            col_to_split = st.selectbox(
+                "Split by Column",
+                df.columns,
+                help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المنطقة'"
+            )
 
             if st.button("🚀 Start Split"):
                 with st.spinner("Splitting files..."):
                     zip_buffer = BytesIO()
-                    with ZipFile(zip_buffer, "w") as zip_file:  # تم التصحيح: استخدام "w"
+                    with ZipFile(zip_buffer, "w") as zip_file:
                         for value in df[col_to_split].dropna().unique():
                             sub_df = df[df[col_to_split] == value]
+                            row_count = len(sub_df)
+                            st.write(f"📁 **{value}**: {row_count} rows")
+
                             file_buffer = BytesIO()
                             with pd.ExcelWriter(file_buffer, engine="openpyxl") as writer:
                                 sub_df.to_excel(writer, index=False, sheet_name=str(value)[:30])
                             file_buffer.seek(0)
-                            zip_file.writestr(f"{str(value)}.xlsx", file_buffer.read())
+                            # تنظيف اسم الملف من رموز غير مسموحة
+                            safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value))
+                            zip_file.writestr(f"{safe_name}.xlsx", file_buffer.read())
 
-                    zip_buffer.seek(0)  # إعادة المؤشر للبداية بعد الإغلاق
+                    zip_buffer.seek(0)
 
                     if zip_buffer.getvalue():
                         st.success("✅ Files split successfully!")
@@ -146,9 +161,34 @@ if uploaded_file:
                         st.error("❌ Failed to generate zip file.")
 
         # -----------------------------------------------
-        # ✅ تحميل كل الشيتات (يظهر دايمًا بعد اختيار الملف)
+        # ✅ دمج كل الشيتات في شيت واحد
         # -----------------------------------------------
-        st.markdown("### 📥 Download Full Cleaned File")
+        st.markdown("### 🔄 Merge All Sheets into One")
+        if st.button("✨ Merge All Sheets into One File"):
+            with st.spinner("Merging all sheets..."):
+                combined_df = pd.DataFrame()
+                for sheet in excel_file.sheet_names:
+                    df_temp = pd.read_excel(uploaded_file, sheet_name=sheet)
+                    df_temp["Source Sheet"] = sheet
+                    combined_df = pd.concat([combined_df, df_temp], ignore_index=True)
+
+                combined_buffer = BytesIO()
+                with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
+                    combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
+                combined_buffer.seek(0)
+
+                st.success("✅ All sheets merged into one!")
+                st.download_button(
+                    label="📥 Download Merged File (Single Sheet)",
+                    data=combined_buffer.getvalue(),
+                    file_name="Merged_All_Sheets.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+        # -----------------------------------------------
+        # ✅ تحميل كل الشيتات كما هي (مصفاة فقط)
+        # -----------------------------------------------
+        st.markdown("### 📥 Download Full Cleaned File (All Sheets)")
         all_sheets_output = BytesIO()
         with pd.ExcelWriter(all_sheets_output, engine="openpyxl") as writer:
             for sheet_name in excel_file.sheet_names:
