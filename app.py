@@ -3,6 +3,7 @@ import pandas as pd
 from io import BytesIO
 from zipfile import ZipFile
 import re
+import os
 
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(
@@ -75,34 +76,22 @@ custom_css = """
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         object-fit: contain;
     }
-    .warning-box {
-        background-color: #1e3a8a;
-        color: white;
-        padding: 10px;
-        border-radius: 8px;
-        margin: 10px 0;
-        font-size: 14px;
-    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ عرض اللوجو في المنتصف (مع تحكم كامل) ------------------
+# ------------------ عرض اللوجو في المنتصف (باستخدام st.image) ------------------
 logo_path = "logo.png"
-try:
-    with open(logo_path, "rb") as f:
-        logo_data = f.read()
-    logo_base64 = base64.b64encode(logo_data).decode()
 
-    st.markdown(
-        f"""
-        <div class="logo-container">
-            <img src="data:image/png;base64,{logo_base64}" class="logo-img">
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-except Exception as e:
+# التحقق من وجود الملف
+if os.path.exists(logo_path):
+    try:
+        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+        st.image(logo_path, width=200)  # استخدام width بدل use_column_width
+        st.markdown('</div>', unsafe_allow_html=True)
+    except Exception as e:
+        st.warning("⚠️ تعذر تحميل اللوجو.")
+else:
     st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
 
 # ------------------ معلومات المطور (تحت اللوجو) ------------------
@@ -139,7 +128,7 @@ if uploaded_file:
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
             st.markdown(f"### 📊 Data View – {selected_sheet}")
-            st.dataframe(df, use_container_width=True)  # ← استخدم use_container_width
+            st.dataframe(df, use_container_width=True)
 
             st.markdown("### ✂ Select the column to split by")
             col_to_split = st.selectbox(
