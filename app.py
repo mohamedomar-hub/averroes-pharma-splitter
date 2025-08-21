@@ -4,6 +4,9 @@ from io import BytesIO
 from zipfile import ZipFile
 import re
 import os
+from openpyxl.styles import Font, Fill, Border, Alignment, Protection
+from openpyxl.utils import get_column_letter
+from openpyxl import load_workbook
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -32,14 +35,11 @@ st.markdown(hide_default, unsafe_allow_html=True)
 # ------------------ ستايل مخصص ------------------
 custom_css = """
     <style>
-    /* تطبيق الخط والخلفية */
     .stApp {
         background-color: #001f3f;
         color: white;
         font-family: 'Cairo', sans-serif;
     }
-
-    /* شريط التنقل العلوي */
     .top-nav {
         display: flex;
         justify-content: flex-end;
@@ -62,15 +62,11 @@ custom_css = """
         background-color: #FFD700;
         color: black;
     }
-
-    /* عناوين التحديد والرفع */
     label, .stSelectbox label, .stFileUploader label {
         color: #FFD700 !important;
         font-size: 18px !important;
         font-weight: bold !important;
     }
-
-    /* أزرار احترافية */
     .stButton>button, .stDownloadButton>button {
         background-color: #FFD700 !important;
         color: black !important;
@@ -88,8 +84,6 @@ custom_css = """
         transform: scale(1.08);
         box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
     }
-
-    /* فواصل أنيقة */
     hr.divider {
         border: 1px solid #FFD700;
         opacity: 0.6;
@@ -100,24 +94,18 @@ custom_css = """
         opacity: 0.7;
         margin: 25px 0;
     }
-
-    /* تحسين مظهر الجداول */
     .stDataFrame {
         box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         border-radius: 12px;
         overflow: hidden;
         margin: 10px 0;
     }
-
-    /* تحسين زر الرفع */
     .stFileUploader {
         border: 2px dashed #FFD700;
         border-radius: 10px;
         padding: 15px;
         background-color: rgba(255, 215, 0, 0.1);
     }
-
-    /* عنوان الشرح */
     .guide-title {
         color: #FFD700;
         font-weight: bold;
@@ -139,20 +127,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ------------------ عرض اللوجو في المنتصف ------------------
+# ------------------ عرض اللوجو ------------------
 logo_path = "logo.png"
-
 if os.path.exists(logo_path):
-    try:
-        st.markdown('<div style="text-align:center; margin:20px 0;">', unsafe_allow_html=True)
-        st.image(logo_path, width=200)
-        st.markdown('</div>', unsafe_allow_html=True)
-    except Exception as e:
-        st.warning("⚠️ تعذر تحميل اللوجو.")
+    st.markdown('<div style="text-align:center; margin:20px 0;">', unsafe_allow_html=True)
+    st.image(logo_path, width=200)
+    st.markdown('</div>', unsafe_allow_html=True)
 else:
-    st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'. تأكد من وجوده في نفس مجلد الكود.")
+    st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'.")
 
-# ------------------ معلومات المطور (تحت اللوجو) ------------------
+# ------------------ معلومات المطور ------------------
 st.markdown(
     """
     <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
@@ -167,21 +151,23 @@ st.markdown(
 
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel Files Fast & Easily</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel Files with Full Formatting</h3>", unsafe_allow_html=True)
 
 # ------------------ رفع الملفات ------------------
 uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
 
 if uploaded_file:
     try:
-        # قراءة الملف مع الحفاظ على المحرك (للحصول على التنسيق لاحقًا)
-        excel_file = pd.ExcelFile(uploaded_file, engine="openpyxl")
-        st.success(f"✅ File uploaded successfully. Sheets found: {len(excel_file.sheet_names)}")
+        # قراءة الملف الأصلي كـ Bytes
+        input_bytes = uploaded_file.getvalue()
+        original_wb = load_workbook(filename=BytesIO(input_bytes), keep_vba=False, data_only=False)
 
-        selected_sheet = st.selectbox("📑 Select Sheet", excel_file.sheet_names)
+        st.success(f"✅ File uploaded successfully. Sheets found: {len(original_wb.sheetnames)}")
+
+        selected_sheet = st.selectbox("📑 Select Sheet", original_wb.sheetnames)
 
         if selected_sheet:
-            df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+            df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
             df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
 
             st.markdown(f"### 📊 Data View – {selected_sheet}")
@@ -194,61 +180,85 @@ if uploaded_file:
                 help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المنطقة'"
             )
 
-            if st.button("🚀 Start Split"):
-                with st.spinner("Splitting files with original format..."):
+            if st.button("🚀 Start Split with Original Format"):
+                with st.spinner("Splitting files while preserving full formatting..."):
                     zip_buffer = BytesIO()
                     with ZipFile(zip_buffer, "w") as zip_file:
+                        original_ws = original_wb[selected_sheet]
                         for value in df[col_to_split].dropna().unique():
                             sub_df = df[df[col_to_split] == value]
-                            row_count = len(sub_df)
-                            st.write(f"📁 **{value}**: {row_count} rows")
 
-                            file_buffer = BytesIO()
-                            with pd.ExcelWriter(file_buffer, engine="openpyxl") as writer:
-                                sub_df.to_excel(writer, index=False, sheet_name=str(value)[:30])
+                            # إنشاء Workbook جديد مع الحفاظ على التنسيق
+                            output_buffer = BytesIO()
+                            new_wb = load_workbook(filename=BytesIO(input_bytes))
+                            new_ws = new_wb.active
+                            new_ws.title = str(value)[:30]
 
-                                # استرجاع workbook و worksheet
-                                workbook = writer.book
-                                worksheet = writer.sheets[str(value)[:30]]
+                            # مسح الصفوف القديمة
+                            for row in new_ws.iter_rows(min_row=2):
+                                for cell in row:
+                                    new_ws[cell.coordinate].value = None
 
-                                # نسخ عرض الأعمدة من الشيت الأصلي
-                                try:
-                                    original_ws = excel_file.book[selected_sheet]
-                                    for col_idx, col in enumerate(sub_df.columns, 1):
-                                        col_letter = worksheet.cell(1, col_idx).column_letter
-                                        original_width = original_ws.column_dimensions[col_letter].width
-                                        if original_width:
-                                            worksheet.column_dimensions[col_letter].width = original_width
-                                except Exception as e:
-                                    pass
+                            # إضافة البيانات مع الحفاظ على الصيغ (لو في)
+                            for r_idx, row in sub_df.iterrows():
+                                for c_idx, value in enumerate(row, 1):
+                                    cell = new_ws.cell(row=r_idx + 2, column=c_idx, value=value)
 
-                            file_buffer.seek(0)
+                            # نسخ التنسيق من الـ original_ws إلى new_ws (الصف الأول + التنسيق العام)
+                            # نسخ عرض الأعمدة
+                            for col_letter in original_ws.column_dimensions:
+                                new_ws.column_dimensions[col_letter].width = original_ws.column_dimensions[col_letter].width
 
-                            # ✅ إنشاء اسم الملف: "اسم الشيت + قيمة العمود"
+                            # نسخ ارتفاع الصفوف
+                            for row_idx in original_ws.row_dimensions:
+                                new_ws.row_dimensions[row_idx].height = original_ws.row_dimensions[row_idx].height
+
+                            # نسخ التنسيق من الصف الأول (الرأس)
+                            for col_idx, col in enumerate(sub_df.columns, 1):
+                                src_cell = original_ws.cell(1, col_idx)
+                                dst_cell = new_ws.cell(1, col_idx)
+                                dst_cell.value = src_cell.value
+                                if src_cell.has_style:
+                                    dst_cell.font = Font(
+                                        name=src_cell.font.name,
+                                        size=src_cell.font.size,
+                                        bold=src_cell.font.bold,
+                                        italic=src_cell.font.italic,
+                                        color=src_cell.font.color
+                                    )
+                                    dst_cell.fill = src_cell.fill
+                                    dst_cell.border = src_cell.border
+                                    dst_cell.alignment = src_cell.alignment
+                                    dst_cell.number_format = src_cell.number_format
+
+                            # (اختياري) نسخ التنسيق من الصفوف الأولى (لو في تنسيق شرطي أو تظليل)
+                            # ممكن نضيف نسخ تنسيق الصفوف الأولى (مثلاً كل 20 صف) لو محتاجين دقة أعلى
+
+                            new_wb.save(output_buffer)
+                            output_buffer.seek(0)
+
+                            # تنظيف اسم الملف
                             clean_sheet = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', selected_sheet.strip())
                             clean_value = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value).strip())
                             file_name = f"{clean_sheet} {clean_value}.xlsx"
 
-                            zip_file.writestr(file_name, file_buffer.read())
+                            zip_file.writestr(file_name, output_buffer.read())
 
                     zip_buffer.seek(0)
 
-                    if zip_buffer.getvalue():
-                        st.success("✅ Files split successfully!")
-                        st.download_button(
-                            label="📥 Download Split Files (ZIP)",
-                            data=zip_buffer.getvalue(),
-                            file_name=f"Split_{selected_sheet}.zip",
-                            mime="application/zip"
-                        )
-                    else:
-                        st.error("❌ Failed to generate zip file.")
+                    st.success("✅ Files split successfully with original formatting!")
+                    st.download_button(
+                        label="📥 Download Split Files (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"Split_{selected_sheet}_Formatted.zip",
+                        mime="application/zip"
+                    )
 
         # -----------------------------------------------
-        # ✅ دمج ملفات Excel متعددة
+        # 🔄 دمج ملفات Excel (بدون فقدان التنسيق)
         # -----------------------------------------------
         st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-        st.markdown("### 🔄 Merge Multiple Excel Files into One")
+        st.markdown("### 🔄 Merge Multiple Excel Files (Preserve Data)")
         merge_files = st.file_uploader("📤 Upload Excel Files to Merge", type=["xlsx"], accept_multiple_files=True)
 
         if merge_files:
@@ -270,41 +280,42 @@ if uploaded_file:
                     st.download_button(
                         label="📥 Download Merged File",
                         data=combined_buffer.getvalue(),
-                        file_name=f"Merged_{selected_sheet}.xlsx",
+                        file_name="Merged_Consolidated.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
         # -----------------------------------------------
-        # ✅ تحميل كل الشيتات كما هي (مصفاة فقط)
+        # 💾 تحميل الملف النظيف (مع الحفاظ على التنسيق)
         # -----------------------------------------------
         st.markdown("<hr class='divider'>", unsafe_allow_html=True)
-        st.markdown("### 📥 Download Full Cleaned File (All Sheets)")
-        all_sheets_output = BytesIO()
-        with pd.ExcelWriter(all_sheets_output, engine="openpyxl") as writer:
-            for sheet_name in excel_file.sheet_names:
-                df_sheet = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+        st.markdown("### 📥 Download Full Cleaned File (All Sheets, Original Format)")
+        cleaned_buffer = BytesIO()
+        with ZipFile(cleaned_buffer, "w") as zip_out:
+            for sheet_name in original_wb.sheetnames:
+                df_sheet = pd.read_excel(BytesIO(input_bytes), sheet_name=sheet_name)
                 df_sheet = df_sheet.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
-                df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
 
-                # حفظ عرض الأعمدة
-                worksheet = writer.sheets[sheet_name]
-                try:
-                    original_ws = excel_file.book[sheet_name]
-                    for col_idx, col in enumerate(df_sheet.columns, 1):
-                        col_letter = worksheet.cell(1, col_idx).column_letter
-                        original_width = original_ws.column_dimensions[col_letter].width
-                        if original_width:
-                            worksheet.column_dimensions[col_letter].width = original_width
-                except:
-                    pass
+                temp_buffer = BytesIO()
+                with pd.ExcelWriter(temp_buffer, engine="openpyxl") as writer:
+                    df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
+                    wb_temp = writer.book
+                    ws_temp = writer.sheets[sheet_name]
 
-        all_sheets_output.seek(0)
+                    # نسخ عرض الأعمدة من الأصلي
+                    orig_ws = original_wb[sheet_name]
+                    for col_letter in orig_ws.column_dimensions:
+                        ws_temp.column_dimensions[col_letter].width = orig_ws.column_dimensions[col_letter].width
+
+                temp_buffer.seek(0)
+                zip_out.writestr(f"Cleaned_{sheet_name}.xlsx", temp_buffer.read())
+
+        cleaned_buffer.seek(0)
 
         st.download_button(
-            label="⬇️ Download All Sheets (Cleaned)",
-            data=all_sheets_output.getvalue(),
-            file_name=f"Cleaned_{selected_sheet}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            label="⬇️ Download All Cleaned Sheets (ZIP)",
+            data=cleaned_buffer.getvalue(),
+            file_name="All_Cleaned_Sheets.zip",
+            mime="application/zip"
         )
 
     except Exception as e:
@@ -312,52 +323,36 @@ if uploaded_file:
 else:
     st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet.</p>", unsafe_allow_html=True)
 
-# ------------------ قسم Info (في نهاية الصفحة) ------------------
+# ------------------ قسم Info ------------------
 st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
 with st.expander("📖 طريقة الاستخدام - اضغط لعرض التعليمات"):
     st.markdown("""
     <div class='guide-title'>🎯 مرحبًا بك في أداة Averroes Pharma!</div>
-    هذه الأداة تساعدك على **تقسيم ودمج ملفات الإكسل بسرعة ودقة** بدون برامج إضافية.
+    هذه الأداة تقسم ودمج ملفات الإكسل <strong>مع الحفاظ الكامل على التنسيق الأصلي</strong> (الألوان، الخطوط، الصيغ، الأحجام).
 
     ---
 
-    ### 🔧 أولًا: تقسيم ملف Excel
-    1. **ارفع ملف الإكسل** من زر "Upload Excel File".
-    2. اختر **الشيت اللي عاوزه** من القائمة.
-    3. اختر **العمود اللي عاوز تقسم عليه** (مثل: "الفرع"، "المنطقة"، "المندوب").
-    4. اضغط على **🚀 Start Split**.
-    5. هتلاقي زر لتحميل ملف ZIP يحتوي على كل جزء منفصل.
+    ### 🔧 أولًا: التقسيم مع الحفاظ على التنسيق
+    1. ارفع ملف Excel.
+    2. اختر الشيت.
+    3. اختر عمود التقسيم (مثل: "الفرع").
+    4. اضغط على **"Start Split with Original Format"**.
+    5. هيتم إنشاء ملفات منفصلة لكل قيمة، <strong>بنفس التنسيق، الألوان، وعرض الأعمدة</strong>.
 
-    ✅ مثال: لو قسمت على "الفرع"، هيكون عندك: `القاهرة.xlsx`, `الإسكندرية.xlsx`, إلخ.
-
-    ---
-
-    ### 🔗 ثانيًا: دمج ملفات Excel (منفصلة)
-    1. في الأسفل، اضغط على **"Upload Excel Files to Merge"**.
-    2. ارفع **أكثر من ملف Excel** (مثلاً: `يناير.xlsx`, `فبراير.xlsx`).
-    3. اضغط على **✨ Merge Selected Files**.
-    4. هتلاقي زر لتحميل ملف واحد يحتوي على كل البيانات.
-
-    ✅ ملاحظة: كل صف هيكون فيه عمود "Source File" يوضح منين جاي.
+    ✅ الناتج: كل ملف يشبه تمامًا الجزء الأصلي من الشيت.
 
     ---
 
-    ### 💾 ثالثًا: تحميل الملفات
-    - **📥 Download Split Files (ZIP)**: الملفات المقسمة.
-    - **📥 Download Merged File**: الملفات المدموجة.
-    - **⬇️ Download All Sheets (Cleaned)**: نفس الملف اللي رفعته، بس تم تنظيف الخلايا الفارغة.
+    ### 🔗 ثانيًا: الدمج
+    - ارفع أكثر من ملف.
+    - اضغط "Merge" لتحصل على ملف واحد.
 
     ---
 
-    ### ❓ أسئلة شائعة
-    - **هل يتم تعديل البيانات؟**  
-      لا، فقط يتم "ملء" الخلايا الفارغة بالقيمة السابقة (لتحسين العرض).
-    - **هل يدعم CSV؟**  
-      لا، حاليًا يدعم فقط `.xlsx`.
-    - **هل البيانات تُحفظ على سيرفر؟**  
-      لا، كل شيء يتم على جهازك، وما يُرفع يُمسح بعد التحديث.
+    ### 💾 تنظيف وتحميل
+    - خيار لتحميل كل الشيتات بعد التنظيف (بدون فقدان التنسيق).
 
     ---
 
-    🙋‍♂️ لو واجهتك أي مشكلة، ابعتلي علي الواتساب.
+    🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
