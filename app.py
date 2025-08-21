@@ -178,152 +178,114 @@ if uploaded_file:
                 help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المنطقة'"
             )
 
+            # 🔴 هنا التصحيح المهم: نتأكد من أننا نستخدم العمود المختار فقط
             if st.button("🚀 Start Split with Original Format"):
-                with st.spinner("Splitting files while preserving full formatting and blank rows..."):
+                with st.spinner("Splitting files while preserving full formatting..."):
                     zip_buffer = BytesIO()
                     with ZipFile(zip_buffer, "w") as zip_file:
                         original_ws = original_wb[selected_sheet]
-                        col_idx = df.columns.get_loc(col_to_split)
+                        # 🔢 تحديد رقم العمود (1-based)
+                        col_index = df.columns.get_loc(col_to_split) + 1  # لأن get_loc يُرجع 0-based
 
-                        # جمع القيم المختلفة من العمود المختار
-                        values = set()
-                        for row in original_ws.iter_rows(min_row=2, max_row=original_ws.max_row):
-                            cell = row[col_idx - 1]  # -1 لأن الصف الأول هو الرأس
-                            if cell.value is not None:
-                                values.add(cell.value)
+                        # 🧹 جمع القيم الفريدة من العمود المختار فقط
+                        unique_values = df[col_to_split].dropna().unique()
 
-                        # دالة تنظيف اسم الشيت (تجنب الرموز الممنوعة)
-                        def clean_sheet_name(name):
-                            name = str(name).strip()
-                            invalid_chars = r'[\\/*?:\[\]|<>]'
-                            cleaned = re.sub(invalid_chars, '-', name)
-                            if not cleaned or cleaned in ['.', '..']:
-                                cleaned = "Sheet"
-                            return cleaned[:30]
-
-                        # دالة تنظيف اسم الملف
-                        def clean_filename(name):
+                        # دالة تنظيف الأسماء
+                        def clean_name(name):
                             name = str(name).strip()
                             invalid_chars = r'[\\/*?:\[\]|<>]'
                             cleaned = re.sub(invalid_chars, '_', name)
-                            return cleaned[:250]
+                            return cleaned[:30] if cleaned else "Sheet"
 
-                        # اسم الملف الأصلي (بدون расширение)
-                        base_filename = clean_filename(uploaded_file.name.split('.')[0])
+                        # 📁 اسم الملف الأصلي بدون امتداد
+                        base_filename = clean_name(uploaded_file.name.rsplit('.', 1)[0])
 
-                        # إنشاء ملف لكل قيمة
-                        for value in values:
+                        # لكل قيمة في العمود المختار
+                        for value in unique_values:
                             output_buffer = BytesIO()
                             new_wb = load_workbook(filename=BytesIO(input_bytes))
                             new_ws = new_wb.active
-                            new_ws.title = clean_sheet_name(value)
+                            new_ws.title = clean_name(value)
 
-                            # نسخ الصف الأول (الرأس)
-                            for col_letter in original_ws[1]:
-                                src_cell = col_letter
-                                dst_cell = new_ws.cell(1, col_letter.column)
-                                dst_cell.value = src_cell.value
-                                if src_cell.has_style:
-                                    if src_cell.font:
+                            # 🧹 نسخ الصف الأول (الرأس)
+                            for cell in original_ws[1]:
+                                dst_cell = new_ws.cell(1, cell.column, cell.value)
+                                if cell.has_style:
+                                    if cell.font:
                                         dst_cell.font = Font(
-                                            name=src_cell.font.name,
-                                            size=src_cell.font.size,
-                                            bold=src_cell.font.bold,
-                                            italic=src_cell.font.italic,
-                                            color=src_cell.font.color
+                                            name=cell.font.name, size=cell.font.size,
+                                            bold=cell.font.bold, italic=cell.font.italic,
+                                            color=cell.font.color
                                         )
-                                    if src_cell.fill and src_cell.fill.fill_type:
+                                    if cell.fill and cell.fill.fill_type:
                                         dst_cell.fill = PatternFill(
-                                            fill_type=src_cell.fill.fill_type,
-                                            start_color=src_cell.fill.start_color,
-                                            end_color=src_cell.fill.end_color
+                                            fill_type=cell.fill.fill_type,
+                                            start_color=cell.fill.start_color,
+                                            end_color=cell.fill.end_color
                                         )
-                                    if src_cell.border:
-                                        border = src_cell.border
+                                    if cell.border:
                                         dst_cell.border = Border(
-                                            left=border.left,
-                                            right=border.right,
-                                            top=border.top,
-                                            bottom=border.bottom,
-                                            diagonal=border.diagonal,
-                                            diagonal_direction=border.diagonal_direction,
-                                            outline=border.outline,
-                                            vertical=border.vertical,
-                                            horizontal=border.horizontal
+                                            left=cell.border.left, right=cell.border.right,
+                                            top=cell.border.top, bottom=cell.border.bottom
                                         )
-                                    if src_cell.alignment:
+                                    if cell.alignment:
                                         dst_cell.alignment = Alignment(
-                                            horizontal=src_cell.alignment.horizontal,
-                                            vertical=src_cell.alignment.vertical,
-                                            text_rotation=src_cell.alignment.text_rotation,
-                                            wrap_text=src_cell.alignment.wrap_text,
-                                            shrink_to_fit=src_cell.alignment.shrink_to_fit,
-                                            indent=src_cell.alignment.indent
+                                            horizontal=cell.alignment.horizontal,
+                                            vertical=cell.alignment.vertical,
+                                            wrap_text=cell.alignment.wrap_text
                                         )
-                                    dst_cell.number_format = src_cell.number_format
+                                    dst_cell.number_format = cell.number_format
 
-                            # نسخ الصفوف (بما في ذلك الفراغات)
-                            for row_idx, row in enumerate(original_ws.iter_rows(min_row=2), 2):
-                                src_cell = row[col_idx - 1]
-                                if src_cell.value == value:
-                                    for col_idx, cell in enumerate(row, 1):
-                                        dst_cell = new_ws.cell(row=row_idx, column=col_idx)
-                                        dst_cell.value = cell.value
-                                        if cell.has_style:
-                                            if cell.font:
+                            # 📥 نسخ الصفوف اللي فيها القيمة المطلوبة في العمود المختار
+                            row_idx_new = 2
+                            for row in original_ws.iter_rows(min_row=2, max_row=original_ws.max_row):
+                                cell_in_col = row[col_index - 1]  # العمود المختار
+                                if cell_in_col.value == value:
+                                    for src_cell in row:
+                                        dst_cell = new_ws.cell(row_idx_new, src_cell.column, src_cell.value)
+                                        if src_cell.has_style:
+                                            if src_cell.font:
                                                 dst_cell.font = Font(
-                                                    name=cell.font.name,
-                                                    size=cell.font.size,
-                                                    bold=cell.font.bold,
-                                                    italic=cell.font.italic,
-                                                    color=cell.font.color
+                                                    name=src_cell.font.name, size=src_cell.font.size,
+                                                    bold=src_cell.font.bold, italic=src_cell.font.italic,
+                                                    color=src_cell.font.color
                                                 )
-                                            if cell.fill and cell.fill.fill_type:
+                                            if src_cell.fill and src_cell.fill.fill_type:
                                                 dst_cell.fill = PatternFill(
-                                                    fill_type=cell.fill.fill_type,
-                                                    start_color=cell.fill.start_color,
-                                                    end_color=cell.fill.end_color
+                                                    fill_type=src_cell.fill.fill_type,
+                                                    start_color=src_cell.fill.start_color,
+                                                    end_color=src_cell.fill.end_color
                                                 )
-                                            if cell.border:
-                                                border = cell.border
+                                            if src_cell.border:
                                                 dst_cell.border = Border(
-                                                    left=border.left,
-                                                    right=border.right,
-                                                    top=border.top,
-                                                    bottom=border.bottom,
-                                                    diagonal=border.diagonal,
-                                                    diagonal_direction=border.diagonal_direction,
-                                                    outline=border.outline,
-                                                    vertical=border.vertical,
-                                                    horizontal=border.horizontal
+                                                    left=src_cell.border.left, right=src_cell.border.right,
+                                                    top=src_cell.border.top, bottom=src_cell.border.bottom
                                                 )
-                                            if cell.alignment:
+                                            if src_cell.alignment:
                                                 dst_cell.alignment = Alignment(
-                                                    horizontal=cell.alignment.horizontal,
-                                                    vertical=cell.alignment.vertical,
-                                                    text_rotation=cell.alignment.text_rotation,
-                                                    wrap_text=cell.alignment.wrap_text,
-                                                    shrink_to_fit=cell.alignment.shrink_to_fit,
-                                                    indent=cell.alignment.indent
+                                                    horizontal=src_cell.alignment.horizontal,
+                                                    vertical=src_cell.alignment.vertical,
+                                                    wrap_text=src_cell.alignment.wrap_text
                                                 )
-                                            dst_cell.number_format = cell.number_format
+                                            dst_cell.number_format = src_cell.number_format
+                                    row_idx_new += 1
 
-                            # نسخ عرض الأعمدة
+                            # 📏 نسخ عرض الأعمدة
                             for col_letter in original_ws.column_dimensions:
                                 new_ws.column_dimensions[col_letter].width = original_ws.column_dimensions[col_letter].width
 
-                            # حفظ الملف
+                            # 💾 حفظ الملف الجديد
                             new_wb.save(output_buffer)
                             output_buffer.seek(0)
 
-                            # اسم الملف الناتج: اسم الملف الأصلي + القيمة
-                            clean_value = clean_filename(str(value))
-                            file_name = f"{base_filename}_{clean_value}.xlsx"
-
+                            # 📝 اسم الملف: اسم_الملف_الأصلي_+_قيمة_العمود
+                            file_name = f"{base_filename}_{clean_name(value)}.xlsx"
                             zip_file.writestr(file_name, output_buffer.read())
 
+                            st.write(f"📁 تم إنشاء ملف لـ: **{value}**")
+
                     zip_buffer.seek(0)
-                    st.success("✅ Files split successfully with original formatting!")
+                    st.success("✅ تم التقسيم بنجاح مع الحفاظ على التنسيق!")
                     st.download_button(
                         label="📥 Download Split Files (ZIP)",
                         data=zip_buffer.getvalue(),
