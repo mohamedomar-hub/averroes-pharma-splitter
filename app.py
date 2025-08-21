@@ -172,7 +172,7 @@ if uploaded_file:
             col_to_split = st.selectbox(
                 "Split by Column",
                 df.columns,
-                help=Select Coulmn to spilit it، Like 'Brick' Or 'Area Manager'
+                help=Select Coulmn to spilit it, Like 'Brick' Or 'Area Manager'
             )
 
             # --- زر التقسيم ---
@@ -353,6 +353,7 @@ with st.expander("📖 How to use - Click to view instructions "):
 
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
+
 
 
 
