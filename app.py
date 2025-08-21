@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-from zipfile import ZipFile
 import re
 import os
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-from openpyxl import load_workbook
+from openpyxl.styles import Font
+from openpyxl import load_workbook, Workbook
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -172,93 +171,68 @@ if uploaded_file:
             col_to_split = st.selectbox(
                 "Split by Column",
                 df.columns,
-                help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المنطقة'"
+                help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المدير'"
             )
 
             # --- زر التقسيم ---
             if st.button("🚀 ابدأ التقسيم بدقة"):
                 with st.spinner("جاري التقسيم مع الحفاظ على التنسيق الأصلي..."):
 
-                    # --- تنظيف الأسماء ---
                     def clean_name(name):
                         name = str(name).strip()
                         return re.sub(r'[\\/*?:\[\]|<>"]', '_', name)[:30] or "Sheet"
 
-                    base_filename = clean_name(uploaded_file.name.rsplit('.', 1)[0])
-                    zip_buffer = BytesIO()
-                    with ZipFile(zip_buffer, "w") as zip_file:
-                        ws = original_wb[selected_sheet]
-                        col_idx = df.columns.get_loc(col_to_split) + 1  # 1-based
+                    ws = original_wb[selected_sheet]
+                    col_idx = df.columns.get_loc(col_to_split) + 1  # 1-based
+                    unique_values = df[col_to_split].dropna().unique()
 
-                        # --- جمع القيم الفريدة من العمود المختار ---
-                        unique_values = df[col_to_split].dropna().unique()
+                    # ملف جديد لتجميع الشيتات
+                    new_wb = Workbook()
+                    default_ws = new_wb.active
+                    new_wb.remove(default_ws)
 
-                        for value in unique_values:
-                            # --- إنشاء ملف جديد ---
-                            new_wb = load_workbook(filename=BytesIO(input_bytes))
-                            new_ws = new_wb.active
-                            new_ws.title = clean_name(value)
+                    for value in unique_values:
+                        new_ws = new_wb.create_sheet(title=clean_name(value))
 
-                            # --- نسخ الرأس (الصف الأول) ---
-                            for cell in ws[1]:
-                                dst_cell = new_ws.cell(1, cell.column, cell.value)
-                                if cell.has_style:
-                                    if cell.font:
-                                        dst_cell.font = Font(
-                                            name=cell.font.name, size=cell.font.size,
-                                            bold=cell.font.bold, italic=cell.font.italic,
-                                            color=cell.font.color
-                                        )
-                                    if cell.fill and cell.fill.fill_type:
-                                        dst_cell.fill = cell.fill
-                                    if cell.border:
-                                        dst_cell.border = cell.border
-                                    if cell.alignment:
-                                        dst_cell.alignment = cell.alignment
-                                    dst_cell.number_format = cell.number_format
+                        # --- نسخ الرأس ---
+                        for cell in ws[1]:
+                            dst_cell = new_ws.cell(1, cell.column, cell.value)
+                            if cell.has_style:
+                                dst_cell.font = cell.font
+                                dst_cell.fill = cell.fill
+                                dst_cell.border = cell.border
+                                dst_cell.alignment = cell.alignment
+                                dst_cell.number_format = cell.number_format
 
-                            # --- نسخ الصفوف اللي فيها القيمة ---
-                            row_idx = 2
-                            for row in ws.iter_rows(min_row=2):
-                                cell_in_col = row[col_idx - 1]
-                                if cell_in_col.value == value:
-                                    for src_cell in row:
-                                        dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
-                                        if src_cell.has_style:
-                                            if src_cell.font:
-                                                dst_cell.font = Font(
-                                                    name=src_cell.font.name, size=src_cell.font.size,
-                                                    bold=src_cell.font.bold, italic=src_cell.font.italic,
-                                                    color=src_cell.font.color
-                                                )
-                                            if src_cell.fill and src_cell.fill.fill_type:
-                                                dst_cell.fill = src_cell.fill
-                                            if src_cell.border:
-                                                dst_cell.border = src_cell.border
-                                            if src_cell.alignment:
-                                                dst_cell.alignment = src_cell.alignment
-                                            dst_cell.number_format = src_cell.number_format
-                                    row_idx += 1
+                        # --- نسخ الصفوف اللي فيها القيمة ---
+                        row_idx = 2
+                        for row in ws.iter_rows(min_row=2):
+                            if row[col_idx - 1].value == value:
+                                for src_cell in row:
+                                    dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
+                                    if src_cell.has_style:
+                                        dst_cell.font = src_cell.font
+                                        dst_cell.fill = src_cell.fill
+                                        dst_cell.border = src_cell.border
+                                        dst_cell.alignment = src_cell.alignment
+                                        dst_cell.number_format = src_cell.number_format
+                                row_idx += 1
 
-                            # --- نسخ عرض الأعمدة ---
-                            for col_letter in ws.column_dimensions:
-                                new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
+                        # --- نسخ عرض الأعمدة ---
+                        for col_letter in ws.column_dimensions:
+                            new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
 
-                            # --- حفظ الملف وإضافته للـ ZIP ---
-                            file_buffer = BytesIO()
-                            new_wb.save(file_buffer)
-                            file_buffer.seek(0)
-                            file_name = f"{base_filename}_{clean_name(value)}.xlsx"
-                            zip_file.writestr(file_name, file_buffer.read())
-                            st.write(f"📁 تم إنشاء ملف: **{value}**")
+                    # --- حفظ الملف الناتج ---
+                    file_buffer = BytesIO()
+                    new_wb.save(file_buffer)
+                    file_buffer.seek(0)
 
-                    zip_buffer.seek(0)
-                    st.success("🎉 تم التقسيم بنجاح مع الحفاظ على الشكل الأصلي!")
+                    st.success("🎉 تم إنشاء ملف واحد فيه كل الشيتات!")
                     st.download_button(
-                        label="📥 حمل جميع الملفات (ZIP)",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"{base_filename}_Split.zip",
-                        mime="application/zip"
+                        label="📥 حمل الملف النهائي",
+                        data=file_buffer.getvalue(),
+                        file_name=f"{clean_name(uploaded_file.name.rsplit('.',1)[0])}_Split.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
         # -----------------------------------------------
@@ -309,9 +283,9 @@ with st.expander("📖 طريقة الاستخدام - اضغط لعرض الت�
     2. اختر الشيت.
     3. اختر العمود اللي عاوز تقسّم عليه (مثل: "Area Manager").
     4. اضغط على **"ابدأ التقسيم"**.
-    5. هتنزل ملفات منفصلة لكل قيمة، باسم: <code>اسم_الملف_+_القيمة.xlsx</code>
+    5. هيطلعلك **ملف واحد فيه شيت لكل قيمة**.
 
-    ✅ كل ملف بيكون شكله زي الشيت الأصلي تمامًا.
+    ✅ كل شيت بيكون بنفس شكل وتنسيق الشيت الأصلي.
 
     ---
 
