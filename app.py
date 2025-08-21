@@ -150,7 +150,7 @@ st.markdown(
 
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ Division your files with ease and accuracy.</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ Division your files with easily and accuracy.</h3>", unsafe_allow_html=True)
 
 # ------------------ رفع الملف ------------------
 uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
@@ -353,6 +353,7 @@ with st.expander("📖 How to use - Click to view instructions "):
 
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
+
 
 
 
