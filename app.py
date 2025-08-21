@@ -284,7 +284,7 @@ if uploaded_file:
                     zip_buffer.seek(0)
                     st.success("🎉 The division was successful.!")
                     st.download_button(
-                        label="📥 Upload Division files (ZIP)",
+                        label="📥 Download Division files (ZIP)",
                         data=zip_buffer.getvalue(),
                         file_name=f"Split_{clean_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
                         mime="application/zip"
@@ -353,6 +353,7 @@ with st.expander("📖 How to use - Click to view instructions "):
 
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
+
 
 
 
