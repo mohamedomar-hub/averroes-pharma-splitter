@@ -150,65 +150,57 @@ st.markdown(
 
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ Split & Merge Excel Files with Full Formatting</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ قسم ملفاتك بدقة وبدون فقدان التنسيق</h3>", unsafe_allow_html=True)
 
-# ------------------ رفع الملفات ------------------
-uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
+# ------------------ رفع الملف ------------------
+uploaded_file = st.file_uploader("📂 ارفع ملف الإكسل", type=["xlsx"], accept_multiple_files=False)
 
 if uploaded_file:
     try:
         input_bytes = uploaded_file.getvalue()
         original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
+        st.success(f"✅ تم رفع الملف بنجاح. عدد الشيتات: {len(original_wb.sheetnames)}")
 
-        st.success(f"✅ File uploaded successfully. Sheets found: {len(original_wb.sheetnames)}")
-
-        selected_sheet = st.selectbox("📑 Select Sheet", original_wb.sheetnames)
+        selected_sheet = st.selectbox("اختر الشيت", original_wb.sheetnames)
 
         if selected_sheet:
             df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
-            df = df.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
-
-            st.markdown(f"### 📊 Data View – {selected_sheet}")
+            st.markdown(f"### 📊 عرض البيانات – {selected_sheet}")
             st.dataframe(df, use_container_width=True)
 
-            st.markdown("### ✂ Select the column to split by")
+            st.markdown("### ✂ اختر العمود اللي هتقسّم عليه")
             col_to_split = st.selectbox(
                 "Split by Column",
                 df.columns,
                 help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المنطقة'"
             )
 
-            # 🔴 هنا التصحيح المهم: نتأكد من أننا نستخدم العمود المختار فقط
-            if st.button("🚀 Start Split with Original Format"):
-                with st.spinner("Splitting files while preserving full formatting..."):
+            # --- زر التقسيم ---
+            if st.button("🚀 ابدأ التقسيم بدقة"):
+                with st.spinner("جاري التقسيم مع الحفاظ على التنسيق الأصلي..."):
+
+                    # --- تنظيف الأسماء ---
+                    def clean_name(name):
+                        name = str(name).strip()
+                        return re.sub(r'[\\/*?:\[\]|<>"]', '_', name)[:30] or "Sheet"
+
+                    base_filename = clean_name(uploaded_file.name.rsplit('.', 1)[0])
                     zip_buffer = BytesIO()
                     with ZipFile(zip_buffer, "w") as zip_file:
-                        original_ws = original_wb[selected_sheet]
-                        # 🔢 تحديد رقم العمود (1-based)
-                        col_index = df.columns.get_loc(col_to_split) + 1  # لأن get_loc يُرجع 0-based
+                        ws = original_wb[selected_sheet]
+                        col_idx = df.columns.get_loc(col_to_split) + 1  # 1-based
 
-                        # 🧹 جمع القيم الفريدة من العمود المختار فقط
+                        # --- جمع القيم الفريدة من العمود المختار ---
                         unique_values = df[col_to_split].dropna().unique()
 
-                        # دالة تنظيف الأسماء
-                        def clean_name(name):
-                            name = str(name).strip()
-                            invalid_chars = r'[\\/*?:\[\]|<>]'
-                            cleaned = re.sub(invalid_chars, '_', name)
-                            return cleaned[:30] if cleaned else "Sheet"
-
-                        # 📁 اسم الملف الأصلي بدون امتداد
-                        base_filename = clean_name(uploaded_file.name.rsplit('.', 1)[0])
-
-                        # لكل قيمة في العمود المختار
                         for value in unique_values:
-                            output_buffer = BytesIO()
+                            # --- إنشاء ملف جديد ---
                             new_wb = load_workbook(filename=BytesIO(input_bytes))
                             new_ws = new_wb.active
                             new_ws.title = clean_name(value)
 
-                            # 🧹 نسخ الصف الأول (الرأس)
-                            for cell in original_ws[1]:
+                            # --- نسخ الرأس (الصف الأول) ---
+                            for cell in ws[1]:
                                 dst_cell = new_ws.cell(1, cell.column, cell.value)
                                 if cell.has_style:
                                     if cell.font:
@@ -218,31 +210,20 @@ if uploaded_file:
                                             color=cell.font.color
                                         )
                                     if cell.fill and cell.fill.fill_type:
-                                        dst_cell.fill = PatternFill(
-                                            fill_type=cell.fill.fill_type,
-                                            start_color=cell.fill.start_color,
-                                            end_color=cell.fill.end_color
-                                        )
+                                        dst_cell.fill = cell.fill
                                     if cell.border:
-                                        dst_cell.border = Border(
-                                            left=cell.border.left, right=cell.border.right,
-                                            top=cell.border.top, bottom=cell.border.bottom
-                                        )
+                                        dst_cell.border = cell.border
                                     if cell.alignment:
-                                        dst_cell.alignment = Alignment(
-                                            horizontal=cell.alignment.horizontal,
-                                            vertical=cell.alignment.vertical,
-                                            wrap_text=cell.alignment.wrap_text
-                                        )
+                                        dst_cell.alignment = cell.alignment
                                     dst_cell.number_format = cell.number_format
 
-                            # 📥 نسخ الصفوف اللي فيها القيمة المطلوبة في العمود المختار
-                            row_idx_new = 2
-                            for row in original_ws.iter_rows(min_row=2, max_row=original_ws.max_row):
-                                cell_in_col = row[col_index - 1]  # العمود المختار
+                            # --- نسخ الصفوف اللي فيها القيمة ---
+                            row_idx = 2
+                            for row in ws.iter_rows(min_row=2):
+                                cell_in_col = row[col_idx - 1]
                                 if cell_in_col.value == value:
                                     for src_cell in row:
-                                        dst_cell = new_ws.cell(row_idx_new, src_cell.column, src_cell.value)
+                                        dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
                                         if src_cell.has_style:
                                             if src_cell.font:
                                                 dst_cell.font = Font(
@@ -251,45 +232,32 @@ if uploaded_file:
                                                     color=src_cell.font.color
                                                 )
                                             if src_cell.fill and src_cell.fill.fill_type:
-                                                dst_cell.fill = PatternFill(
-                                                    fill_type=src_cell.fill.fill_type,
-                                                    start_color=src_cell.fill.start_color,
-                                                    end_color=src_cell.fill.end_color
-                                                )
+                                                dst_cell.fill = src_cell.fill
                                             if src_cell.border:
-                                                dst_cell.border = Border(
-                                                    left=src_cell.border.left, right=src_cell.border.right,
-                                                    top=src_cell.border.top, bottom=src_cell.border.bottom
-                                                )
+                                                dst_cell.border = src_cell.border
                                             if src_cell.alignment:
-                                                dst_cell.alignment = Alignment(
-                                                    horizontal=src_cell.alignment.horizontal,
-                                                    vertical=src_cell.alignment.vertical,
-                                                    wrap_text=src_cell.alignment.wrap_text
-                                                )
+                                                dst_cell.alignment = src_cell.alignment
                                             dst_cell.number_format = src_cell.number_format
-                                    row_idx_new += 1
+                                    row_idx += 1
 
-                            # 📏 نسخ عرض الأعمدة
-                            for col_letter in original_ws.column_dimensions:
-                                new_ws.column_dimensions[col_letter].width = original_ws.column_dimensions[col_letter].width
+                            # --- نسخ عرض الأعمدة ---
+                            for col_letter in ws.column_dimensions:
+                                new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
 
-                            # 💾 حفظ الملف الجديد
-                            new_wb.save(output_buffer)
-                            output_buffer.seek(0)
-
-                            # 📝 اسم الملف: اسم_الملف_الأصلي_+_قيمة_العمود
+                            # --- حفظ الملف وإضافته للـ ZIP ---
+                            file_buffer = BytesIO()
+                            new_wb.save(file_buffer)
+                            file_buffer.seek(0)
                             file_name = f"{base_filename}_{clean_name(value)}.xlsx"
-                            zip_file.writestr(file_name, output_buffer.read())
-
-                            st.write(f"📁 تم إنشاء ملف لـ: **{value}**")
+                            zip_file.writestr(file_name, file_buffer.read())
+                            st.write(f"📁 تم إنشاء ملف: **{value}**")
 
                     zip_buffer.seek(0)
-                    st.success("✅ تم التقسيم بنجاح مع الحفاظ على التنسيق!")
+                    st.success("🎉 تم التقسيم بنجاح مع الحفاظ على الشكل الأصلي!")
                     st.download_button(
-                        label="📥 Download Split Files (ZIP)",
+                        label="📥 حمل جميع الملفات (ZIP)",
                         data=zip_buffer.getvalue(),
-                        file_name=f"Split_{base_filename}.zip",
+                        file_name=f"{base_filename}_Split.zip",
                         mime="application/zip"
                     )
 
@@ -297,12 +265,12 @@ if uploaded_file:
         # 🔄 دمج ملفات Excel
         # -----------------------------------------------
         st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-        st.markdown("### 🔄 Merge Multiple Excel Files (Preserve Data)")
-        merge_files = st.file_uploader("📤 Upload Excel Files to Merge", type=["xlsx"], accept_multiple_files=True)
+        st.markdown("### 🔄 دمج ملفات Excel متعددة")
+        merge_files = st.file_uploader("📤 ارفع ملفات Excel للدمج", type=["xlsx"], accept_multiple_files=True)
 
         if merge_files:
-            if st.button("✨ Merge Selected Files"):
-                with st.spinner("Merging Excel files..."):
+            if st.button("✨ ادمج الملفات"):
+                with st.spinner("جاري الدمج..."):
                     combined_df = pd.DataFrame()
                     for file in merge_files:
                         df_temp = pd.read_excel(file)
@@ -314,79 +282,43 @@ if uploaded_file:
                         combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
                     combined_buffer.seek(0)
 
-                    st.success("✅ Files merged successfully!")
+                    st.success("✅ تم الدمج بنجاح!")
                     st.download_button(
-                        label="📥 Download Merged File",
+                        label="📥 حمل الملف المدموج",
                         data=combined_buffer.getvalue(),
                         file_name="Merged_Consolidated.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
-        # -----------------------------------------------
-        # 💾 تحميل كل الشيتات نظيفة
-        # -----------------------------------------------
-        st.markdown("<hr class='divider'>", unsafe_allow_html=True)
-        st.markdown("### 📥 Download Full Cleaned File (All Sheets, Original Format)")
-        cleaned_buffer = BytesIO()
-        with ZipFile(cleaned_buffer, "w") as zip_out:
-            for sheet_name in original_wb.sheetnames:
-                df_sheet = pd.read_excel(BytesIO(input_bytes), sheet_name=sheet_name)
-                df_sheet = df_sheet.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
-
-                temp_buffer = BytesIO()
-                with pd.ExcelWriter(temp_buffer, engine="openpyxl") as writer:
-                    df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
-                    wb_temp = writer.book
-                    ws_temp = writer.sheets[sheet_name]
-                    orig_ws = original_wb[sheet_name]
-
-                    for col_letter in orig_ws.column_dimensions:
-                        ws_temp.column_dimensions[col_letter].width = orig_ws.column_dimensions[col_letter].width
-
-                temp_buffer.seek(0)
-                zip_out.writestr(f"Cleaned_{sheet_name}.xlsx", temp_buffer.read())
-
-        cleaned_buffer.seek(0)
-        st.download_button(
-            label="⬇️ Download All Cleaned Sheets (ZIP)",
-            data=cleaned_buffer.getvalue(),
-            file_name="All_Cleaned_Sheets.zip",
-            mime="application/zip"
-        )
-
     except Exception as e:
-        st.error(f"❌ Error while processing the file: {e}")
+        st.error(f"❌ خطأ في معالجة الملف: {e}")
 else:
-    st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ لم يتم رفع ملف بعد.</p>", unsafe_allow_html=True)
 
 # ------------------ قسم Info ------------------
 st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
 with st.expander("📖 طريقة الاستخدام - اضغط لعرض التعليمات"):
     st.markdown("""
     <div class='guide-title'>🎯 مرحبًا بك في أداة Averroes Pharma!</div>
-    هذه الأداة تقسم ودمج ملفات الإكسل <strong>مع الحفاظ الكامل على التنسيق الأصلي</strong> (الألوان، الخطوط، الأحجام، والحدود).
+    هذه الأداة تقسم ودمج ملفات الإكسل <strong>بدقة وبدون فقدان التنسيق</strong>.
 
     ---
 
-    ### 🔧 أولًا: التقسيم مع الحفاظ على التنسيق
+    ### 🔧 أولًا: التقسيم
     1. ارفع ملف Excel.
     2. اختر الشيت.
-    3. اختر عمود التقسيم (مثل: "الفرع").
-    4. اضغط على **"Start Split with Original Format"**.
-    5. هيتم إنشاء ملفات منفصلة لكل قيمة، <strong>بنفس التنسيق، الألوان، وعرض الأعمدة</strong>.
+    3. اختر العمود اللي عاوز تقسّم عليه (مثل: "Area Manager").
+    4. اضغط على **"ابدأ التقسيم"**.
+    5. هتنزل ملفات منفصلة لكل قيمة، باسم: <code>اسم_الملف_+_القيمة.xlsx</code>
 
-    ✅ الناتج: كل ملف يشبه تمامًا الجزء الأصلي من الشيت.
+    ✅ كل ملف بيكون شكله زي الشيت الأصلي تمامًا.
 
     ---
 
     ### 🔗 ثانيًا: الدمج
-    - ارفع أكثر من ملف.
-    - اضغط "Merge" لتحصل على ملف واحد.
-
-    ---
-
-    ### 💾 تنظيف وتحميل
-    - خيار لتحميل كل الشيتات بعد التنظيف (بدون فقدان التنسيق).
+    - ارفع أكثر من ملف Excel.
+    - اضغط "ادمج الملفات".
+    - هتلاقي زر لتحميل ملف واحد فيه كل البيانات.
 
     ---
 
