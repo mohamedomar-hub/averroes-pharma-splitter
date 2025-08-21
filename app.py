@@ -153,31 +153,31 @@ st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma 
 st.markdown("<h3 style='text-align:center; color:white;'>✂ قسم ملفاتك بدقة وبدون فقدان التنسيق</h3>", unsafe_allow_html=True)
 
 # ------------------ رفع الملف ------------------
-uploaded_file = st.file_uploader("📂 ارفع ملف الإكسل", type=["xlsx"], accept_multiple_files=False)
+uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
 
 if uploaded_file:
     try:
         input_bytes = uploaded_file.getvalue()
         original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
-        st.success(f"✅ تم رفع الملف بنجاح. عدد الشيتات: {len(original_wb.sheetnames)}")
+        st.success(f"✅The files have been uploaded successfully. Count Sheets: {len(original_wb.sheetnames)}")
 
-        selected_sheet = st.selectbox("اختر الشيت", original_wb.sheetnames)
+        selected_sheet = st.selectbox("Select Sheet", original_wb.sheetnames)
 
         if selected_sheet:
             df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
-            st.markdown(f"### 📊 عرض البيانات – {selected_sheet}")
+            st.markdown(f"### 📊 Data View – {selected_sheet}")
             st.dataframe(df, use_container_width=True)
 
-            st.markdown("### ✂ اختر العمود اللي هتقسّم عليه")
+            st.markdown("### ✂ Select Coulmn to spilit it")
             col_to_split = st.selectbox(
                 "Split by Column",
                 df.columns,
-                help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المدير'"
+                help=Select Coulmn to spilit it، Like 'Brick' Or 'Area Manager'"
             )
 
             # --- زر التقسيم ---
-            if st.button("🚀 ابدأ التقسيم بدقة"):
-                with st.spinner("جاري التقسيم مع الحفاظ على التنسيق الأصلي..."):
+            if st.button("🚀 Start Spilit"):
+                with st.spinner("The splitting process is ongoing while the original format is preserved...."):
 
                     def clean_name(name):
                         name = str(name).strip()
@@ -279,12 +279,12 @@ if uploaded_file:
                             file_buffer.seek(0)
                             file_name = f"{clean_name(value)}.xlsx"
                             zip_file.writestr(file_name, file_buffer.read())
-                            st.write(f"📁 تم إنشاء ملف: `{value}`")
+                            st.write(f"📁Complete create file: `{value}`")
 
                     zip_buffer.seek(0)
-                    st.success("🎉 تم التقسيم بنجاح!")
+                    st.success("🎉 The division was successful.!")
                     st.download_button(
-                        label="📥 حمل الملفات المنقسمة (ZIP)",
+                        label="📥 Upload Division files (ZIP)",
                         data=zip_buffer.getvalue(),
                         file_name=f"Split_{clean_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
                         mime="application/zip"
@@ -294,12 +294,12 @@ if uploaded_file:
         # 🔄 دمج ملفات Excel
         # -----------------------------------------------
         st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-        st.markdown("### 🔄 دمج ملفات Excel متعددة")
+        st.markdown("### 🔄 Merge files Excel Multiple")
         merge_files = st.file_uploader("📤 ارفع ملفات Excel للدمج", type=["xlsx"], accept_multiple_files=True)
 
         if merge_files:
-            if st.button("✨ ادمج الملفات"):
-                with st.spinner("جاري الدمج..."):
+            if st.button("✨ Merge files"):
+                with st.spinner("Merging is currently in progress...."):
                     combined_df = pd.DataFrame()
                     for file in merge_files:
                         df_temp = pd.read_excel(file)
@@ -311,9 +311,9 @@ if uploaded_file:
                         combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
                     combined_buffer.seek(0)
 
-                    st.success("✅ تم الدمج بنجاح!")
+                    st.success("✅ Done Merge Successfully!")
                     st.download_button(
-                        label="📥 حمل الملف المدموج",
+                        label="📥 Upload File Merge",
                         data=combined_buffer.getvalue(),
                         file_name="Merged_Consolidated.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -326,9 +326,9 @@ else:
 
 # ------------------ قسم Info ------------------
 st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
-with st.expander("📖 طريقة الاستخدام - اضغط لعرض التعليمات"):
+with st.expander("📖 How to use - Click to view instructions "):
     st.markdown("""
-    <div class='guide-title'>🎯 مرحبًا بك في أداة Averroes Pharma!</div>
+    <div class='guide-title'>🎯 Welcome to a free tool provided by the company admin.!</div>
     هذه الأداة تقسم ودمج ملفات الإكسل <strong>بدقة وبدون فقدان التنسيق</strong>.
 
     ---
@@ -353,4 +353,5 @@ with st.expander("📖 طريقة الاستخدام - اضغط لعرض الت�
 
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
+
 
