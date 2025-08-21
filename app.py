@@ -192,12 +192,31 @@ if uploaded_file:
                             if cell.value is not None:
                                 values.add(cell.value)
 
+                        # دالة تنظيف اسم الشيت (تجنب الرموز الممنوعة)
+                        def clean_sheet_name(name):
+                            name = str(name).strip()
+                            invalid_chars = r'[\\/*?:\[\]|<>]'
+                            cleaned = re.sub(invalid_chars, '-', name)
+                            if not cleaned or cleaned in ['.', '..']:
+                                cleaned = "Sheet"
+                            return cleaned[:30]
+
+                        # دالة تنظيف اسم الملف
+                        def clean_filename(name):
+                            name = str(name).strip()
+                            invalid_chars = r'[\\/*?:\[\]|<>]'
+                            cleaned = re.sub(invalid_chars, '_', name)
+                            return cleaned[:250]
+
+                        # اسم الملف الأصلي (بدون расширение)
+                        base_filename = clean_filename(uploaded_file.name.split('.')[0])
+
                         # إنشاء ملف لكل قيمة
                         for value in values:
                             output_buffer = BytesIO()
                             new_wb = load_workbook(filename=BytesIO(input_bytes))
                             new_ws = new_wb.active
-                            new_ws.title = str(value)[:30]
+                            new_ws.title = clean_sheet_name(value)
 
                             # نسخ الصف الأول (الرأس)
                             for col_letter in original_ws[1]:
@@ -205,7 +224,6 @@ if uploaded_file:
                                 dst_cell = new_ws.cell(1, col_letter.column)
                                 dst_cell.value = src_cell.value
                                 if src_cell.has_style:
-                                    # نسخ التنسيق
                                     if src_cell.font:
                                         dst_cell.font = Font(
                                             name=src_cell.font.name,
@@ -247,12 +265,11 @@ if uploaded_file:
                             # نسخ الصفوف (بما في ذلك الفراغات)
                             for row_idx, row in enumerate(original_ws.iter_rows(min_row=2), 2):
                                 src_cell = row[col_idx - 1]
-                                if src_cell.value == value or (src_cell.value is None and len([c for c in row if c.value is not None]) > 0):
+                                if src_cell.value == value:
                                     for col_idx, cell in enumerate(row, 1):
                                         dst_cell = new_ws.cell(row=row_idx, column=col_idx)
                                         dst_cell.value = cell.value
                                         if cell.has_style:
-                                            # نسخ التنسيق
                                             if cell.font:
                                                 dst_cell.font = Font(
                                                     name=cell.font.name,
@@ -299,23 +316,81 @@ if uploaded_file:
                             new_wb.save(output_buffer)
                             output_buffer.seek(0)
 
-                            clean_sheet = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', selected_sheet.strip())
-                            clean_value = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value).strip())
-                            file_name = f"{clean_sheet} {clean_value}.xlsx"
+                            # اسم الملف الناتج: اسم الملف الأصلي + القيمة
+                            clean_value = clean_filename(str(value))
+                            file_name = f"{base_filename}_{clean_value}.xlsx"
 
                             zip_file.writestr(file_name, output_buffer.read())
 
                     zip_buffer.seek(0)
-                    st.success("✅ Files split successfully with original formatting and blank rows preserved!")
+                    st.success("✅ Files split successfully with original formatting!")
                     st.download_button(
                         label="📥 Download Split Files (ZIP)",
                         data=zip_buffer.getvalue(),
-                        file_name=f"Split_{selected_sheet}_Formatted.zip",
+                        file_name=f"Split_{base_filename}.zip",
                         mime="application/zip"
                     )
 
-        # ... باقي الكود (دمج، تنظيف، إلخ)
-        # (أتركها كما هي، لأنها تعمل بشكل جيد)
+        # -----------------------------------------------
+        # 🔄 دمج ملفات Excel
+        # -----------------------------------------------
+        st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+        st.markdown("### 🔄 Merge Multiple Excel Files (Preserve Data)")
+        merge_files = st.file_uploader("📤 Upload Excel Files to Merge", type=["xlsx"], accept_multiple_files=True)
+
+        if merge_files:
+            if st.button("✨ Merge Selected Files"):
+                with st.spinner("Merging Excel files..."):
+                    combined_df = pd.DataFrame()
+                    for file in merge_files:
+                        df_temp = pd.read_excel(file)
+                        df_temp["Source File"] = file.name
+                        combined_df = pd.concat([combined_df, df_temp], ignore_index=True)
+
+                    combined_buffer = BytesIO()
+                    with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
+                        combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
+                    combined_buffer.seek(0)
+
+                    st.success("✅ Files merged successfully!")
+                    st.download_button(
+                        label="📥 Download Merged File",
+                        data=combined_buffer.getvalue(),
+                        file_name="Merged_Consolidated.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
+        # -----------------------------------------------
+        # 💾 تحميل كل الشيتات نظيفة
+        # -----------------------------------------------
+        st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+        st.markdown("### 📥 Download Full Cleaned File (All Sheets, Original Format)")
+        cleaned_buffer = BytesIO()
+        with ZipFile(cleaned_buffer, "w") as zip_out:
+            for sheet_name in original_wb.sheetnames:
+                df_sheet = pd.read_excel(BytesIO(input_bytes), sheet_name=sheet_name)
+                df_sheet = df_sheet.fillna(method="ffill", axis=0).fillna(method="ffill", axis=1)
+
+                temp_buffer = BytesIO()
+                with pd.ExcelWriter(temp_buffer, engine="openpyxl") as writer:
+                    df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
+                    wb_temp = writer.book
+                    ws_temp = writer.sheets[sheet_name]
+                    orig_ws = original_wb[sheet_name]
+
+                    for col_letter in orig_ws.column_dimensions:
+                        ws_temp.column_dimensions[col_letter].width = orig_ws.column_dimensions[col_letter].width
+
+                temp_buffer.seek(0)
+                zip_out.writestr(f"Cleaned_{sheet_name}.xlsx", temp_buffer.read())
+
+        cleaned_buffer.seek(0)
+        st.download_button(
+            label="⬇️ Download All Cleaned Sheets (ZIP)",
+            data=cleaned_buffer.getvalue(),
+            file_name="All_Cleaned_Sheets.zip",
+            mime="application/zip"
+        )
 
     except Exception as e:
         st.error(f"❌ Error while processing the file: {e}")
