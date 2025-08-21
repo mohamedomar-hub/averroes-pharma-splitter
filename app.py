@@ -1,300 +1,150 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from zipfile import ZipFile
 import re
 import os
-from openpyxl.styles import Font
-from openpyxl import load_workbook, Workbook
+from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 
-# ------------------ ربط بخط عربي جميل (Cairo) ------------------
-st.markdown(
-    '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
-    unsafe_allow_html=True
-)
+# ------------------ ربط خط عربي ------------------
+st.markdown('<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">', unsafe_allow_html=True)
 
 # ------------------ إعدادات الصفحة ------------------
-st.set_page_config(
-    page_title="Averroes Pharma Splitter",
-    page_icon="💊",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="Averroes Pharma Splitter", page_icon="💊", layout="wide", initial_sidebar_state="collapsed")
 
-# ------------------ إخفاء شعار Streamlit والفوتر ------------------
-hide_default = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_default, unsafe_allow_html=True)
-
-# ------------------ ستايل مخصص ------------------
-custom_css = """
-    <style>
-    .stApp {
-        background-color: #001f3f;
-        color: white;
-        font-family: 'Cairo', sans-serif;
-    }
-    .top-nav {
-        display: flex;
-        justify-content: flex-end;
-        gap: 20px;
-        padding: 10px 30px;
-        background-color: #001a33;
-        border-bottom: 1px solid #FFD700;
-        font-size: 18px;
-        color: white;
-    }
-    .top-nav a {
-        color: #FFD700;
-        text-decoration: none;
-        font-weight: bold;
-        padding: 5px 10px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-    }
-    .top-nav a:hover {
-        background-color: #FFD700;
-        color: black;
-    }
-    label, .stSelectbox label, .stFileUploader label {
-        color: #FFD700 !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-    }
-    .stButton>button, .stDownloadButton>button {
-        background-color: #FFD700 !important;
-        color: black !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-        border-radius: 12px !important;
-        padding: 12px 24px !important;
-        border: none !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
-        transition: all 0.3s ease !important;
-        margin-top: 10px !important;
-    }
-    .stButton>button:hover, .stDownloadButton>button:hover {
-        background-color: #FFC107 !important;
-        transform: scale(1.08);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
-    }
-    hr.divider {
-        border: 1px solid #FFD700;
-        opacity: 0.6;
-        margin: 30px 0;
-    }
-    hr.divider-dashed {
-        border: 1px dashed #FFD700;
-        opacity: 0.7;
-        margin: 25px 0;
-    }
-    .stDataFrame {
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        border-radius: 12px;
-        overflow: hidden;
-        margin: 10px 0;
-    }
-    .stFileUploader {
-        border: 2px dashed #FFD700;
-        border-radius: 10px;
-        padding: 15px;
-        background-color: rgba(255, 215, 0, 0.1);
-    }
-    .guide-title {
-        color: #FFD700;
-        font-weight: bold;
-        font-size: 20px;
-    }
-    </style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
-
-# ------------------ شريط التنقل العلوي ------------------
-st.markdown(
-    """
-    <div class="top-nav">
-        <a href="#" onclick="window.location.reload()">Home</a>
-        <a href="https://wa.me/201554694554" target="_blank">Contact</a>
-        <a href="#info-section">Info</a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# ------------------ إخفاء عناصر Streamlit ------------------
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+.stApp { background-color: #001f3f; color: white; font-family: 'Cairo', sans-serif; }
+</style>
+""", unsafe_allow_html=True)
 
 # ------------------ عرض اللوجو ------------------
 logo_path = "logo.png"
 if os.path.exists(logo_path):
-    st.markdown('<div style="text-align:center; margin:20px 0;">', unsafe_allow_html=True)
-    st.image(logo_path, width=200)
-    st.markdown('</div>', unsafe_allow_html=True)
-else:
-    st.warning("⚠️ لم يتم العثور على ملف اللوجو 'logo.png'.")
+    st.image(logo_path, width=200, use_column_width="center")
 
 # ------------------ معلومات المطور ------------------
-st.markdown(
-    """
-    <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
-        By <strong>Mohamed Abd ELGhany</strong> – 
-        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
-            01554694554 (WhatsApp)
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div style="text-align:center; font-size:18px; color:#FFD700;">
+    By <strong>Mohamed Abd ELGhany</strong> – 
+    <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700;">01554694554 (WhatsApp)</a>
+</div>
+""", unsafe_allow_html=True)
 
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ قسم ملفاتك بدقة وبدون فقدان التنسيق</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ Format your files accurately and without losing formatting.</h3>", unsafe_allow_html=True)
 
 # ------------------ رفع الملف ------------------
-uploaded_file = st.file_uploader("📂 ارفع ملف الإكسل", type=["xlsx"], accept_multiple_files=False)
+uploaded_file = st.file_uploader("📂 Upload file Excel", type=["xlsx"])
 
 if uploaded_file:
     try:
+        # قراءة الملف
         input_bytes = uploaded_file.getvalue()
         original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
-        st.success(f"✅ تم رفع الملف بنجاح. عدد الشيتات: {len(original_wb.sheetnames)}")
+        sheet_names = original_wb.sheetnames
 
-        selected_sheet = st.selectbox("اختر الشيت", original_wb.sheetnames)
+        selected_sheet = st.selectbox("Select Sheet", sheet_names)
 
-        if selected_sheet:
-            df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
-            st.markdown(f"### 📊 عرض البيانات – {selected_sheet}")
-            st.dataframe(df, use_container_width=True)
+        # قراءة البيانات كـ DataFrame
+        df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
+        st.dataframe(df, use_container_width=True)
 
-            st.markdown("### ✂ اختر العمود اللي هتقسّم عليه")
-            col_to_split = st.selectbox(
-                "Split by Column",
-                df.columns,
-                help="اختر العمود اللي هتقسّم عليه، مثل 'الفرع' أو 'المدير'"
-            )
+        # اختيار العمود
+        col_to_split = st.selectbox("Select the column you will split.", df.columns)
 
-            # --- زر التقسيم ---
-            if st.button("🚀 ابدأ التقسيم بدقة"):
-                with st.spinner("جاري التقسيم مع الحفاظ على التنسيق الأصلي..."):
+        if st.button("🚀 Start Spilit"):
+            with st.spinner("جاري التقسيم بدقة..."):
 
-                    def clean_name(name):
-                        name = str(name).strip()
-                        return re.sub(r'[\\/*?:\[\]|<>"]', '_', name)[:30] or "Sheet"
+                # --- تنظيف الأسماء ---
+                def clean_name(name):
+                    name = str(name).strip()
+                    return re.sub(r'[\\/*?:\[\]|<>"]', '_', name)[:30] or "Sheet"
 
+                base_filename = clean_name(uploaded_file.name.rsplit('.', 1)[0])
+                zip_buffer = BytesIO()
+                with ZipFile(zip_buffer, "w") as zip_file:
                     ws = original_wb[selected_sheet]
-                    col_idx = df.columns.get_loc(col_to_split) + 1  # 1-based
+                    col_index = df.columns.get_loc(col_to_split)  # 0-based
+
+                    # --- جمع القيم الفريدة من العمود المختار ---
                     unique_values = df[col_to_split].dropna().unique()
 
-                    # ملف جديد لتجميع الشيتات
-                    new_wb = Workbook()
-                    default_ws = new_wb.active
-                    new_wb.remove(default_ws)
-
                     for value in unique_values:
-                        new_ws = new_wb.create_sheet(title=clean_name(value))
+                        # --- إنشاء ملف جديد ---
+                        new_wb = load_workbook(filename=BytesIO(input_bytes))
+                        new_ws = new_wb.active
+                        new_ws.title = clean_name(value)
 
-                        # --- نسخ الرأس ---
+                        # --- نسخ الرأس (الصف الأول) ---
                         for cell in ws[1]:
                             dst_cell = new_ws.cell(1, cell.column, cell.value)
                             if cell.has_style:
-                                dst_cell.font = cell.font
-                                dst_cell.fill = cell.fill
-                                dst_cell.border = cell.border
-                                dst_cell.alignment = cell.alignment
+                                if cell.font:
+                                    dst_cell.font = Font(
+                                        name=cell.font.name, size=cell.font.size,
+                                        bold=cell.font.bold, italic=cell.font.italic,
+                                        color=cell.font.color
+                                    )
+                                if cell.fill and cell.fill.fill_type:
+                                    dst_cell.fill = cell.fill
+                                if cell.border:
+                                    dst_cell.border = cell.border
+                                if cell.alignment:
+                                    dst_cell.alignment = cell.alignment
                                 dst_cell.number_format = cell.number_format
 
-                        # --- نسخ الصفوف اللي فيها القيمة ---
-                        row_idx = 2
+                        # --- نسخ الصفوف اللي فيها القيمة المطلوبة ---
+                        row_idx_new = 2
                         for row in ws.iter_rows(min_row=2):
-                            if row[col_idx - 1].value == value:
+                            cell_in_col = row[col_index]  # العمود المختار (0-based)
+                            if cell_in_col.value == value:
                                 for src_cell in row:
-                                    dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
+                                    dst_cell = new_ws.cell(row_idx_new, src_cell.column, src_cell.value)
                                     if src_cell.has_style:
-                                        dst_cell.font = src_cell.font
-                                        dst_cell.fill = src_cell.fill
-                                        dst_cell.border = src_cell.border
-                                        dst_cell.alignment = src_cell.alignment
+                                        if src_cell.font:
+                                            dst_cell.font = Font(
+                                                name=src_cell.font.name, size=src_cell.font.size,
+                                                bold=src_cell.font.bold, italic=src_cell.font.italic,
+                                                color=src_cell.font.color
+                                            )
+                                        if src_cell.fill and src_cell.fill.fill_type:
+                                            dst_cell.fill = src_cell.fill
+                                        if src_cell.border:
+                                            dst_cell.border = src_cell.border
+                                        if src_cell.alignment:
+                                            dst_cell.alignment = src_cell.alignment
                                         dst_cell.number_format = src_cell.number_format
-                                row_idx += 1
+                                row_idx_new += 1
 
                         # --- نسخ عرض الأعمدة ---
                         for col_letter in ws.column_dimensions:
                             new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
 
-                    # --- حفظ الملف الناتج ---
-                    file_buffer = BytesIO()
-                    new_wb.save(file_buffer)
-                    file_buffer.seek(0)
+                        # --- حفظ الملف ---
+                        file_buffer = BytesIO()
+                        new_wb.save(file_buffer)
+                        file_buffer.seek(0)
+                        file_name = f"{base_filename}_{clean_name(value)}.xlsx"
+                        zip_file.writestr(file_name, file_buffer.read())
+                        st.write(f"✅ تم إنشاء ملف لـ: **{value}**")
 
-                    st.success("🎉 تم إنشاء ملف واحد فيه كل الشيتات!")
-                    st.download_button(
-                        label="📥 حمل الملف النهائي",
-                        data=file_buffer.getvalue(),
-                        file_name=f"{clean_name(uploaded_file.name.rsplit('.',1)[0])}_Split.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-
-        # -----------------------------------------------
-        # 🔄 دمج ملفات Excel
-        # -----------------------------------------------
-        st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-        st.markdown("### 🔄 دمج ملفات Excel متعددة")
-        merge_files = st.file_uploader("📤 ارفع ملفات Excel للدمج", type=["xlsx"], accept_multiple_files=True)
-
-        if merge_files:
-            if st.button("✨ ادمج الملفات"):
-                with st.spinner("جاري الدمج..."):
-                    combined_df = pd.DataFrame()
-                    for file in merge_files:
-                        df_temp = pd.read_excel(file)
-                        df_temp["Source File"] = file.name
-                        combined_df = pd.concat([combined_df, df_temp], ignore_index=True)
-
-                    combined_buffer = BytesIO()
-                    with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
-                        combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
-                    combined_buffer.seek(0)
-
-                    st.success("✅ تم الدمج بنجاح!")
-                    st.download_button(
-                        label="📥 حمل الملف المدموج",
-                        data=combined_buffer.getvalue(),
-                        file_name="Merged_Consolidated.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                zip_buffer.seek(0)
+                st.success("🎉 Done Spilit successfully.!")
+                st.download_button(
+                    label="📥 Download files spilit (ZIP)",
+                    data=zip_buffer.getvalue(),
+                    file_name=f"{base_filename}_Split.zip",
+                    mime="application/zip"
+                )
 
     except Exception as e:
-        st.error(f"❌ خطأ في معالجة الملف: {e}")
+        st.error(f"❌ خطأ: {str(e)}")
 else:
-    st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ لم يتم رفع ملف بعد.</p>", unsafe_allow_html=True)
-
-# ------------------ قسم Info ------------------
-st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
-with st.expander("📖 طريقة الاستخدام - اضغط لعرض التعليمات"):
-    st.markdown("""
-    <div class='guide-title'>🎯 مرحبًا بك في أداة Averroes Pharma!</div>
-    هذه الأداة تقسم ودمج ملفات الإكسل <strong>بدقة وبدون فقدان التنسيق</strong>.
-
-    ---
-
-    ### 🔧 أولًا: التقسيم
-    1. ارفع ملف Excel.
-    2. اختر الشيت.
-    3. اختر العمود اللي عاوز تقسّم عليه (مثل: "Area Manager").
-    4. اضغط على **"ابدأ التقسيم"**.
-    5. هيطلعلك **ملف واحد فيه شيت لكل قيمة**.
-
-    ✅ كل شيت بيكون بنفس شكل وتنسيق الشيت الأصلي.
-
-    ---
-
-    ### 🔗 ثانيًا: الدمج
-    - ارفع أكثر من ملف Excel.
-    - اضغط "ادمج الملفات".
-    - هتلاقي زر لتحميل ملف واحد فيه كل البيانات.
-
-    ---
-
-    🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
-    """, unsafe_allow_html=True)
+    st.info("📂 Upload file excel to spilit.")
