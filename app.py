@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from zipfile import ZipFile
 import re
 import os
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-from openpyxl import load_workbook, Workbook
+from openpyxl import load_workbook
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -178,7 +179,6 @@ if uploaded_file:
             if st.button("🚀 ابدأ التقسيم بدقة"):
                 with st.spinner("جاري التقسيم مع الحفاظ على التنسيق الأصلي..."):
 
-                    # --- دالة تنظيف الأسماء ---
                     def clean_name(name):
                         name = str(name).strip()
                         invalid_chars = r'[\\/*?:\[\]|<>"]'
@@ -189,105 +189,105 @@ if uploaded_file:
                     col_idx = df.columns.get_loc(col_to_split) + 1  # رقم العمود (1-based)
                     unique_values = df[col_to_split].dropna().unique()
 
-                    # --- إنشاء ملف جديد لتجميع الشيتات ---
-                    new_wb = Workbook()
-                    default_ws = new_wb.active
-                    new_wb.remove(default_ws)
+                    zip_buffer = BytesIO()
+                    with ZipFile(zip_buffer, "w") as zip_file:
+                        for value in unique_values:
+                            # --- إنشاء ملف جديد ---
+                            new_wb = Workbook()
+                            default_ws = new_wb.active
+                            new_wb.remove(default_ws)
+                            new_ws = new_wb.create_sheet(title=clean_name(value))
 
-                    for value in unique_values:
-                        sheet_title = clean_name(value)
-                        new_ws = new_wb.create_sheet(title=sheet_title)
+                            # --- نسخ الرأس ---
+                            for cell in ws[1]:
+                                dst_cell = new_ws.cell(1, cell.column, cell.value)
+                                if cell.has_style:
+                                    if cell.font:
+                                        dst_cell.font = Font(
+                                            name=cell.font.name,
+                                            size=cell.font.size,
+                                            bold=cell.font.bold,
+                                            italic=cell.font.italic,
+                                            color=cell.font.color
+                                        )
+                                    if cell.fill and cell.fill.fill_type:
+                                        dst_cell.fill = PatternFill(
+                                            fill_type=cell.fill.fill_type,
+                                            start_color=cell.fill.start_color,
+                                            end_color=cell.fill.end_color
+                                        )
+                                    if cell.border:
+                                        dst_cell.border = Border(
+                                            left=cell.border.left,
+                                            right=cell.border.right,
+                                            top=cell.border.top,
+                                            bottom=cell.border.bottom
+                                        )
+                                    if cell.alignment:
+                                        dst_cell.alignment = Alignment(
+                                            horizontal=cell.alignment.horizontal,
+                                            vertical=cell.alignment.vertical,
+                                            wrap_text=cell.alignment.wrap_text
+                                        )
+                                    dst_cell.number_format = cell.number_format
 
-                        # --- نسخ الصف الأول (الرأس) ---
-                        for cell in ws[1]:
-                            dst_cell = new_ws.cell(1, cell.column, cell.value)
-                            if cell.has_style:
-                                # نسخ التنسيق بأمان
-                                if cell.font:
-                                    dst_cell.font = Font(
-                                        name=cell.font.name,
-                                        size=cell.font.size,
-                                        bold=cell.font.bold,
-                                        italic=cell.font.italic,
-                                        color=cell.font.color
-                                    )
-                                if cell.fill and cell.fill.fill_type:
-                                    dst_cell.fill = PatternFill(
-                                        fill_type=cell.fill.fill_type,
-                                        start_color=cell.fill.start_color,
-                                        end_color=cell.fill.end_color
-                                    )
-                                if cell.border:
-                                    dst_cell.border = Border(
-                                        left=cell.border.left,
-                                        right=cell.border.right,
-                                        top=cell.border.top,
-                                        bottom=cell.border.bottom
-                                    )
-                                if cell.alignment:
-                                    dst_cell.alignment = Alignment(
-                                        horizontal=cell.alignment.horizontal,
-                                        vertical=cell.alignment.vertical,
-                                        wrap_text=cell.alignment.wrap_text
-                                    )
-                                dst_cell.number_format = cell.number_format
+                            # --- نسخ الصفوف اللي فيها القيمة ---
+                            row_idx = 2
+                            for row in ws.iter_rows(min_row=2):
+                                cell_in_col = row[col_idx - 1]
+                                if cell_in_col.value == value:
+                                    for src_cell in row:
+                                        dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
+                                        if src_cell.has_style:
+                                            if src_cell.font:
+                                                dst_cell.font = Font(
+                                                    name=src_cell.font.name,
+                                                    size=src_cell.font.size,
+                                                    bold=src_cell.font.bold,
+                                                    italic=src_cell.font.italic,
+                                                    color=src_cell.font.color
+                                                )
+                                            if src_cell.fill and src_cell.fill.fill_type:
+                                                dst_cell.fill = PatternFill(
+                                                    fill_type=src_cell.fill.fill_type,
+                                                    start_color=src_cell.fill.start_color,
+                                                    end_color=src_cell.fill.end_color
+                                                )
+                                            if src_cell.border:
+                                                dst_cell.border = Border(
+                                                    left=src_cell.border.left,
+                                                    right=src_cell.border.right,
+                                                    top=src_cell.border.top,
+                                                    bottom=src_cell.border.bottom
+                                                )
+                                            if src_cell.alignment:
+                                                dst_cell.alignment = Alignment(
+                                                    horizontal=src_cell.alignment.horizontal,
+                                                    vertical=src_cell.alignment.vertical,
+                                                    wrap_text=src_cell.alignment.wrap_text
+                                                )
+                                            dst_cell.number_format = src_cell.number_format
+                                    row_idx += 1
 
-                        # --- نسخ الصفوف اللي فيها القيمة ---
-                        row_idx = 2
-                        for row in ws.iter_rows(min_row=2):
-                            cell_in_col = row[col_idx - 1]
-                            if cell_in_col.value == value:
-                                for src_cell in row:
-                                    dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
-                                    if src_cell.has_style:
-                                        if src_cell.font:
-                                            dst_cell.font = Font(
-                                                name=src_cell.font.name,
-                                                size=src_cell.font.size,
-                                                bold=src_cell.font.bold,
-                                                italic=src_cell.font.italic,
-                                                color=src_cell.font.color
-                                            )
-                                        if src_cell.fill and src_cell.fill.fill_type:
-                                            dst_cell.fill = PatternFill(
-                                                fill_type=src_cell.fill.fill_type,
-                                                start_color=src_cell.fill.start_color,
-                                                end_color=src_cell.fill.end_color
-                                            )
-                                        if src_cell.border:
-                                            dst_cell.border = Border(
-                                                left=src_cell.border.left,
-                                                right=src_cell.border.right,
-                                                top=src_cell.border.top,
-                                                bottom=src_cell.border.bottom
-                                            )
-                                        if src_cell.alignment:
-                                            dst_cell.alignment = Alignment(
-                                                horizontal=src_cell.alignment.horizontal,
-                                                vertical=src_cell.alignment.vertical,
-                                                wrap_text=src_cell.alignment.wrap_text
-                                            )
-                                        dst_cell.number_format = src_cell.number_format
-                                row_idx += 1
+                            # --- نسخ عرض الأعمدة ---
+                            for col_letter in ws.column_dimensions:
+                                new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
 
-                        # --- نسخ عرض الأعمدة ---
-                        for col_letter in ws.column_dimensions:
-                            new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
+                            # --- حفظ الملف ---
+                            file_buffer = BytesIO()
+                            new_wb.save(file_buffer)
+                            file_buffer.seek(0)
+                            file_name = f"{clean_name(value)}.xlsx"
+                            zip_file.writestr(file_name, file_buffer.read())
+                            st.write(f"📁 تم إنشاء ملف: `{value}`")
 
-                    # --- حفظ الملف الناتج ---
-                    file_buffer = BytesIO()
-                    new_wb.save(file_buffer)
-                    file_buffer.seek(0)
-
-                    # --- اسم الملف الأصلي بدون امتداد ---
-                    base_filename = clean_name(uploaded_file.name.rsplit('.', 1)[0])
-
-                    st.success("🎉 تم إنشاء ملف واحد فيه كل الشيتات!")
+                    zip_buffer.seek(0)
+                    st.success("🎉 تم التقسيم بنجاح!")
                     st.download_button(
-                        label="📥 حمل الملف النهائي",
-                        data=file_buffer.getvalue(),
-                        file_name=f"{base_filename}_Split.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        label="📥 حمل الملفات المنقسمة (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"Split_{clean_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                        mime="application/zip"
                     )
 
         # -----------------------------------------------
@@ -338,9 +338,9 @@ with st.expander("📖 طريقة الاستخدام - اضغط لعرض الت�
     2. اختر الشيت.
     3. اختر العمود اللي عاوز تقسّم عليه (مثل: "Area Manager").
     4. اضغط على **"ابدأ التقسيم"**.
-    5. هيطلعلك **ملف واحد فيه شيت لكل قيمة**.
+    5. هيطلعلك **ملف ZIP يحتوي على ملف منفصل لكل قيمة**.
 
-    ✅ كل شيت بيكون بنفس شكل وتنسيق الشيت الأصلي.
+    ✅ كل ملف يحتوي على البيانات الخاصة بهذه القيمة فقط.
 
     ---
 
