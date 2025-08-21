@@ -4,8 +4,7 @@ from io import BytesIO
 from zipfile import ZipFile
 import re
 import os
-from openpyxl.styles import Font, Fill, Border, Alignment, Protection
-from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl import load_workbook
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
@@ -158,9 +157,9 @@ uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept
 
 if uploaded_file:
     try:
-        # قراءة الملف الأصلي كـ Bytes
+        # قراءة الملف كـ bytes
         input_bytes = uploaded_file.getvalue()
-        original_wb = load_workbook(filename=BytesIO(input_bytes), keep_vba=False, data_only=False)
+        original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
 
         st.success(f"✅ File uploaded successfully. Sheets found: {len(original_wb.sheetnames)}")
 
@@ -185,59 +184,93 @@ if uploaded_file:
                     zip_buffer = BytesIO()
                     with ZipFile(zip_buffer, "w") as zip_file:
                         original_ws = original_wb[selected_sheet]
+
                         for value in df[col_to_split].dropna().unique():
                             sub_df = df[df[col_to_split] == value]
 
-                            # إنشاء Workbook جديد مع الحفاظ على التنسيق
+                            # إنشاء ملف جديد
                             output_buffer = BytesIO()
                             new_wb = load_workbook(filename=BytesIO(input_bytes))
                             new_ws = new_wb.active
                             new_ws.title = str(value)[:30]
 
-                            # مسح الصفوف القديمة
+                            # مسح الصفوف القديمة (من الصف 2 فما بعد)
                             for row in new_ws.iter_rows(min_row=2):
                                 for cell in row:
                                     new_ws[cell.coordinate].value = None
 
-                            # إضافة البيانات مع الحفاظ على الصيغ (لو في)
+                            # إضافة البيانات
                             for r_idx, row in sub_df.iterrows():
-                                for c_idx, value in enumerate(row, 1):
-                                    cell = new_ws.cell(row=r_idx + 2, column=c_idx, value=value)
+                                for c_idx, val in enumerate(row, 1):
+                                    new_ws.cell(row=r_idx + 2, column=c_idx, value=val)
 
-                            # نسخ التنسيق من الـ original_ws إلى new_ws (الصف الأول + التنسيق العام)
+                            # نسخ رأس الجدول (الصف الأول) مع التنسيق
+                            for col_idx in range(1, len(sub_df.columns) + 1):
+                                src_cell = original_ws.cell(1, col_idx)
+                                dst_cell = new_ws.cell(1, col_idx)
+                                dst_cell.value = src_cell.value
+
+                                if src_cell.has_style:
+                                    # نسخ الخط
+                                    if src_cell.font:
+                                        dst_cell.font = Font(
+                                            name=src_cell.font.name,
+                                            size=src_cell.font.size,
+                                            bold=src_cell.font.bold,
+                                            italic=src_cell.font.italic,
+                                            color=src_cell.font.color
+                                        )
+
+                                    # نسخ التعبئة (الخلفية)
+                                    if src_cell.fill and src_cell.fill.fill_type:
+                                        dst_cell.fill = PatternFill(
+                                            fill_type=src_cell.fill.fill_type,
+                                            start_color=src_cell.fill.start_color,
+                                            end_color=src_cell.fill.end_color
+                                        )
+
+                                    # نسخ الحدود
+                                    if src_cell.border:
+                                        border = src_cell.border
+                                        dst_cell.border = Border(
+                                            left=border.left,
+                                            right=border.right,
+                                            top=border.top,
+                                            bottom=border.bottom,
+                                            diagonal=border.diagonal,
+                                            diagonal_direction=border.diagonal_direction,
+                                            outline=border.outline,
+                                            vertical=border.vertical,
+                                            horizontal=border.horizontal
+                                        )
+
+                                    # نسخ المحاذاة
+                                    if src_cell.alignment:
+                                        dst_cell.alignment = Alignment(
+                                            horizontal=src_cell.alignment.horizontal,
+                                            vertical=src_cell.alignment.vertical,
+                                            text_rotation=src_cell.alignment.text_rotation,
+                                            wrap_text=src_cell.alignment.wrap_text,
+                                            shrink_to_fit=src_cell.alignment.shrink_to_fit,
+                                            indent=src_cell.alignment.indent
+                                        )
+
+                                    # نسخ تنسيق الأرقام
+                                    dst_cell.number_format = src_cell.number_format
+
                             # نسخ عرض الأعمدة
                             for col_letter in original_ws.column_dimensions:
                                 new_ws.column_dimensions[col_letter].width = original_ws.column_dimensions[col_letter].width
 
-                            # نسخ ارتفاع الصفوف
+                            # نسخ ارتفاع الصفوف (مهم لو في صفوف طويلة)
                             for row_idx in original_ws.row_dimensions:
                                 new_ws.row_dimensions[row_idx].height = original_ws.row_dimensions[row_idx].height
 
-                            # نسخ التنسيق من الصف الأول (الرأس)
-                            for col_idx, col in enumerate(sub_df.columns, 1):
-                                src_cell = original_ws.cell(1, col_idx)
-                                dst_cell = new_ws.cell(1, col_idx)
-                                dst_cell.value = src_cell.value
-                                if src_cell.has_style:
-                                    dst_cell.font = Font(
-                                        name=src_cell.font.name,
-                                        size=src_cell.font.size,
-                                        bold=src_cell.font.bold,
-                                        italic=src_cell.font.italic,
-                                        color=src_cell.font.color
-                                    )
-                                    dst_cell.fill = src_cell.fill
-                                    dst_cell.border = src_cell.border
-                                    dst_cell.alignment = src_cell.alignment
-                                    dst_cell.number_format = src_cell.number_format
-
-                            # (اختياري) نسخ التنسيق من الصفوف الأولى (لو في تنسيق شرطي أو تظليل)
-                            # ممكن نضيف نسخ تنسيق الصفوف الأولى (مثلاً كل 20 صف) لو محتاجين دقة أعلى
-
+                            # حفظ الملف الجديد
                             new_wb.save(output_buffer)
                             output_buffer.seek(0)
 
-                            # تنظيف اسم الملف
+                            # تنظيف أسماء الملفات
                             clean_sheet = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', selected_sheet.strip())
                             clean_value = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', str(value).strip())
                             file_name = f"{clean_sheet} {clean_value}.xlsx"
@@ -245,7 +278,6 @@ if uploaded_file:
                             zip_file.writestr(file_name, output_buffer.read())
 
                     zip_buffer.seek(0)
-
                     st.success("✅ Files split successfully with original formatting!")
                     st.download_button(
                         label="📥 Download Split Files (ZIP)",
@@ -255,7 +287,7 @@ if uploaded_file:
                     )
 
         # -----------------------------------------------
-        # 🔄 دمج ملفات Excel (بدون فقدان التنسيق)
+        # 🔄 دمج ملفات Excel
         # -----------------------------------------------
         st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
         st.markdown("### 🔄 Merge Multiple Excel Files (Preserve Data)")
@@ -273,7 +305,6 @@ if uploaded_file:
                     combined_buffer = BytesIO()
                     with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
                         combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
-
                     combined_buffer.seek(0)
 
                     st.success("✅ Files merged successfully!")
@@ -285,7 +316,7 @@ if uploaded_file:
                     )
 
         # -----------------------------------------------
-        # 💾 تحميل الملف النظيف (مع الحفاظ على التنسيق)
+        # 💾 تحميل كل الشيتات نظيفة
         # -----------------------------------------------
         st.markdown("<hr class='divider'>", unsafe_allow_html=True)
         st.markdown("### 📥 Download Full Cleaned File (All Sheets, Original Format)")
@@ -300,9 +331,9 @@ if uploaded_file:
                     df_sheet.to_excel(writer, index=False, sheet_name=sheet_name)
                     wb_temp = writer.book
                     ws_temp = writer.sheets[sheet_name]
-
-                    # نسخ عرض الأعمدة من الأصلي
                     orig_ws = original_wb[sheet_name]
+
+                    # نسخ عرض الأعمدة
                     for col_letter in orig_ws.column_dimensions:
                         ws_temp.column_dimensions[col_letter].width = orig_ws.column_dimensions[col_letter].width
 
@@ -310,7 +341,6 @@ if uploaded_file:
                 zip_out.writestr(f"Cleaned_{sheet_name}.xlsx", temp_buffer.read())
 
         cleaned_buffer.seek(0)
-
         st.download_button(
             label="⬇️ Download All Cleaned Sheets (ZIP)",
             data=cleaned_buffer.getvalue(),
@@ -328,7 +358,7 @@ st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
 with st.expander("📖 طريقة الاستخدام - اضغط لعرض التعليمات"):
     st.markdown("""
     <div class='guide-title'>🎯 مرحبًا بك في أداة Averroes Pharma!</div>
-    هذه الأداة تقسم ودمج ملفات الإكسل <strong>مع الحفاظ الكامل على التنسيق الأصلي</strong> (الألوان، الخطوط، الصيغ، الأحجام).
+    هذه الأداة تقسم ودمج ملفات الإكسل <strong>مع الحفاظ الكامل على التنسيق الأصلي</strong> (الألوان، الخطوط، الأحجام، والحدود).
 
     ---
 
