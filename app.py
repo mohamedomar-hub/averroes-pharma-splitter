@@ -150,16 +150,16 @@ st.markdown(
 
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ Division your files with easily and accuracy.</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ Divide your files easily and accurately.</h3>", unsafe_allow_html=True)
 
-# ------------------ رفع الملف ------------------
+# ------------------ رفع الملف (التقسيم) ------------------
 uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], accept_multiple_files=False)
 
 if uploaded_file:
     try:
         input_bytes = uploaded_file.getvalue()
         original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
-        st.success(f"✅The files have been uploaded successfully. Count Sheets: {len(original_wb.sheetnames)}")
+        st.success(f"✅ The file has been uploaded successfully. Number of sheets: {len(original_wb.sheetnames)}")
 
         selected_sheet = st.selectbox("Select Sheet", original_wb.sheetnames)
 
@@ -168,16 +168,16 @@ if uploaded_file:
             st.markdown(f"### 📊 Data View – {selected_sheet}")
             st.dataframe(df, use_container_width=True)
 
-            st.markdown("### ✂ Select Coulmn to spilit it")
+            st.markdown("### ✂ Select Column to Split")
             col_to_split = st.selectbox(
                 "Split by Column",
                 df.columns,
-                help="Select Coulmn to spilit it, Like 'Brick' Or 'Area Manager'"
+                help="Select the column to split by, such as 'Brick' or 'Area Manager'"
             )
 
             # --- زر التقسيم ---
-            if st.button("🚀 Start Spilit"):
-                with st.spinner("The splitting process is ongoing while the original format is preserved...."):
+            if st.button("🚀 Start Split"):
+                with st.spinner("Splitting process in progress while preserving original format..."):
 
                     def clean_name(name):
                         name = str(name).strip()
@@ -231,7 +231,7 @@ if uploaded_file:
                                         )
                                     dst_cell.number_format = cell.number_format
 
-                            # --- نسخ الصفوف اللي فيها القيمة ---
+                            # --- نسخ الصفوف ---
                             row_idx = 2
                             for row in ws.iter_rows(min_row=2):
                                 cell_in_col = row[col_idx - 1]
@@ -279,54 +279,140 @@ if uploaded_file:
                             file_buffer.seek(0)
                             file_name = f"{clean_name(value)}.xlsx"
                             zip_file.writestr(file_name, file_buffer.read())
-                            st.write(f"📁Complete create file: `{value}`")
+                            st.write(f"📁 Created file: `{value}`")
 
                     zip_buffer.seek(0)
-                    st.success("🎉 The division was successful.!")
+                    st.success("🎉 Splitting completed successfully!")
                     st.download_button(
-                        label="📥 Download Division files (ZIP)",
+                        label="📥 Download Split Files (ZIP)",
                         data=zip_buffer.getvalue(),
                         file_name=f"Split_{clean_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
                         mime="application/zip"
                     )
 
-        # -----------------------------------------------
-        # 🔄 دمج ملفات Excel
-        # -----------------------------------------------
-        st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-        st.markdown("### 🔄 Merge files Excel Multiple")
-        merge_files = st.file_uploader("📤 ارفع ملفات Excel للدمج", type=["xlsx"], accept_multiple_files=True)
-
-        if merge_files:
-            if st.button("✨ Merge files"):
-                with st.spinner("Merging is currently in progress...."):
-                    combined_df = pd.DataFrame()
-                    for file in merge_files:
-                        df_temp = pd.read_excel(file)
-                        df_temp["Source File"] = file.name
-                        combined_df = pd.concat([combined_df, df_temp], ignore_index=True)
-
-                    combined_buffer = BytesIO()
-                    with pd.ExcelWriter(combined_buffer, engine="openpyxl") as writer:
-                        combined_df.to_excel(writer, index=False, sheet_name="Consolidated")
-                    combined_buffer.seek(0)
-
-                    st.success("✅ Done Merge Successfully!")
-                    st.download_button(
-                        label="📥 Upload File Merge",
-                        data=combined_buffer.getvalue(),
-                        file_name="Merged_Consolidated.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-
     except Exception as e:
-        st.error(f"❌ خطأ في معالجة الملف: {e}")
+        st.error(f"❌ Error processing file: {e}")
 else:
-    st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ لم يتم رفع ملف بعد.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet.</p>", unsafe_allow_html=True)
+
+# -----------------------------------------------
+# 🔄 دمج ملفات Excel - مستقل ومحفوظ التنسيق
+# -----------------------------------------------
+st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+st.markdown("### 🔄 Merge Excel Files (Keep Original Format)")
+merge_files = st.file_uploader("📤 Upload Excel Files to Merge", type=["xlsx"], accept_multiple_files=True, key="merge_uploader")
+
+if merge_files:
+    if st.button("✨ Merge Files with Format"):
+        with st.spinner("Merging files while preserving formatting..."):
+            try:
+                # إنشاء ملف مدمج
+                combined_wb = Workbook()
+                combined_ws = combined_wb.active
+                combined_ws.title = "Consolidated"
+
+                # قراءة أول ملف لنسخ تنسيق الرأس
+                first_file = merge_files[0]
+                temp_wb = load_workbook(filename=BytesIO(first_file.getvalue()), data_only=False)
+                temp_ws = temp_wb.active
+
+                # نسخ صف الرأس مع التنسيق
+                for cell in temp_ws[1]:
+                    new_cell = combined_ws.cell(1, cell.column, cell.value)
+                    if cell.has_style:
+                        if cell.font:
+                            new_cell.font = Font(
+                                name=cell.font.name,
+                                size=cell.font.size,
+                                bold=cell.font.bold,
+                                italic=cell.font.italic,
+                                color=cell.font.color
+                            )
+                        if cell.fill and cell.fill.fill_type:
+                            new_cell.fill = PatternFill(
+                                fill_type=cell.fill.fill_type,
+                                start_color=cell.fill.start_color,
+                                end_color=cell.fill.end_color
+                            )
+                        if cell.border:
+                            new_cell.border = Border(
+                                left=cell.border.left,
+                                right=cell.border.right,
+                                top=cell.border.top,
+                                bottom=cell.border.bottom
+                            )
+                        if cell.alignment:
+                            new_cell.alignment = Alignment(
+                                horizontal=cell.alignment.horizontal,
+                                vertical=cell.alignment.vertical,
+                                wrap_text=cell.alignment.wrap_text
+                            )
+                        new_cell.number_format = cell.number_format
+
+                # بدء من الصف الثاني
+                row_idx = 2
+                for file in merge_files:
+                    wb = load_workbook(filename=BytesIO(file.getvalue()), data_only=True)
+                    ws = wb.active
+                    for row in ws.iter_rows(min_row=2, values_only=False):
+                        for cell in row:
+                            if cell.value is not None:
+                                new_cell = combined_ws.cell(row_idx, cell.column, cell.value)
+                                # نسخ التنسيق
+                                if cell.has_style:
+                                    if cell.font:
+                                        new_cell.font = Font(
+                                            name=cell.font.name,
+                                            size=cell.font.size,
+                                            bold=cell.font.bold,
+                                            italic=cell.font.italic,
+                                            color=cell.font.color
+                                        )
+                                    if cell.fill and cell.fill.fill_type:
+                                        new_cell.fill = PatternFill(
+                                            fill_type=cell.fill.fill_type,
+                                            start_color=cell.fill.start_color,
+                                            end_color=cell.fill.end_color
+                                        )
+                                    if cell.border:
+                                        new_cell.border = Border(
+                                            left=cell.border.left,
+                                            right=cell.border.right,
+                                            top=cell.border.top,
+                                            bottom=cell.border.bottom
+                                        )
+                                    if cell.alignment:
+                                        new_cell.alignment = Alignment(
+                                            horizontal=cell.alignment.horizontal,
+                                            vertical=cell.alignment.vertical,
+                                            wrap_text=cell.alignment.wrap_text
+                                        )
+                                    new_cell.number_format = cell.number_format
+                        row_idx += 1
+
+                # نسخ عرض الأعمدة من أول ملف
+                for col_letter in temp_ws.column_dimensions:
+                    combined_ws.column_dimensions[col_letter].width = temp_ws.column_dimensions[col_letter].width
+
+                # حفظ الملف
+                output_buffer = BytesIO()
+                combined_wb.save(output_buffer)
+                output_buffer.seek(0)
+
+                st.success("✅ Merged successfully with full format preserved!")
+                st.download_button(
+                    label="📥 Download Merged File (with Format)",
+                    data=output_buffer.getvalue(),
+                    file_name="Merged_Consolidated_With_Format.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+            except Exception as e:
+                st.error(f"❌ Error during merge: {e}")
 
 # ------------------ قسم Info ------------------
 st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
-with st.expander("📖 How to use - Click to view instructions "):
+with st.expander("📖 How to Use - Click to view instructions"):
     st.markdown("""
     <div class='guide-title'>🎯 Welcome to a free tool provided by the company admin.!</div>
     هذه الأداة تقسم ودمج ملفات الإكسل <strong>بدقة وبدون فقدان التنسيق</strong>.
@@ -347,18 +433,9 @@ with st.expander("📖 How to use - Click to view instructions "):
     ### 🔗 ثانيًا: الدمج
     - ارفع أكثر من ملف Excel.
     - اضغط "ادمج الملفات".
-    - هتلاقي زر لتحميل ملف واحد فيه كل البيانات.
+    - هتلاقي زر لتحميل ملف واحد فيه كل البيانات مع **الحفاظ على التنسيق الأصلي**.
 
     ---
 
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
