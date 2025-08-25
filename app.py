@@ -300,23 +300,28 @@ else:
 # -----------------------------------------------
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 st.markdown("### 🔄 Merge Excel Files (Keep Original Format)")
-merge_files = st.file_uploader("📤 Upload Excel Files to Merge", type=["xlsx"], accept_multiple_files=True, key="merge_uploader")
+merge_files = st.file_uploader(
+    "📤 Upload Excel Files to Merge",
+    type=["xlsx"],
+    accept_multiple_files=True,
+    key="merge_uploader"  # مهم: يجعل هذا الرفع منفصلًا
+)
 
 if merge_files:
     if st.button("✨ Merge Files with Format"):
         with st.spinner("Merging files while preserving formatting..."):
             try:
-                # إنشاء ملف مدمج
+                # إنشاء ملف مدمج جديد
                 combined_wb = Workbook()
                 combined_ws = combined_wb.active
                 combined_ws.title = "Consolidated"
 
-                # قراءة أول ملف لنسخ تنسيق الرأس
+                # قراءة أول ملف لنسخ تنسيق الرأس وعرض الأعمدة
                 first_file = merge_files[0]
                 temp_wb = load_workbook(filename=BytesIO(first_file.getvalue()), data_only=False)
                 temp_ws = temp_wb.active
 
-                # نسخ صف الرأس مع التنسيق
+                # نسخ صف الرأس مع التنسيق الكامل
                 for cell in temp_ws[1]:
                     new_cell = combined_ws.cell(1, cell.column, cell.value)
                     if cell.has_style:
@@ -349,16 +354,20 @@ if merge_files:
                             )
                         new_cell.number_format = cell.number_format
 
+                # نسخ عرض الأعمدة من أول ملف
+                for col_letter in temp_ws.column_dimensions:
+                    combined_ws.column_dimensions[col_letter].width = temp_ws.column_dimensions[col_letter].width
+
                 # بدء من الصف الثاني
                 row_idx = 2
                 for file in merge_files:
                     wb = load_workbook(filename=BytesIO(file.getvalue()), data_only=True)
                     ws = wb.active
-                    for row in ws.iter_rows(min_row=2, values_only=False):
+                    for row in ws.iter_rows(min_row=2):
                         for cell in row:
                             if cell.value is not None:
                                 new_cell = combined_ws.cell(row_idx, cell.column, cell.value)
-                                # نسخ التنسيق
+                                # نسخ التنسيق إن وُجد
                                 if cell.has_style:
                                     if cell.font:
                                         new_cell.font = Font(
@@ -390,11 +399,7 @@ if merge_files:
                                     new_cell.number_format = cell.number_format
                         row_idx += 1
 
-                # نسخ عرض الأعمدة من أول ملف
-                for col_letter in temp_ws.column_dimensions:
-                    combined_ws.column_dimensions[col_letter].width = temp_ws.column_dimensions[col_letter].width
-
-                # حفظ الملف
+                # حفظ الملف المدمج
                 output_buffer = BytesIO()
                 combined_wb.save(output_buffer)
                 output_buffer.seek(0)
