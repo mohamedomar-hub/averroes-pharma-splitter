@@ -7,6 +7,12 @@ import os
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl import load_workbook, Workbook
 
+# ------------------ إضافات جديدة للداش بورد ------------------
+import plotly.express as px
+import plotly.graph_objects as go
+from fpdf2 import FPDF  # تثبيت: pip install fpdf2
+import matplotlib.pyplot as plt
+
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
     '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
@@ -119,7 +125,7 @@ st.markdown(
     """
     <div class="top-nav">
         <a href="#" onclick="window.location.reload()">Home</a>
-        <a href="https://wa.me/201554694554" target="_blank">Contact</a>
+        <a href="  https://wa.me/201554694554  " target="_blank">Contact</a>
         <a href="#info-section">Info</a>
     </div>
     """,
@@ -141,7 +147,7 @@ st.markdown(
     """
     <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
         By <strong>Mohamed Abd ELGhany</strong> – 
-        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
+        <a href="https://wa.me/201554694554  " target="_blank" style="color:#FFD700; text-decoration:none;">
             01554694554 (WhatsApp)
         </a>
     </div>
@@ -416,6 +422,138 @@ if merge_files:
             except Exception as e:
                 st.error(f"❌ Error during merge: {e}")
 
+# ====================================================================================
+# 📊 قسم جديد: Interactive Dashboard Generator
+# ====================================================================================
+st.markdown("<hr class='divider' id='dashboard-section'>", unsafe_allow_html=True)
+st.markdown("### 📊 Interactive Dashboard Generator")
+
+dashboard_file = st.file_uploader("📊 Upload Excel File for Dashboard", type=["xlsx"], key="dashboard_uploader")
+
+if dashboard_file:
+    try:
+        df_dash = pd.read_excel(dashboard_file, sheet_name=None)
+        sheet_names = list(df_dash.keys())
+        selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
+
+        if selected_sheet_dash:
+            df = df_dash[selected_sheet_dash].copy()
+
+            # عرض البيانات
+            st.markdown("### 🔍 Data Preview")
+            st.dataframe(df, use_container_width=True)
+
+            # --- تحويل الأعمدة الزمنية ---
+            date_columns = df.select_dtypes(include='datetime').columns.tolist()
+            for col in df.columns:
+                if col not in date_columns:
+                    # محاولة تحويل إلى تاريخ
+                    try:
+                        if pd.to_datetime(df[col], errors='raise').dtype == 'datetime64[ns]':
+                            df[col] = pd.to_datetime(df[col])
+                            date_columns.append(col)
+                    except:
+                        pass
+
+            # --- الفلاتر في الـ sidebar ---
+            st.sidebar.header("🔍 Filters")
+            filters = {}
+
+            for col in df.columns:
+                if col in date_columns:
+                    min_date = df[col].min().date()
+                    max_date = df[col].max().date()
+                    start, end = st.sidebar.date_input(f"Date Range: {col}", [min_date, max_date])
+                    filters[col] = (pd.to_datetime(start), pd.to_datetime(end))
+                elif df[col].nunique() < 50:  # فئات صغيرة (مثل موظفين، مديرين)
+                    options = df[col].dropna().unique().tolist()
+                    selected = st.sidebar.multiselect(f"Filter by: {col}", options, default=options)
+                    filters[col] = selected
+
+            # تطبيق الفلاتر
+            filtered_df = df.copy()
+            for col, filt in filters.items():
+                if col in date_columns:
+                    start, end = filt
+                    filtered_df = filtered_df[(filtered_df[col] >= start) & (filtered_df[col] <= end)]
+                else:
+                    filtered_df = filtered_df[filtered_df[col].isin(filt)]
+
+            st.markdown("### 📈 Filtered Data")
+            st.dataframe(filtered_df, use_container_width=True)
+
+            # --- رسم بياني تفاعلي ---
+            st.markdown("### 📊 Interactive Chart")
+            numeric_cols = filtered_df.select_dtypes(include='number').columns.tolist()
+            categorical_cols = filtered_df.select_dtypes(exclude='number').columns.tolist()
+
+            if len(numeric_cols) > 0 and len(categorical_cols) > 0:
+                x_col = st.selectbox("X-Axis (Categories)", categorical_cols)
+                y_col = st.selectbox("Y-Axis (Values)", numeric_cols)
+                fig = px.bar(filtered_df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Not enough columns to generate a chart.")
+
+            # --- تحميل البيانات ---
+            st.markdown("### 💾 Download Filtered Data")
+
+            # 1. تنزيل كـ Excel
+            excel_buffer = BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                filtered_df.to_excel(writer, index=False, sheet_name='Filtered Data')
+            excel_data = excel_buffer.getvalue()
+
+            st.download_button(
+                label="📥 Download as Excel",
+                data=excel_data,
+                file_name="Filtered_Data.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+            # 2. تنزيل كـ PDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.set_fill_color(255, 215, 0)  # ذهبي فاتح
+            pdf.set_text_color(0, 31, 63)  # أزرق داكن
+
+            # عنوان
+            pdf.cell(0, 10, "Filtered Data Report", ln=True, align='C')
+            pdf.ln(5)
+
+            # جدول
+            headers = filtered_df.columns.tolist()
+            rows = filtered_df.values.tolist()
+
+            # رأس الجدول
+            col_width = 190 / max(len(headers), 1)
+            for h in headers:
+                pdf.cell(col_width, 10, str(h), border=1, fill=True)
+            pdf.ln(10)
+
+            # الصفوف
+            pdf.set_font("Arial", size=10)
+            for row in rows[:100]:  # فقط أول 100 صف لتجنب التوقف
+                for item in row:
+                    pdf.cell(col_width, 10, str(item), border=1)
+                pdf.ln(10)
+
+            if len(rows) > 100:
+                pdf.cell(0, 10, f"... and {len(rows) - 100} more rows", ln=True)
+
+            pdf_data = pdf.output(dest='S').encode('latin1')
+
+            st.download_button(
+                label="📥 Download as PDF",
+                data=pdf_data,
+                file_name="Filtered_Data_Report.pdf",
+                mime="application/pdf"
+            )
+
+    except Exception as e:
+        st.error(f"❌ Error generating dashboard: {e}")
+
 # ------------------ قسم Info ------------------
 st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
 with st.expander("📖 How to Use - Click to view instructions"):
@@ -443,5 +581,14 @@ with st.expander("📖 How to Use - Click to view instructions"):
 
     ---
 
-    🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
+    ### 📊 ثالثًا: الـ Dashboard
+    - ارفع ملف Excel.
+    - اختر شيت.
+    - استخدم الفلاتر في الشريط الجانبي (التاريخ، الموظفين، المديرين...).
+    - شاهد البيانات والرسم البياني.
+    - حمل البيانات كـ Excel أو PDF.
+
+    ---
+
+    🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554  " target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
