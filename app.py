@@ -10,8 +10,8 @@ from openpyxl import load_workbook, Workbook
 # ------------------ إضافات جديدة للداش بورد ------------------
 import plotly.express as px
 import plotly.graph_objects as go
-from fpdf2 import FPDF  # تثبيت: pip install fpdf2
-import matplotlib.pyplot as plt
+from weasyprint import HTML, CSS  # تم استبدال fpdf2 بـ weasyprint
+import io
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -125,7 +125,7 @@ st.markdown(
     """
     <div class="top-nav">
         <a href="#" onclick="window.location.reload()">Home</a>
-        <a href="  https://wa.me/201554694554  " target="_blank">Contact</a>
+        <a href="https://wa.me/201554694554" target="_blank">Contact</a>
         <a href="#info-section">Info</a>
     </div>
     """,
@@ -139,7 +139,6 @@ if os.path.exists(logo_path):
     st.image(logo_path, width=200)
     st.markdown('</div>', unsafe_allow_html=True)
 else:
-    # إذا لم يكن اللوجو موجودًا، نعرض نصًا بديلًا
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
 
 # ------------------ معلومات المطور ------------------
@@ -147,7 +146,7 @@ st.markdown(
     """
     <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
         By <strong>Mohamed Abd ELGhany</strong> – 
-        <a href="https://wa.me/201554694554  " target="_blank" style="color:#FFD700; text-decoration:none;">
+        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
             01554694554 (WhatsApp)
         </a>
     </div>
@@ -495,10 +494,85 @@ if dashboard_file:
             else:
                 st.info("Not enough columns to generate a chart.")
 
-            # --- تحميل البيانات ---
-            st.markdown("### 💾 Download Filtered Data")
+            # --- تحميل كـ PDF باستخدام weasyprint ---
+            st.markdown("### 💾 Download as PDF")
 
-            # 1. تنزيل كـ Excel
+            # تحويل الجدول إلى HTML مع دعم العربية
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>تقرير البيانات</title>
+                <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet">
+                <style>
+                    body {{
+                        font-family: 'Cairo', sans-serif;
+                        direction: rtl;
+                        text-align: right;
+                        margin: 40px;
+                        background: #f9f9f9;
+                        color: #333;
+                    }}
+                    .header {{
+                        text-align: center;
+                        font-size: 22px;
+                        font-weight: bold;
+                        color: #001f3f;
+                        margin-bottom: 20px;
+                    }}
+                    table {{
+                        border-collapse: collapse;
+                        width: 100%;
+                        margin: 20px 0;
+                        background: white;
+                    }}
+                    th, td {{
+                        border: 1px solid #000;
+                        padding: 10px;
+                        text-align: center;
+                    }}
+                    th {{
+                        background-color: #FFD700;
+                        color: black;
+                        font-weight: bold;
+                    }}
+                    tr:nth-child(even) {{
+                        background-color: #f2f2f2;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">تقرير البيانات المفلترة</div>
+                <table>
+                    <tr>
+            """
+            # رأس الجدول
+            for col in filtered_df.columns:
+                html_content += f"<th>{col}</th>"
+            html_content += "</tr>"
+
+            # الصفوف
+            for _, row in filtered_df.iterrows():
+                html_content += "<tr>"
+                for val in row:
+                    html_content += f"<td>{val}</td>"
+                html_content += "</tr>"
+            html_content += "</table></body></html>"
+
+            # تحويل HTML إلى PDF
+            pdf_buffer = io.BytesIO()
+            HTML(string=html_content).write_pdf(pdf_buffer)
+
+            st.download_button(
+                label="📥 Download as PDF",
+                data=pdf_buffer.getvalue(),
+                file_name="Filtered_Data_Report.pdf",
+                mime="application/pdf"
+            )
+
+            # --- تحميل كـ Excel ---
+            st.markdown("### 💾 Download as Excel")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 filtered_df.to_excel(writer, index=False, sheet_name='Filtered Data')
@@ -509,46 +583,6 @@ if dashboard_file:
                 data=excel_data,
                 file_name="Filtered_Data.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-            # 2. تنزيل كـ PDF
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.set_fill_color(255, 215, 0)  # ذهبي فاتح
-            pdf.set_text_color(0, 31, 63)  # أزرق داكن
-
-            # عنوان
-            pdf.cell(0, 10, "Filtered Data Report", ln=True, align='C')
-            pdf.ln(5)
-
-            # جدول
-            headers = filtered_df.columns.tolist()
-            rows = filtered_df.values.tolist()
-
-            # رأس الجدول
-            col_width = 190 / max(len(headers), 1)
-            for h in headers:
-                pdf.cell(col_width, 10, str(h), border=1, fill=True)
-            pdf.ln(10)
-
-            # الصفوف
-            pdf.set_font("Arial", size=10)
-            for row in rows[:100]:  # فقط أول 100 صف لتجنب التوقف
-                for item in row:
-                    pdf.cell(col_width, 10, str(item), border=1)
-                pdf.ln(10)
-
-            if len(rows) > 100:
-                pdf.cell(0, 10, f"... and {len(rows) - 100} more rows", ln=True)
-
-            pdf_data = pdf.output(dest='S').encode('latin1')
-
-            st.download_button(
-                label="📥 Download as PDF",
-                data=pdf_data,
-                file_name="Filtered_Data_Report.pdf",
-                mime="application/pdf"
             )
 
     except Exception as e:
@@ -590,5 +624,5 @@ with st.expander("📖 How to Use - Click to view instructions"):
 
     ---
 
-    🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554  " target="_blank">01554694554 (واتساب)</a>
+    🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
