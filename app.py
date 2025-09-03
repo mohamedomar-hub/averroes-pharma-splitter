@@ -16,6 +16,10 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 
+# Plotly for modern interactive charts
+import plotly.express as px
+import plotly.graph_objects as go
+
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
     '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
@@ -24,7 +28,7 @@ st.markdown(
 
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(
-    page_title="Averroes Pharma Splitter + Dashboard",
+    page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -559,7 +563,6 @@ if dashboard_file:
 
             # ---- Detect categorical and numeric columns ----
             # Consider month-like columns (Jan..Dec) and numeric columns as measures
-            # Heuristic for month columns:
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
             cols_lower = [c.strip().lower() for c in df0.columns]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
@@ -634,20 +637,19 @@ if dashboard_file:
                 avg_sales = None
                 count_rows = len(filtered)
 
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total (Measure)", f"{total_sales:,.0f}" if total_sales is not None else "-")
-            c2.metric("Average (Measure)", f"{avg_sales:,.0f}" if avg_sales is not None else "-")
-            c3.metric("Rows (filtered)", f"{count_rows}")
+            # Professional KPI cards (3 columns)
+            k1, k2, k3 = st.columns([1,1,1])
+            k1.metric("Total (Measure)", f"{total_sales:,.0f}" if total_sales is not None else "-")
+            k2.metric("Average (Measure)", f"{avg_sales:,.0f}" if avg_sales is not None else "-")
+            k3.metric("Rows (filtered)", f"{count_rows}")
 
             # Auto charts:
             st.markdown("### 📊 Auto Charts (built from data)")
 
             charts_buffers = []
 
-            # 1) If there is a categorical column besides Month, choose the top categorical for breakdown
-            # Find best categorical for breakdown: the one with most non-null values and reasonable cardinality
+            # Determine dims for charts
             possible_dims = [c for c in filtered.columns if c not in [measure_col, "Month"]]
-            # prefer columns that look like "Item", "Product", "Area", "Branch", "Manager"
             prefer_order = ["item","product","area","branch","manager","rep","representative","salesman","brick"]
             chosen_dim = None
             for p in prefer_order:
@@ -664,60 +666,32 @@ if dashboard_file:
                 if lens:
                     chosen_dim = lens[0][0]
 
-            # Chart A: Top N by chosen dimension
+            # Build a modern Plotly layout: KPI row already; charts row next
+            chart_cols = st.columns([1,1,1])
+
+            # Chart 1: Bar (Top by chosen_dim) using Plotly
             if chosen_dim and measure_col and chosen_dim in filtered.columns:
                 try:
-                    topN = 10
-                    series = filtered.groupby(chosen_dim)[measure_col].sum().sort_values(ascending=False).head(topN)
-                    fig, ax = plt.subplots(figsize=(9,4))
-                    make_bar(ax, series, f"Top {len(series)} by {chosen_dim}", "Total")
-                    fig.tight_layout()
-                    img_buf = BytesIO()
-                    fig.savefig(img_buf, format="png", dpi=150, bbox_inches="tight")
-                    img_buf.seek(0)
-                    charts_buffers.append((img_buf, f"Top {len(series)} by {chosen_dim}"))
-                    st.pyplot(fig)
-                    plt.close(fig)
-
-                    # pie of same series
-                    fig, ax = plt.subplots(figsize=(7,4))
-                    make_pie(ax, series, f"Share by {chosen_dim}")
-                    fig.tight_layout()
-                    img_buf = BytesIO()
-                    fig.savefig(img_buf, format="png", dpi=150, bbox_inches="tight")
-                    img_buf.seek(0)
-                    charts_buffers.append((img_buf, f"Share by {chosen_dim}"))
-                    st.pyplot(fig)
-                    plt.close(fig)
-                except Exception:
-                    pass
-
-            # Chart B: Trend by Month if available
-            if "Month" in filtered.columns and measure_col and measure_col in filtered.columns:
-                try:
-                    ser = filtered.dropna(subset=["Month"])
-                    # If Month is period or datetime, convert to string for ordering
-                    if pd.api.types.is_datetime64_any_dtype(ser["Month"]):
-                        ser["_yyyymm"] = ser["Month"].dt.to_period("M")
-                        trend = ser.groupby("_yyyymm")[measure_col].sum().sort_index()
-                        trend.index = trend.index.astype(str)
-                    else:
-                        trend = ser.groupby("Month")[measure_col].sum().sort_index()
-                    if len(trend):
-                        fig, ax = plt.subplots(figsize=(9,4))
-                        make_line(ax, trend, "Trend by Month", "Total")
-                        fig.tight_layout()
-                        img_buf = BytesIO()
-                        fig.savefig(img_buf, format="png", dpi=150, bbox_inches="tight")
+                    series = filtered.groupby(chosen_dim)[measure_col].sum().sort_values(ascending=False).head(10)
+                    df_series = series.reset_index().rename(columns={measure_col: "value"})
+                    fig_bar = px.bar(df_series, x=chosen_dim, y="value", title=f"Top by {chosen_dim}", text="value")
+                    fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                    fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    with chart_cols[0]:
+                        st.plotly_chart(fig_bar, use_container_width=True, theme="streamlit")
+                    # try to get png bytes for PDF
+                    try:
+                        img_bytes = fig_bar.to_image(format="png")
+                        img_buf = BytesIO(img_bytes)
                         img_buf.seek(0)
-                        charts_buffers.append((img_buf, "Trend by Month"))
-                        st.pyplot(fig)
-                        plt.close(fig)
+                        charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
+                    except Exception:
+                        # fallback: render matplotlib copy for PDF (optional)
+                        pass
                 except Exception:
                     pass
 
-            # Chart C: Overall distribution by another categorical if available
-            # pick second categorical
+            # Chart 2: Pie by same chosen_dim or second dim
             second_dim = None
             for c in possible_dims:
                 if c != chosen_dim:
@@ -726,15 +700,69 @@ if dashboard_file:
             if second_dim and measure_col and second_dim in filtered.columns:
                 try:
                     series2 = filtered.groupby(second_dim)[measure_col].sum().sort_values(ascending=False).head(10)
-                    fig, ax = plt.subplots(figsize=(9,4))
-                    make_bar(ax, series2, f"By {second_dim}", "Total")
-                    fig.tight_layout()
-                    img_buf = BytesIO()
-                    fig.savefig(img_buf, format="png", dpi=150, bbox_inches="tight")
-                    img_buf.seek(0)
-                    charts_buffers.append((img_buf, f"By {second_dim}"))
-                    st.pyplot(fig)
-                    plt.close(fig)
+                    df_pie = series2.reset_index().rename(columns={measure_col: "value"})
+                    fig_pie = px.pie(df_pie, names=second_dim, values="value", title=f"Share by {second_dim}", hole=0.35)
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                    fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                    with chart_cols[1]:
+                        st.plotly_chart(fig_pie, use_container_width=True, theme="streamlit")
+                    try:
+                        img_bytes = fig_pie.to_image(format="png")
+                        img_buf = BytesIO(img_bytes)
+                        img_buf.seek(0)
+                        charts_buffers.append((img_buf, f"Share by {second_dim}"))
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            else:
+                # If no second_dim, try pie by chosen_dim breakdown top slices
+                if chosen_dim and measure_col:
+                    try:
+                        s = filtered.groupby(chosen_dim)[measure_col].sum().sort_values(ascending=False).head(8)
+                        df_pie = s.reset_index().rename(columns={measure_col: "value"})
+                        fig_pie = px.pie(df_pie, names=chosen_dim, values="value", title=f"Share by {chosen_dim}", hole=0.35)
+                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                        fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                        with chart_cols[1]:
+                            st.plotly_chart(fig_pie, use_container_width=True, theme="streamlit")
+                        try:
+                            img_bytes = fig_pie.to_image(format="png")
+                            img_buf = BytesIO(img_bytes)
+                            img_buf.seek(0)
+                            charts_buffers.append((img_buf, f"Share by {chosen_dim}"))
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+
+            # Chart 3: Trend by Month (Plotly line)
+            if "Month" in filtered.columns and measure_col and measure_col in filtered.columns:
+                try:
+                    ser = filtered.dropna(subset=["Month"])
+                    if pd.api.types.is_datetime64_any_dtype(ser["Month"]):
+                        ser["_yyyymm"] = ser["Month"].dt.to_period("M")
+                        trend = ser.groupby("_yyyymm")[measure_col].sum().sort_index()
+                        trend = trend.reset_index().rename(columns={measure_col: "value"})
+                        trend["_yyyymm"] = trend["_yyyymm"].astype(str)
+                        fig_line = px.line(trend, x="_yyyymm", y="value", markers=True, title="Trend by Month")
+                        fig_line.update_traces(texttemplate='%{y:,.0f}', textposition='top center')
+                        fig_line.update_layout(xaxis_title="Month", yaxis_title="Total", margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                    else:
+                        trend = ser.groupby("Month")[measure_col].sum().sort_index().reset_index().rename(columns={measure_col: "value"})
+                        fig_line = px.line(trend, x="Month", y="value", markers=True, title="Trend by Month")
+                        fig_line.update_traces(texttemplate='%{y:,.0f}', textposition='top center')
+                        fig_line.update_layout(xaxis_title="Month", yaxis_title="Total", margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+
+                    with chart_cols[2]:
+                        st.plotly_chart(fig_line, use_container_width=True, theme="streamlit")
+                    try:
+                        img_bytes = fig_line.to_image(format="png")
+                        img_buf = BytesIO(img_bytes)
+                        img_buf.seek(0)
+                        charts_buffers.append((img_buf, "Trend by Month"))
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 
@@ -756,13 +784,16 @@ if dashboard_file:
             # PDF generation (includes charts captured above and first rows of table)
             if st.button("📥 Generate PDF Report"):
                 with st.spinner("Generating PDF..."):
-                    pdf_buffer = build_pdf(sheet_title, filtered, charts_buffers)
-                    st.download_button(
-                        label="⬇️ Download Dashboard PDF",
-                        data=pdf_buffer,
-                        file_name=f"{_safe_name(sheet_title)}.pdf",
-                        mime="application/pdf"
-                    )
+                    try:
+                        pdf_buffer = build_pdf(sheet_title, filtered, charts_buffers)
+                        st.download_button(
+                            label="⬇️ Download Dashboard PDF",
+                            data=pdf_buffer,
+                            file_name=f"{_safe_name(sheet_title)}.pdf",
+                            mime="application/pdf"
+                        )
+                    except Exception as e:
+                        st.error(f"❌ PDF generation failed: {e}")
 
     except Exception as e:
         st.error(f"❌ Error generating dashboard: {e}")
