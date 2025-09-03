@@ -96,6 +96,16 @@ custom_css = """
         transform: scale(1.08);
         box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
     }
+    .kpi-card {
+        padding: 14px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+        font-weight: 700;
+    }
+    .kpi-title { font-size: 14px; opacity: 0.9; }
+    .kpi-value { font-size: 22px; margin-top:6px; }
     hr.divider {
         border: 1px solid #FFD700;
         opacity: 0.6;
@@ -192,33 +202,11 @@ def _format_millions(x, pos=None):
         return f"{x/1_000:.1f}K"
     return f"{x:.0f}"
 
-def make_bar(ax, series, title, ylabel):
-    bars = ax.bar(series.index.astype(str), series.values)
-    ax.set_title(title)
-    ax.set_ylabel(ylabel)
-    ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-    ax.tick_params(axis='x', rotation=45)
-    for b in bars:
-        h = b.get_height()
-        ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h),
-                    xytext=(0, 5), textcoords="offset points", ha='center', va='bottom', fontsize=8)
-
-def make_pie(ax, series, title):
-    total = series.sum()
-    autopct = lambda pct: f"{pct:.1f}%\n({(pct/100.0)*total:,.0f})"
-    ax.pie(series.values, labels=series.index.astype(str), autopct=autopct, startangle=90)
-    ax.set_title(title)
-    ax.axis('equal')
-
-def make_line(ax, series, title, ylabel):
-    ax.plot(series.index.astype(str), series.values, marker='o')
-    ax.set_title(title)
-    ax.set_ylabel(ylabel)
-    ax.grid(True, linestyle='--', alpha=0.4)
-    for x, y in zip(range(len(series.index)), series.values):
-        ax.annotate(f"{y:,.0f}", xy=(x, y), xytext=(0, 6), textcoords="offset points", ha='center', va='bottom', fontsize=8)
-
 def build_pdf(sheet_title, filtered_df, charts_buffers, max_table_rows=200):
+    """
+    يبني PDF يتضمن الغلاف + الرسومات (PNG buffers) + جدول أول الصفوف.
+    ملاحظة: الصور تأتي كـ BytesIO PNG buffers
+    """
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
     styles = getSampleStyleSheet()
@@ -233,12 +221,14 @@ def build_pdf(sheet_title, filtered_df, charts_buffers, max_table_rows=200):
     # Charts
     for img_buf, caption in charts_buffers:
         try:
+            img_buf.seek(0)
             img = Image(img_buf, width=760, height=360)
             elements.append(img)
             elements.append(Spacer(1,6))
             elements.append(Paragraph(f"<para align='center'>{caption}</para>", styles['Normal']))
             elements.append(Spacer(1,12))
         except Exception:
+            # skip if cannot insert
             pass
 
     # Table - limit rows to avoid huge PDF
@@ -248,6 +238,7 @@ def build_pdf(sheet_title, filtered_df, charts_buffers, max_table_rows=200):
         elements.append(Paragraph(f"Showing first {max_table_rows} rows of filtered data", styles['Normal']))
         elements.append(Spacer(1,6))
 
+    # build table data (convert all to string)
     table_data = [table_df.columns.tolist()] + table_df.astype(str).values.tolist()
     tbl = Table(table_data, hAlign='CENTER')
     tbl.setStyle(TableStyle([
@@ -562,7 +553,6 @@ if dashboard_file:
             st.dataframe(df0.head(), use_container_width=True)
 
             # ---- Detect categorical and numeric columns ----
-            # Consider month-like columns (Jan..Dec) and numeric columns as measures
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
             cols_lower = [c.strip().lower() for c in df0.columns]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
@@ -600,25 +590,46 @@ if dashboard_file:
             for c in df_long.columns:
                 if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype != "float64" and df_long[c].dtype != "int64":
                     cat_cols.append(c)
-            # Make sure index column not in list
             cat_cols = [c for c in cat_cols if c is not None]
 
-            # Sidebar dynamic filters: create multiselects for a subset of categorical columns
+            # Sidebar dynamic filters: create multiselects for some categorical columns
             st.sidebar.header("🔍 Dynamic Filters")
-            filter_cols = st.sidebar.multiselect("Choose filter columns (the dashboard will update automatically)", cat_cols, default=cat_cols[:3] if len(cat_cols)>0 else [])
+
+            # 1) Primary filter column (single select) dropdown to choose an active dimension
+            primary_filter_col = None
+            if len(cat_cols) > 0:
+                primary_filter_col = st.sidebar.selectbox("Primary Filter Column (drop-list)", ["-- None --"] + cat_cols, index=0)
+                if primary_filter_col == "-- None --":
+                    primary_filter_col = None
+
+            # 2) For primary column show a multi-select of its values (drop-list of values)
+            primary_values = None
+            if primary_filter_col:
+                vals = df_long[primary_filter_col].dropna().astype(str).unique().tolist()
+                try:
+                    vals = sorted(vals)
+                except Exception:
+                    pass
+                primary_values = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
+
+            # 3) Additional filter columns (multi-select column chooser)
+            other_filter_cols = st.sidebar.multiselect("Choose additional filter columns (optional)", [c for c in cat_cols if c != primary_filter_col], default=[])
             active_filters = {}
-            for fc in filter_cols:
+            # build multiselect per chosen other filter
+            for fc in other_filter_cols:
                 opts = df_long[fc].dropna().astype(str).unique().tolist()
-                # sort options
                 try:
                     opts = sorted(opts)
                 except Exception:
                     pass
-                selected = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
-                active_filters[fc] = selected
+                sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
+                active_filters[fc] = sel
 
             # Apply filters
             filtered = df_long.copy()
+            if primary_filter_col and primary_values is not None:
+                if len(primary_values) > 0:
+                    filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
             for fc, sel in active_filters.items():
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
@@ -626,7 +637,7 @@ if dashboard_file:
             st.markdown("### 📈 Filtered Data Preview")
             st.dataframe(filtered.head(200), use_container_width=True)
 
-            # Auto KPIs
+            # Auto KPIs - show with colored cards
             st.markdown("### 🚀 KPIs")
             if measure_col and measure_col in filtered.columns:
                 total_sales = filtered[measure_col].sum()
@@ -637,15 +648,24 @@ if dashboard_file:
                 avg_sales = None
                 count_rows = len(filtered)
 
-            # Professional KPI cards (3 columns)
+            # colored KPI cards via markdown
             k1, k2, k3 = st.columns([1,1,1])
-            k1.metric("Total (Measure)", f"{total_sales:,.0f}" if total_sales is not None else "-")
-            k2.metric("Average (Measure)", f"{avg_sales:,.0f}" if avg_sales is not None else "-")
-            k3.metric("Rows (filtered)", f"{count_rows}")
+            kpi_html_1 = f"<div class='kpi-card' style='background:linear-gradient(90deg,#ff8a00,#ffc107);'><div class='kpi-title'>Total (Measure)</div><div class='kpi-value'>{total_sales:,.0f}" if total_sales is not None else "<div class='kpi-card' style='background:linear-gradient(90deg,#ff8a00,#ffc107);'><div class='kpi-title'>Total (Measure)</div><div class='kpi-value'>-"
+            kpi_html_1 += "</div></div>"
+            kpi_html_2 = f"<div class='kpi-card' style='background:linear-gradient(90deg,#00c0ff,#007bff);'><div class='kpi-title'>Average (Measure)</div><div class='kpi-value'>{avg_sales:,.0f}" if avg_sales is not None else "<div class='kpi-card' style='background:linear-gradient(90deg,#00c0ff,#007bff);'><div class='kpi-title'>Average (Measure)</div><div class='kpi-value'>-"
+            kpi_html_2 += "</div></div>"
+            kpi_html_3 = f"<div class='kpi-card' style='background:linear-gradient(90deg,#28a745,#85e085);'><div class='kpi-title'>Rows (filtered)</div><div class='kpi-value'>{count_rows}" 
+            kpi_html_3 += "</div></div>"
+
+            with k1:
+                st.markdown(kpi_html_1, unsafe_allow_html=True)
+            with k2:
+                st.markdown(kpi_html_2, unsafe_allow_html=True)
+            with k3:
+                st.markdown(kpi_html_3, unsafe_allow_html=True)
 
             # Auto charts:
             st.markdown("### 📊 Auto Charts (built from data)")
-
             charts_buffers = []
 
             # Determine dims for charts
@@ -660,13 +680,12 @@ if dashboard_file:
                 if chosen_dim:
                     break
             if not chosen_dim and len(possible_dims):
-                # pick the categorical with smallest cardinality >1
                 lens = [(c, filtered[c].nunique(dropna=True)) for c in possible_dims]
                 lens = sorted([x for x in lens if x[1] > 1], key=lambda x: x[1])
                 if lens:
                     chosen_dim = lens[0][0]
 
-            # Build a modern Plotly layout: KPI row already; charts row next
+            # layout columns for plotly charts
             chart_cols = st.columns([1,1,1])
 
             # Chart 1: Bar (Top by chosen_dim) using Plotly
@@ -679,19 +698,36 @@ if dashboard_file:
                     fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     with chart_cols[0]:
                         st.plotly_chart(fig_bar, use_container_width=True, theme="streamlit")
-                    # try to get png bytes for PDF
+                    # capture PNG for PDF (requires kaleido)
                     try:
                         img_bytes = fig_bar.to_image(format="png")
                         img_buf = BytesIO(img_bytes)
                         img_buf.seek(0)
                         charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
                     except Exception:
-                        # fallback: render matplotlib copy for PDF (optional)
-                        pass
+                        # fallback: render a matplotlib static chart into PNG
+                        try:
+                            fig_m, ax = plt.subplots(figsize=(9,4))
+                            bars = ax.bar(series.index.astype(str), series.values)
+                            ax.set_title(f"Top by {chosen_dim}")
+                            ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
+                            ax.tick_params(axis='x', rotation=45)
+                            for b in bars:
+                                h = b.get_height()
+                                ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h),
+                                            xytext=(0, 5), textcoords="offset points", ha='center', va='bottom', fontsize=8)
+                            fig_m.tight_layout()
+                            img_buf = BytesIO()
+                            fig_m.savefig(img_buf, format="png", dpi=150, bbox_inches="tight")
+                            img_buf.seek(0)
+                            charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
+                            plt.close(fig_m)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
-            # Chart 2: Pie by same chosen_dim or second dim
+            # Chart 2: Pie by chosen_dim or second dim
             second_dim = None
             for c in possible_dims:
                 if c != chosen_dim:
@@ -712,11 +748,23 @@ if dashboard_file:
                         img_buf.seek(0)
                         charts_buffers.append((img_buf, f"Share by {second_dim}"))
                     except Exception:
-                        pass
+                        # fallback matplotlib pie
+                        try:
+                            fig_m, ax = plt.subplots(figsize=(7,4))
+                            ax.pie(series2.values, labels=series2.index.astype(str), autopct=lambda pct: f"{pct:.1f}%\n({(pct/100.0)*series2.sum():,.0f})", startangle=90)
+                            ax.set_title(f"Share by {second_dim}")
+                            ax.axis('equal')
+                            fig_m.tight_layout()
+                            img_buf = BytesIO()
+                            fig_m.savefig(img_buf, format="png", dpi=150, bbox_inches="tight")
+                            img_buf.seek(0)
+                            charts_buffers.append((img_buf, f"Share by {second_dim}"))
+                            plt.close(fig_m)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
             else:
-                # If no second_dim, try pie by chosen_dim breakdown top slices
                 if chosen_dim and measure_col:
                     try:
                         s = filtered.groupby(chosen_dim)[measure_col].sum().sort_values(ascending=False).head(8)
@@ -828,7 +876,8 @@ with st.expander("📖 How to Use - Click to view instructions"):
     ### 📊 ثالثًا: الـ Dashboard
     - ارفع ملف Excel.
     - اختر الشيت (اسم الشيت هيكون عنوان الـ PDF).
-    - استخدم Sidebar لاختيار أعمدة الفلترة الديناميكية (Drop-lists).
+    - استخدم Sidebar لاختيار "Primary Filter Column" (دروب ليست) ثم قيمه.
+    - اختياريًا اختار أعمدة فلترة إضافية.
     - الداشبورد يتبنى أوتوماتيك الرسومات من الداتا.
     - حمّل **PDF** فيه الرسومات بالأرقام وجداول البيانات، وكمان **Excel** بالبيانات المفلترة.
 
