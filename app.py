@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 from io import BytesIO
@@ -7,11 +8,13 @@ import os
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl import load_workbook, Workbook
 
-# ------------------ إضافات جديدة للداش بورد ------------------
-import plotly.express as px
-import plotly.graph_objects as go
-from weasyprint import HTML, CSS  # تم استبدال fpdf2 بـ weasyprint
-import io
+# ====== إضافات للداش بورد والتقارير ======
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image, Spacer, PageBreak
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -139,6 +142,7 @@ if os.path.exists(logo_path):
     st.image(logo_path, width=200)
     st.markdown('</div>', unsafe_allow_html=True)
 else:
+    # إذا لم يكن اللوجو موجودًا، نعرض نصًا بديلًا
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
 
 # ------------------ معلومات المطور ------------------
@@ -292,7 +296,7 @@ if uploaded_file:
                     st.download_button(
                         label="📥 Download Split Files (ZIP)",
                         data=zip_buffer.getvalue(),
-                        file_name=f"Split_{clean_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                        file_name=f"Split_{re.sub(r'[^A-Za-z0-9_-]+','_', uploaded_file.name.rsplit('.',1)[0])}.zip",
                         mime="application/zip"
                     )
 
@@ -422,166 +426,241 @@ if merge_files:
                 st.error(f"❌ Error during merge: {e}")
 
 # ====================================================================================
-# 📊 قسم جديد: Interactive Dashboard Generator
+# 📊 قسم جديد: Interactive Dashboard + PDF Report (عنوان مطابق لاسم الشيت)
 # ====================================================================================
 st.markdown("<hr class='divider' id='dashboard-section'>", unsafe_allow_html=True)
 st.markdown("### 📊 Interactive Dashboard Generator")
 
 dashboard_file = st.file_uploader("📊 Upload Excel File for Dashboard", type=["xlsx"], key="dashboard_uploader")
 
+def _find_col(df, aliases):
+    lowered = {c.lower(): c for c in df.columns}
+    for a in aliases:
+        if a.lower() in lowered:
+            return lowered[a.lower()]
+    # محاولات تقريبية
+    for c in df.columns:
+        name = c.strip().lower()
+        for a in aliases:
+            if a.lower() in name:
+                return c
+    return None
+
+def _format_millions(x, pos=None):
+    try:
+        x = float(x)
+    except:
+        return str(x)
+    if abs(x) >= 1_000_000:
+        return f"{x/1_000_000:.1f}M"
+    if abs(x) >= 1_000:
+        return f"{x/1_000:.1f}K"
+    return f"{x:.0f}"
+
+def make_bar(fig_ax, series, title, ylabel):
+    ax = fig_ax
+    bars = ax.bar(series.index.astype(str), series.values)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
+    ax.tick_params(axis='x', rotation=0)
+    for b in bars:
+        h = b.get_height()
+        ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h),
+                    xytext=(0, 5), textcoords="offset points", ha='center', va='bottom', fontsize=9)
+
+def make_pie(fig_ax, series, title):
+    ax = fig_ax
+    wedges, texts, autotexts = ax.plot([],[]) ,[],[]  # placeholder
+    total = series.sum()
+    autopct = lambda pct: f"{pct:.1f}%\n({(pct/100.0)*total:,.0f})"
+    ax.clear()
+    ax.pie(series.values, labels=series.index.astype(str), autopct=autopct, startangle=90)
+    ax.set_title(title)
+    ax.axis('equal')
+
+def make_line(fig_ax, series, title, ylabel):
+    ax = fig_ax
+    ax.plot(series.index.astype(str), series.values, marker='o')
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.grid(True, linestyle='--', alpha=0.4)
+    for x, y in zip(range(len(series.index)), series.values):
+        ax.annotate(f"{y:,.0f}", xy=(x, y), xytext=(0, 6), textcoords="offset points", ha='center', va='bottom', fontsize=9)
+
+def build_pdf(sheet_title, filtered_df, charts_buffers):
+    buf = BytesIO()
+    # عرض أفقي عشان الرسومات تكون واضحة
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    # غلاف أنيق بألوان متناسقة
+    elements.append(Paragraph(f"<para align='center'><b>{sheet_title}</b></para>", styles['Title']))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph("<para align='center' color='#001F3F'>Averroes Pharma – Interactive Dashboard</para>", styles['Heading3']))
+    elements.append(Spacer(1, 12))
+
+    # إدراج الرسومات
+    for img_buf, caption in charts_buffers:
+        img = Image(img_buf, width=760, height=360)  # تقريباً عرض الصفحة الأفقية
+        elements.append(img)
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph(f"<para align='center'><font color='#6c757d'>{caption}</font></para>", styles['Normal']))
+        elements.append(Spacer(1, 18))
+
+    # جدول البيانات (نقصّم لو كبير)
+    table_data = [filtered_df.columns.tolist()] + filtered_df.astype(object).astype(str).values.tolist()
+    # لعدم ثقل الملف، نقسم على صفحات كل 25 صف
+    chunk = 25
+    for i in range(0, len(table_data), chunk):
+        part = table_data[i:i+chunk]
+        tbl = Table(part, hAlign='CENTER')
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#FFD700")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.black),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.HexColor("#F7F7F7")])
+        ]))
+        elements.append(tbl)
+        if i + chunk < len(table_data):
+            elements.append(PageBreak())
+
+    doc.build(elements)
+    buf.seek(0)
+    return buf
+
 if dashboard_file:
     try:
-        df_dash = pd.read_excel(dashboard_file, sheet_name=None)
-        sheet_names = list(df_dash.keys())
+        df_all = pd.read_excel(dashboard_file, sheet_name=None)
+        sheet_names = list(df_all.keys())
         selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
 
         if selected_sheet_dash:
-            df = df_dash[selected_sheet_dash].copy()
+            sheet_title = selected_sheet_dash  # العنوان في PDF مطابق لاسم الشيت
+            df_dash = df_all[selected_sheet_dash].copy()
 
-            # عرض البيانات
             st.markdown("### 🔍 Data Preview")
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df_dash, use_container_width=True)
 
-            # --- تحويل الأعمدة الزمنية ---
-            date_columns = df.select_dtypes(include='datetime').columns.tolist()
-            for col in df.columns:
-                if col not in date_columns:
-                    # محاولة تحويل إلى تاريخ
-                    try:
-                        if pd.to_datetime(df[col], errors='raise').dtype == 'datetime64[ns]':
-                            df[col] = pd.to_datetime(df[col])
-                            date_columns.append(col)
-                    except:
-                        pass
+            # كشف أعمدة مهمة (شهر/مندوب/مبيعات) تدعم عربي/إنجليزي
+            month_col = _find_col(df_dash, ["Month", "الشهر", "month", "MONTH"])
+            rep_col   = _find_col(df_dash, ["Rep", "Sales Rep", "المندوب", "مندوب", "representative"])
+            sales_col = _find_col(df_dash, ["Sales", "المبيعات", "value", "amount", "NET", "Total"])
 
-            # --- الفلاتر في الـ sidebar ---
+            # محاولات تحويل الشهر لتاريخ
+            if month_col:
+                try:
+                    df_dash[month_col] = pd.to_datetime(df_dash[month_col], errors='coerce')
+                except Exception:
+                    pass
+
+            # سايدبار فلاتر: شهر + مندوب
             st.sidebar.header("🔍 Filters")
-            filters = {}
+            filtered = df_dash.copy()
 
-            for col in df.columns:
-                if col in date_columns:
-                    min_date = df[col].min().date()
-                    max_date = df[col].max().date()
-                    start, end = st.sidebar.date_input(f"Date Range: {col}", [min_date, max_date])
-                    filters[col] = (pd.to_datetime(start), pd.to_datetime(end))
-                elif df[col].nunique() < 50:  # فئات صغيرة (مثل موظفين، مديرين)
-                    options = df[col].dropna().unique().tolist()
-                    selected = st.sidebar.multiselect(f"Filter by: {col}", options, default=options)
-                    filters[col] = selected
+            # فلتر الشهر (لو عمود الشهر متاح)
+            if month_col and pd.api.types.is_datetime64_any_dtype(filtered[month_col]):
+                min_d, max_d = filtered[month_col].min(), filtered[month_col].max()
+                d_range = st.sidebar.date_input("📅 Date Range", [min_d.date() if pd.notna(min_d) else None,
+                                                                  max_d.date() if pd.notna(max_d) else None])
+                if isinstance(d_range, list) and len(d_range) == 2 and all(d is not None for d in d_range):
+                    start_d = pd.to_datetime(d_range[0])
+                    end_d = pd.to_datetime(d_range[1])
+                    filtered = filtered[(filtered[month_col] >= start_d) & (filtered[month_col] <= end_d)]
+            elif month_col:
+                # شهر نصّي: نعرض قيم ونفلتر
+                month_vals = filtered[month_col].dropna().astype(str).unique().tolist()
+                selected_months = st.sidebar.multiselect("📅 Months", month_vals, default=month_vals)
+                filtered = filtered[filtered[month_col].astype(str).isin(selected_months)]
 
-            # تطبيق الفلاتر
-            filtered_df = df.copy()
-            for col, filt in filters.items():
-                if col in date_columns:
-                    start, end = filt
-                    filtered_df = filtered_df[(filtered_df[col] >= start) & (filtered_df[col] <= end)]
-                else:
-                    filtered_df = filtered_df[filtered_df[col].isin(filt)]
+            # فلتر المندوب
+            if rep_col:
+                reps = filtered[rep_col].dropna().astype(str).unique().tolist()
+                selected_reps = st.sidebar.multiselect("🧑‍💼 Representatives", reps, default=reps)
+                filtered = filtered[filtered[rep_col].astype(str).isin(selected_reps)]
 
             st.markdown("### 📈 Filtered Data")
-            st.dataframe(filtered_df, use_container_width=True)
+            st.dataframe(filtered, use_container_width=True)
 
-            # --- رسم بياني تفاعلي ---
-            st.markdown("### 📊 Interactive Chart")
-            numeric_cols = filtered_df.select_dtypes(include='number').columns.tolist()
-            categorical_cols = filtered_df.select_dtypes(exclude='number').columns.tolist()
+            # تحضير عمود المبيعات (إن لم يوجد، نجمع كل الأعمدة الرقمية كـ إجمالي)
+            if sales_col is None:
+                num_cols = filtered.select_dtypes(include='number').columns.tolist()
+                if len(num_cols):
+                    filtered["__auto_sales__"] = filtered[num_cols].sum(axis=1, numeric_only=True)
+                    sales_col = "__auto_sales__"
 
-            if len(numeric_cols) > 0 and len(categorical_cols) > 0:
-                x_col = st.selectbox("X-Axis (Categories)", categorical_cols)
-                y_col = st.selectbox("Y-Axis (Values)", numeric_cols)
-                fig = px.bar(filtered_df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Not enough columns to generate a chart.")
+            charts_buffers = []
 
-            # --- تحميل كـ PDF باستخدام weasyprint ---
-            st.markdown("### 💾 Download as PDF")
+            if sales_col is not None:
+                # 1) Bar: المبيعات حسب المندوب
+                if rep_col:
+                    sales_by_rep = filtered.groupby(rep_col)[sales_col].sum().sort_values(ascending=False)
+                    if len(sales_by_rep):
+                        fig, ax = plt.subplots(figsize=(9, 4))
+                        make_bar(ax, sales_by_rep, "Sales by Representative", "Total Sales")
+                        fig.tight_layout()
+                        img_buf = BytesIO()
+                        fig.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
+                        img_buf.seek(0)
+                        charts_buffers.append((img_buf, "Sales by Representative"))
+                        st.pyplot(fig)
+                        plt.close(fig)
 
-            # تحويل الجدول إلى HTML مع دعم العربية
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <title>تقرير البيانات</title>
-                <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet">
-                <style>
-                    body {{
-                        font-family: 'Cairo', sans-serif;
-                        direction: rtl;
-                        text-align: right;
-                        margin: 40px;
-                        background: #f9f9f9;
-                        color: #333;
-                    }}
-                    .header {{
-                        text-align: center;
-                        font-size: 22px;
-                        font-weight: bold;
-                        color: #001f3f;
-                        margin-bottom: 20px;
-                    }}
-                    table {{
-                        border-collapse: collapse;
-                        width: 100%;
-                        margin: 20px 0;
-                        background: white;
-                    }}
-                    th, td {{
-                        border: 1px solid #000;
-                        padding: 10px;
-                        text-align: center;
-                    }}
-                    th {{
-                        background-color: #FFD700;
-                        color: black;
-                        font-weight: bold;
-                    }}
-                    tr:nth-child(even) {{
-                        background-color: #f2f2f2;
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class="header">تقرير البيانات المفلترة</div>
-                <table>
-                    <tr>
-            """
-            # رأس الجدول
-            for col in filtered_df.columns:
-                html_content += f"<th>{col}</th>"
-            html_content += "</tr>"
+                        # Pie
+                        fig, ax = plt.subplots(figsize=(7, 4))
+                        make_pie(ax, sales_by_rep, "Sales Share by Representative")
+                        fig.tight_layout()
+                        img_buf = BytesIO()
+                        fig.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
+                        img_buf.seek(0)
+                        charts_buffers.append((img_buf, "Sales Share by Representative"))
+                        st.pyplot(fig)
+                        plt.close(fig)
 
-            # الصفوف
-            for _, row in filtered_df.iterrows():
-                html_content += "<tr>"
-                for val in row:
-                    html_content += f"<td>{val}</td>"
-                html_content += "</tr>"
-            html_content += "</table></body></html>"
+                # 2) Line: المبيعات حسب الشهر
+                if month_col:
+                    mser = filtered.dropna(subset=[month_col])
+                    if pd.api.types.is_datetime64_any_dtype(mser[month_col]):
+                        mser["_yyyymm"] = mser[month_col].dt.to_period("M")
+                        sales_by_month = mser.groupby("_yyyymm")[sales_col].sum().sort_index()
+                        sales_by_month.index = sales_by_month.index.astype(str)
+                    else:
+                        sales_by_month = filtered.groupby(month_col)[sales_col].sum()
+                    if len(sales_by_month):
+                        fig, ax = plt.subplots(figsize=(9, 4))
+                        make_line(ax, sales_by_month, "Sales Trend by Month", "Total Sales")
+                        fig.tight_layout()
+                        img_buf = BytesIO()
+                        fig.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
+                        img_buf.seek(0)
+                        charts_buffers.append((img_buf, "Sales Trend by Month"))
+                        st.pyplot(fig)
+                        plt.close(fig)
 
-            # تحويل HTML إلى PDF
-            pdf_buffer = io.BytesIO()
-            HTML(string=html_content).write_pdf(pdf_buffer)
+            # === تحميل كـ PDF (العنوان مطابق لاسم الشيت + الأرقام داخل الرسوم) ===
+            st.markdown("### 💾 Download PDF Report")
+            if st.button("📥 Generate PDF Report"):
+                with st.spinner("Generating PDF..."):
+                    pdf_buffer = build_pdf(sheet_title, filtered.fillna(""), charts_buffers)
+                    st.download_button(
+                        label="⬇️ Download Dashboard PDF",
+                        data=pdf_buffer,
+                        file_name=f"{re.sub(r'[^A-Za-z0-9_-]+','_', sheet_title)}.pdf",
+                        mime="application/pdf"
+                    )
 
-            st.download_button(
-                label="📥 Download as PDF",
-                data=pdf_buffer.getvalue(),
-                file_name="Filtered_Data_Report.pdf",
-                mime="application/pdf"
-            )
-
-            # --- تحميل كـ Excel ---
-            st.markdown("### 💾 Download as Excel")
+            # --- تحميل كـ Excel للبيانات المفلترة ---
+            st.markdown("### 💾 Download Filtered Data (Excel)")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                filtered_df.to_excel(writer, index=False, sheet_name='Filtered Data')
-            excel_data = excel_buffer.getvalue()
-
+                filtered.to_excel(writer, index=False, sheet_name='Filtered Data')
             st.download_button(
-                label="📥 Download as Excel",
-                data=excel_data,
-                file_name="Filtered_Data.xlsx",
+                label="⬇️ Download Filtered Data.xlsx",
+                data=excel_buffer.getvalue(),
+                file_name=f"{re.sub(r'[^A-Za-z0-9_-]+','_', sheet_title)}_Filtered.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
@@ -617,10 +696,10 @@ with st.expander("📖 How to Use - Click to view instructions"):
 
     ### 📊 ثالثًا: الـ Dashboard
     - ارفع ملف Excel.
-    - اختر شيت.
-    - استخدم الفلاتر في الشريط الجانبي (التاريخ، الموظفين، المديرين...).
-    - شاهد البيانات والرسم البياني.
-    - حمل البيانات كـ Excel أو PDF.
+    - اختر شيت (اسم الشيت هيكون عنوان الـ PDF).
+    - فلتر بالشهر والمندوب.
+    - تشوف الرسومات التفاعلية في التطبيق.
+    - حمّل **PDF** فيه الرسومات بالأرقام وجداول البيانات، وكمان **Excel** بالبيانات المفلترة.
 
     ---
 
