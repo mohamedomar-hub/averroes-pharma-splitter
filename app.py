@@ -14,7 +14,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
-# Plotly for modern interactive charts
+# Plotly for modern interactive charts (on-screen only)
 import plotly.express as px
 import plotly.graph_objects as go
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
@@ -833,35 +833,30 @@ if dashboard_file:
                     fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
-                    # capture PNG for PDF (kaleido may be missing => fallback below)
+
+                    # Use matplotlib ONLY for PDF (no kaleido)
                     try:
-                        img_bytes = fig_bar.to_image(format="png")
-                        img_buf = BytesIO(img_bytes)
+                        fig_m, ax = plt.subplots(figsize=(10, 5))
+                        bars = ax.bar(series.index.astype(str), series.values)
+                        ax.set_title(f"Top by {chosen_dim}", fontsize=14, fontweight='bold')
+                        ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
+                        ax.tick_params(axis='x', rotation=45, labelsize=10)
+                        ax.tick_params(axis='y', labelsize=10)
+                        for b in bars:
+                            h = b.get_height()
+                            ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h),
+                                        xytext=(0, 5), textcoords="offset points", ha='center', va='bottom', fontsize=9, fontweight='bold')
+                        fig_m.tight_layout()
+                        img_buf = BytesIO()
+                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
                         img_buf.seek(0)
                         charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
-                    except Exception:
-                        # fallback matplotlib snapshot
-                        try:
-                            fig_m, ax = plt.subplots(figsize=(10, 5))  # زود حجم الشكل
-                            bars = ax.bar(series.index.astype(str), series.values)
-                            ax.set_title(f"Top by {chosen_dim}", fontsize=14, fontweight='bold')
-                            ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                            ax.tick_params(axis='x', rotation=45, labelsize=10)  # زود حجم الخط ودورة 45 درجة
-                            ax.tick_params(axis='y', labelsize=10)
-                            for b in bars:
-                                h = b.get_height()
-                                ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h),
-                                            xytext=(0, 5), textcoords="offset points", ha='center', va='bottom', fontsize=9, fontweight='bold')
-                            fig_m.tight_layout()
-                            img_buf = BytesIO()
-                            fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")  # زود الـ DPI لـ 200
-                            img_buf.seek(0)
-                            charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
-                            plt.close(fig_m)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+                        plt.close(fig_m)
+                    except Exception as e:
+                        st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
+
+                except Exception as e:
+                    st.warning(f"⚠️ Error generating chart for {chosen_dim}: {e}")
 
             # Chart B: Pie by next dimension (or chosen_dim top slices)
             if len(dims_for_charts) >= 2 and measure_col:
@@ -873,42 +868,37 @@ if dashboard_file:
                     fig_pie.update_traces(
                         textposition='inside',
                         textinfo='percent+label',
-                        insidetextorientation='radial',  # مهم جداً علشان النصوص متتلخبطش
-                        textfont_size=12  # زود حجم الخط
+                        insidetextorientation='radial',
+                        textfont_size=12
                     )
                     fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     plotly_figs.append((fig_pie, f"Share by {dim2}"))
+
+                    # Use matplotlib ONLY for PDF (no kaleido)
                     try:
-                        img_bytes = fig_pie.to_image(format="png")
-                        img_buf = BytesIO(img_bytes)
+                        fig_m, ax = plt.subplots(figsize=(8, 8))
+                        wedges, texts, autotexts = ax.pie(
+                            series2.values,
+                            labels=series2.index.astype(str),
+                            autopct=lambda pct: f"{pct:.1f}%",
+                            startangle=90,
+                            textprops={'fontsize': 10}
+                        )
+                        for text in texts:
+                            text.set_rotation(30)
+                        ax.set_title(f"Share by {dim2}", fontsize=14, fontweight='bold')
+                        ax.axis('equal')
+                        fig_m.tight_layout()
+                        img_buf = BytesIO()
+                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
                         img_buf.seek(0)
                         charts_buffers.append((img_buf, f"Share by {dim2}"))
-                    except Exception:
-                        # fallback matplotlib pie
-                        try:
-                            fig_m, ax = plt.subplots(figsize=(8, 8))  # جعلها مربعة
-                            wedges, texts, autotexts = ax.pie(
-                                series2.values,
-                                labels=series2.index.astype(str),
-                                autopct=lambda pct: f"{pct:.1f}%",
-                                startangle=90,
-                                textprops={'fontsize': 10}  # حجم الخط
-                            )
-                            # تدوير التسميات علشان متتلخبطش
-                            for text in texts:
-                                text.set_rotation(30)
-                            ax.set_title(f"Share by {dim2}", fontsize=14, fontweight='bold')
-                            ax.axis('equal')
-                            fig_m.tight_layout()
-                            img_buf = BytesIO()
-                            fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                            img_buf.seek(0)
-                            charts_buffers.append((img_buf, f"Share by {dim2}"))
-                            plt.close(fig_m)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+                        plt.close(fig_m)
+                    except Exception as e:
+                        st.warning(f"⚠️ Could not generate pie chart for {dim2}: {e}")
+
+                except Exception as e:
+                    st.warning(f"⚠️ Error generating pie chart for {dim2}: {e}")
             else:
                 # fallback: pie of chosen_dim top 8
                 if chosen_dim and measure_col:
@@ -924,15 +914,32 @@ if dashboard_file:
                         )
                         fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                         plotly_figs.append((fig_pie, f"Share by {chosen_dim}"))
+
+                        # Use matplotlib ONLY for PDF (no kaleido)
                         try:
-                            img_bytes = fig_pie.to_image(format="png")
-                            img_buf = BytesIO(img_bytes)
+                            fig_m, ax = plt.subplots(figsize=(8, 8))
+                            wedges, texts, autotexts = ax.pie(
+                                s.values,
+                                labels=s.index.astype(str),
+                                autopct=lambda pct: f"{pct:.1f}%",
+                                startangle=90,
+                                textprops={'fontsize': 10}
+                            )
+                            for text in texts:
+                                text.set_rotation(30)
+                            ax.set_title(f"Share by {chosen_dim}", fontsize=14, fontweight='bold')
+                            ax.axis('equal')
+                            fig_m.tight_layout()
+                            img_buf = BytesIO()
+                            fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
                             img_buf.seek(0)
                             charts_buffers.append((img_buf, f"Share by {chosen_dim}"))
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
+                            plt.close(fig_m)
+                        except Exception as e:
+                            st.warning(f"⚠️ Could not generate fallback pie chart: {e}")
+
+                    except Exception as e:
+                        st.warning(f"⚠️ Error generating fallback pie chart: {e}")
 
             # Chart C: Trend by Month (if exists)
             if "Month" in filtered.columns and measure_col and measure_col in filtered.columns:
@@ -952,15 +959,28 @@ if dashboard_file:
                         fig_line.update_traces(texttemplate='%{y:,.0f}', textposition='top center')
                         fig_line.update_layout(xaxis_title="Month", yaxis_title="Total", margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     plotly_figs.append((fig_line, "Trend by Month"))
+
+                    # Use matplotlib ONLY for PDF (no kaleido)
                     try:
-                        img_bytes = fig_line.to_image(format="png")
-                        img_buf = BytesIO(img_bytes)
+                        fig_m, ax = plt.subplots(figsize=(10, 5))
+                        ax.plot(trend.iloc[:, 0], trend["value"], marker='o')
+                        ax.set_title("Trend by Month", fontsize=14, fontweight='bold')
+                        ax.set_xlabel("Month")
+                        ax.set_ylabel("Total")
+                        ax.grid(True, alpha=0.3)
+                        ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
+                        plt.xticks(rotation=45, ha='right')
+                        fig_m.tight_layout()
+                        img_buf = BytesIO()
+                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
                         img_buf.seek(0)
                         charts_buffers.append((img_buf, "Trend by Month"))
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+                        plt.close(fig_m)
+                    except Exception as e:
+                        st.warning(f"⚠️ Could not generate trend chart: {e}")
+
+                except Exception as e:
+                    st.warning(f"⚠️ Error generating trend chart: {e}")
 
             # Chart D & E: Add additional bar charts for other dims (to reach up to 5 breakdown charts)
             extra_dims = dims_for_charts[2:] if len(dims_for_charts) > 2 else []
@@ -973,31 +993,28 @@ if dashboard_file:
                         fig_extra.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                         fig_extra.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                         plotly_figs.append((fig_extra, f"By {ex_dim}"))
+
+                        # Use matplotlib ONLY for PDF (no kaleido)
                         try:
-                            img_bytes = fig_extra.to_image(format="png")
-                            img_buf = BytesIO(img_bytes)
+                            fig_m, ax = plt.subplots(figsize=(9,4))
+                            bars = ax.bar(s.index.astype(str), s.values)
+                            ax.set_title(f"By {ex_dim}", fontsize=12, fontweight='bold')
+                            ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
+                            ax.tick_params(axis='x', rotation=45, labelsize=9)
+                            for b in bars:
+                                h = b.get_height()
+                                ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=8)
+                            fig_m.tight_layout()
+                            img_buf = BytesIO()
+                            fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
                             img_buf.seek(0)
                             charts_buffers.append((img_buf, f"By {ex_dim}"))
-                        except Exception:
-                            # fallback matplotlib
-                            try:
-                                fig_m, ax = plt.subplots(figsize=(9,4))
-                                bars = ax.bar(s.index.astype(str), s.values)
-                                ax.set_title(f"By {ex_dim}")
-                                ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                                for b in bars:
-                                    h = b.get_height()
-                                    ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=8)
-                                fig_m.tight_layout()
-                                img_buf = BytesIO()
-                                fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                                img_buf.seek(0)
-                                charts_buffers.append((img_buf, f"By {ex_dim}"))
-                                plt.close(fig_m)
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
+                            plt.close(fig_m)
+                        except Exception as e:
+                            st.warning(f"⚠️ Could not generate chart for {ex_dim}: {e}")
+
+                    except Exception as e:
+                        st.warning(f"⚠️ Error generating chart for {ex_dim}: {e}")
 
             # Chart F: Distribution of measure (if numeric)
             if measure_col and measure_col in filtered.columns:
@@ -1009,27 +1026,26 @@ if dashboard_file:
                         fig_hist = px.histogram(df_hist, x="value", nbins=12, title="Distribution of Measure")
                         fig_hist.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                         plotly_figs.append((fig_hist, "Distribution of Measure"))
+
+                        # Use matplotlib ONLY for PDF (no kaleido)
                         try:
-                            img_bytes = fig_hist.to_image(format="png")
-                            img_buf = BytesIO(img_bytes)
+                            fig_m, ax = plt.subplots(figsize=(8,3))
+                            ax.hist(series_vals, bins=12, edgecolor='black')
+                            ax.set_title("Distribution of Measure", fontsize=12, fontweight='bold')
+                            ax.set_xlabel(measure_col)
+                            ax.set_ylabel("Frequency")
+                            ax.grid(True, alpha=0.3)
+                            fig_m.tight_layout()
+                            img_buf = BytesIO()
+                            fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
                             img_buf.seek(0)
                             charts_buffers.append((img_buf, "Distribution of Measure"))
-                        except Exception:
-                            # fallback matplotlib
-                            try:
-                                fig_m, ax = plt.subplots(figsize=(8,3))
-                                ax.hist(series_vals, bins=12)
-                                ax.set_title("Distribution of Measure")
-                                fig_m.tight_layout()
-                                img_buf = BytesIO()
-                                fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                                img_buf.seek(0)
-                                charts_buffers.append((img_buf, "Distribution of Measure"))
-                                plt.close(fig_m)
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+                            plt.close(fig_m)
+                        except Exception as e:
+                            st.warning(f"⚠️ Could not generate distribution chart: {e}")
+
+                except Exception as e:
+                    st.warning(f"⚠️ Error generating distribution chart: {e}")
 
             # === Arrange plotly_figs into 3x2 grid on-screen (3 columns, 2 rows)
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
