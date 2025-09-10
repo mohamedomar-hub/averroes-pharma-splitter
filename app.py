@@ -252,7 +252,6 @@ if uploaded_file:
                 df.columns,
                 help="Select the column to split by, such as 'Brick' or 'Area Manager'"
             )
-
             st.markdown("### ⚙️ Split Options")
             split_option = st.radio(
                 "Choose split method:",
@@ -260,7 +259,6 @@ if uploaded_file:
                 index=0,
                 help="اختر 'Split by Column Values' لتقسيم الشيت الحالي حسب قيم عمود. اختر 'Split Each Sheet into Separate File' لإنشاء ملف منفصل لكل شيت في الـ Workbook."
             )
-
             # --- Split button ---
             if st.button("🚀 Start Split"):
                 with st.spinner("Splitting process in progress while preserving original format..."):
@@ -269,7 +267,6 @@ if uploaded_file:
                         invalid_chars = r'[\\/*?:\[\]|<>"]'
                         cleaned = re.sub(invalid_chars, '_', name)
                         return cleaned[:30] if cleaned else "Sheet"
-
                     if split_option == "Split by Column Values":
                         ws = original_wb[selected_sheet]
                         col_idx = df.columns.get_loc(col_to_split) + 1  # 1-based
@@ -378,7 +375,6 @@ if uploaded_file:
                             file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
                             mime="application/zip"
                         )
-
                     elif split_option == "Split Each Sheet into Separate File":
                         # --- New Feature: Split each sheet into its own workbook ---
                         zip_buffer = BytesIO()
@@ -389,11 +385,9 @@ if uploaded_file:
                                 default_ws = new_wb.active
                                 new_wb.remove(default_ws)
                                 new_ws = new_wb.create_sheet(title=sheet_name)
-
                                 # get source worksheet
                                 src_ws = original_wb[sheet_name]
-
-                                # copy all rows and styles
+                                # copy all rows and styles + preserve merged cells
                                 for row in src_ws.iter_rows():
                                     for src_cell in row:
                                         dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
@@ -424,20 +418,30 @@ if uploaded_file:
                                                     dst_cell.alignment = Alignment(
                                                         horizontal=src_cell.alignment.horizontal,
                                                         vertical=src_cell.alignment.vertical,
-                                                        wrap_text=src_cell.alignment.wrap_text
+                                                        wrap_text=src_cell.alignment.wrap_text,
+                                                        indent=src_cell.alignment.indent
                                                     )
                                                 dst_cell.number_format = src_cell.number_format
                                             except Exception:
                                                 pass
-
-                                # copy column widths
+                                # --- Preserve merged cells ---
+                                if src_ws.merged_cells.ranges:
+                                    for merged_range in src_ws.merged_cells.ranges:
+                                        new_ws.merge_cells(str(merged_range))
+                                        # Ensure the top-left cell's value is preserved
+                                        top_left_cell = src_ws.cell(merged_range.min_row, merged_range.min_col)
+                                        merged_value = top_left_cell.value
+                                        new_ws.cell(merged_range.min_row, merged_range.min_col, merged_value)
+                                # --- copy column widths AND row heights ---
                                 try:
                                     for col_letter in src_ws.column_dimensions:
                                         if src_ws.column_dimensions[col_letter].width:
                                             new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
+                                    for row_idx in src_ws.row_dimensions:
+                                        if src_ws.row_dimensions[row_idx].height:
+                                            new_ws.row_dimensions[row_idx].height = src_ws.row_dimensions[row_idx].height
                                 except Exception:
                                     pass
-
                                 # save to buffer
                                 file_buffer = BytesIO()
                                 new_wb.save(file_buffer)
@@ -445,7 +449,6 @@ if uploaded_file:
                                 file_name = f"{clean_name(sheet_name)}.xlsx"
                                 zip_file.writestr(file_name, file_buffer.read())
                                 st.write(f"📁 Created file: `{sheet_name}`")
-
                         zip_buffer.seek(0)
                         st.success("🎉 Splitting completed successfully!")
                         st.download_button(
@@ -454,7 +457,6 @@ if uploaded_file:
                             file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
                             mime="application/zip"
                         )
-
     except Exception as e:
         st.error(f"❌ Error processing file: {e}")
 else:
@@ -666,13 +668,10 @@ if dashboard_file:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
             st.markdown("### 📈 Filtered Data Preview")
             st.dataframe(filtered.head(200), use_container_width=True)
-
             # Auto KPIs - show with colored cards (DYNAMIC based on data)
             st.markdown("### 🚀 KPIs")
-
             # Detect meaningful KPI columns
             kpi_measure_col = measure_col  # fallback to auto-detected measure
-
             # Look for common measure column names
             possible_measure_aliases = ["sales", "amount", "value", "total", "revenue", "target", "achievement"]
             for alias in possible_measure_aliases:
@@ -680,37 +679,30 @@ if dashboard_file:
                 if col:
                     kpi_measure_col = col
                     break
-
             # Look for common dimension columns for counting unique
             possible_dim_aliases = {
                 "area": ["area", "region", "territory"],
                 "branch": ["branch", "location", "store"],
                 "rep": ["rep", "representative", "salesman", "employee", "name"]
             }
-
             found_dims = {}
             for dim_key, aliases in possible_dim_aliases.items():
                 col = _find_col(filtered, aliases)
                 if col:
                     found_dims[dim_key] = col
-
             # Calculate KPIs
             kpi_values = {}
-
             if kpi_measure_col and kpi_measure_col in filtered.columns:
                 kpi_values['total'] = filtered[kpi_measure_col].sum()
                 kpi_values['avg'] = filtered[kpi_measure_col].mean()
             else:
                 kpi_values['total'] = None
                 kpi_values['avg'] = None
-
             # Count unique entities
             for dim_key, col_name in found_dims.items():
                 kpi_values[f'unique_{dim_key}'] = filtered[col_name].nunique()
-
             # --- Display KPI Cards ---
             kpi_cards = []
-
             # Card 1: Total Sales/Amount
             if kpi_values.get('total') is not None:
                 kpi_cards.append({
@@ -718,7 +710,6 @@ if dashboard_file:
                     'value': f"{kpi_values['total']:,.0f}",
                     'color': 'linear-gradient(90deg,#ff8a00,#ffc107)'
                 })
-
             # Card 2: Average per Row
             if kpi_values.get('avg') is not None:
                 kpi_cards.append({
@@ -726,7 +717,6 @@ if dashboard_file:
                     'value': f"{kpi_values['avg']:,.0f}",
                     'color': 'linear-gradient(90deg,#00c0ff,#007bff)'
                 })
-
             # Card 3: Unique Areas
             if kpi_values.get('unique_area') is not None:
                 kpi_cards.append({
@@ -734,7 +724,6 @@ if dashboard_file:
                     'value': f"{kpi_values['unique_area']}",
                     'color': 'linear-gradient(90deg,#28a745,#85e085)'
                 })
-
             # Card 4: Unique Reps
             if kpi_values.get('unique_rep') is not None:
                 kpi_cards.append({
@@ -742,7 +731,6 @@ if dashboard_file:
                     'value': f"{kpi_values['unique_rep']}",
                     'color': 'linear-gradient(90deg,#6f42c1,#a779e9)'
                 })
-
             # Card 5: Unique Branches
             if kpi_values.get('unique_branch') is not None:
                 kpi_cards.append({
@@ -750,7 +738,6 @@ if dashboard_file:
                     'value': f"{kpi_values['unique_branch']}",
                     'color': 'linear-gradient(90deg,#dc3545,#ff6b6b)'
                 })
-
             # Display up to 5 cards in a single row (if more, they will wrap)
             cols = st.columns(min(5, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:5]):
@@ -762,16 +749,12 @@ if dashboard_file:
                     </div>
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
-
-
             # Auto charts:
             st.markdown("### 📊 Auto Charts (built from data)")
             charts_buffers = []  # list of (BytesIO, caption)
             plotly_figs = []     # list of (fig, caption) for on-screen layout
-
             # Determine dims for charts - PRIORITIZE area/branch for pie, rep for bar
             possible_dims = [c for c in filtered.columns if c not in [measure_col, "Month"]]
-
             # For PIE chart: prefer area, region, branch
             pie_prefer_order = ["area", "region", "territory", "branch", "location", "city"]
             pie_dim = None
@@ -782,7 +765,6 @@ if dashboard_file:
                         break
                 if pie_dim:
                     break
-
             # For BAR chart: prefer rep, salesman, product, item
             bar_prefer_order = ["rep", "representative", "salesman", "employee", "name", "item", "product", "sku"]
             bar_dim = None
@@ -793,7 +775,6 @@ if dashboard_file:
                         break
                 if bar_dim:
                     break
-
             # Fallback: if no preferred dim found, pick one with lowest cardinality
             if not pie_dim and not bar_dim and len(possible_dims) > 0:
                 lens = [(c, filtered[c].nunique(dropna=True)) for c in possible_dims]
@@ -805,9 +786,7 @@ if dashboard_file:
                 bar_dim = pie_dim
             elif bar_dim and not pie_dim:
                 pie_dim = bar_dim
-
             chosen_dim = bar_dim  # use bar_dim as primary for top chart
-
             # prepare up to 6 charts: try to pick meaningful dims
             dims_for_charts = []
             if chosen_dim:
@@ -820,10 +799,8 @@ if dashboard_file:
                 dims_for_charts.append(r)
             # ensure length <=6
             dims_for_charts = dims_for_charts[:5]  # these will be used for breakdowns
-
             # We'll create: bar(top chosen), pie(breakdown), line(trend if month), and then extra bars if dims exist,
             # and one distribution/histogram of measure if numeric.
-
             # Chart A: Top by chosen_dim (bar)
             if chosen_dim and measure_col and chosen_dim in filtered.columns:
                 try:
@@ -833,7 +810,6 @@ if dashboard_file:
                     fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
-
                     # Use matplotlib ONLY for PDF (no kaleido)
                     try:
                         fig_m, ax = plt.subplots(figsize=(10, 5))
@@ -854,10 +830,8 @@ if dashboard_file:
                         plt.close(fig_m)
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
-
                 except Exception as e:
                     st.warning(f"⚠️ Error generating chart for {chosen_dim}: {e}")
-
             # Chart B: Pie by next dimension (or chosen_dim top slices)
             if len(dims_for_charts) >= 2 and measure_col:
                 dim2 = dims_for_charts[1]
@@ -873,7 +847,6 @@ if dashboard_file:
                     )
                     fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     plotly_figs.append((fig_pie, f"Share by {dim2}"))
-
                     # Use matplotlib ONLY for PDF (no kaleido)
                     try:
                         fig_m, ax = plt.subplots(figsize=(8, 8))
@@ -896,7 +869,6 @@ if dashboard_file:
                         plt.close(fig_m)
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate pie chart for {dim2}: {e}")
-
                 except Exception as e:
                     st.warning(f"⚠️ Error generating pie chart for {dim2}: {e}")
             else:
@@ -914,7 +886,6 @@ if dashboard_file:
                         )
                         fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                         plotly_figs.append((fig_pie, f"Share by {chosen_dim}"))
-
                         # Use matplotlib ONLY for PDF (no kaleido)
                         try:
                             fig_m, ax = plt.subplots(figsize=(8, 8))
@@ -937,10 +908,8 @@ if dashboard_file:
                             plt.close(fig_m)
                         except Exception as e:
                             st.warning(f"⚠️ Could not generate fallback pie chart: {e}")
-
                     except Exception as e:
                         st.warning(f"⚠️ Error generating fallback pie chart: {e}")
-
             # Chart C: Trend by Month (if exists)
             if "Month" in filtered.columns and measure_col and measure_col in filtered.columns:
                 try:
@@ -959,7 +928,6 @@ if dashboard_file:
                         fig_line.update_traces(texttemplate='%{y:,.0f}', textposition='top center')
                         fig_line.update_layout(xaxis_title="Month", yaxis_title="Total", margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     plotly_figs.append((fig_line, "Trend by Month"))
-
                     # Use matplotlib ONLY for PDF (no kaleido)
                     try:
                         fig_m, ax = plt.subplots(figsize=(10, 5))
@@ -978,10 +946,8 @@ if dashboard_file:
                         plt.close(fig_m)
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate trend chart: {e}")
-
                 except Exception as e:
                     st.warning(f"⚠️ Error generating trend chart: {e}")
-
             # Chart D & E: Add additional bar charts for other dims (to reach up to 5 breakdown charts)
             extra_dims = dims_for_charts[2:] if len(dims_for_charts) > 2 else []
             for ex_dim in extra_dims:
@@ -993,7 +959,6 @@ if dashboard_file:
                         fig_extra.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                         fig_extra.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                         plotly_figs.append((fig_extra, f"By {ex_dim}"))
-
                         # Use matplotlib ONLY for PDF (no kaleido)
                         try:
                             fig_m, ax = plt.subplots(figsize=(9,4))
@@ -1012,10 +977,8 @@ if dashboard_file:
                             plt.close(fig_m)
                         except Exception as e:
                             st.warning(f"⚠️ Could not generate chart for {ex_dim}: {e}")
-
                     except Exception as e:
                         st.warning(f"⚠️ Error generating chart for {ex_dim}: {e}")
-
             # Chart F: Distribution of measure (if numeric)
             if measure_col and measure_col in filtered.columns:
                 try:
@@ -1026,7 +989,6 @@ if dashboard_file:
                         fig_hist = px.histogram(df_hist, x="value", nbins=12, title="Distribution of Measure")
                         fig_hist.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                         plotly_figs.append((fig_hist, "Distribution of Measure"))
-
                         # Use matplotlib ONLY for PDF (no kaleido)
                         try:
                             fig_m, ax = plt.subplots(figsize=(8,3))
@@ -1043,10 +1005,8 @@ if dashboard_file:
                             plt.close(fig_m)
                         except Exception as e:
                             st.warning(f"⚠️ Could not generate distribution chart: {e}")
-
                 except Exception as e:
                     st.warning(f"⚠️ Error generating distribution chart: {e}")
-
             # === Arrange plotly_figs into 3x2 grid on-screen (3 columns, 2 rows)
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             # ensure at most 6 figs: take first 6
@@ -1072,7 +1032,6 @@ if dashboard_file:
                         st.plotly_chart(fig, use_container_width=True, theme="streamlit")
                     else:
                         st.write("")
-
             # === Export area: Excel download still available, PDF for dashboard only (charts only)
             st.markdown("### 💾 Export Report / Data")
             # Excel of filtered data (user still can download filtered data)
