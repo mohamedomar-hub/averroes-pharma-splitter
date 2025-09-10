@@ -462,10 +462,10 @@ if uploaded_file:
 else:
     st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
 # -----------------------------------------------
-# Merge area (unchanged)
+# Merge area (Improved: using openpyxl only to preserve merged cells and formatting)
 # -----------------------------------------------
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-st.markdown("### 🔄 Merge Excel Files (Keep Original Format)")
+st.markdown("### 🔄 Merge Excel Files (Keep Original Format & Merged Cells)")
 merge_files = st.file_uploader(
     "📤 Upload Excel Files to Merge",
     type=["xlsx"],
@@ -474,16 +474,20 @@ merge_files = st.file_uploader(
 )
 if merge_files:
     if st.button("✨ Merge Files with Format"):
-        with st.spinner("Merging files while preserving formatting..."):
+        with st.spinner("Merging files while preserving formatting and merged cells..."):
             try:
+                # Create a new workbook
                 combined_wb = Workbook()
                 combined_ws = combined_wb.active
                 combined_ws.title = "Consolidated"
+
+                # Use the first file as template for header and formatting
                 first_file = merge_files[0]
-                temp_wb = load_workbook(filename=BytesIO(first_file.getvalue()), data_only=False)
-                temp_ws = temp_wb.active
-                # copy header with styles
-                for cell in temp_ws[1]:
+                first_wb = load_workbook(filename=BytesIO(first_file.getvalue()), data_only=False)
+                first_ws = first_wb.active
+
+                # Copy header with styles
+                for cell in first_ws[1]:
                     new_cell = combined_ws.cell(1, cell.column, cell.value)
                     if cell.has_style:
                         try:
@@ -517,12 +521,23 @@ if merge_files:
                             new_cell.number_format = cell.number_format
                         except Exception:
                             pass
-                # column widths
+
+                # Copy merged cells from first sheet
+                if first_ws.merged_cells.ranges:
+                    for merged_range in first_ws.merged_cells.ranges:
+                        combined_ws.merge_cells(str(merged_range))
+                        # Ensure value is copied
+                        top_left_cell = first_ws.cell(merged_range.min_row, merged_range.min_col)
+                        combined_ws.cell(merged_range.min_row, merged_range.min_col, top_left_cell.value)
+
+                # Copy column widths
                 try:
-                    for col_letter in temp_ws.column_dimensions:
-                        combined_ws.column_dimensions[col_letter].width = temp_ws.column_dimensions[col_letter].width
+                    for col_letter in first_ws.column_dimensions:
+                        combined_ws.column_dimensions[col_letter].width = first_ws.column_dimensions[col_letter].width
                 except Exception:
                     pass
+
+                # Copy data rows from all files
                 row_idx = 2
                 for file in merge_files:
                     wb = load_workbook(filename=BytesIO(file.getvalue()), data_only=True)
@@ -564,6 +579,8 @@ if merge_files:
                                     except Exception:
                                         pass
                         row_idx += 1
+
+                # Save and download
                 output_buffer = BytesIO()
                 combined_wb.save(output_buffer)
                 output_buffer.seek(0)
