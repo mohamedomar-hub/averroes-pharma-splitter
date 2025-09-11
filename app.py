@@ -834,10 +834,16 @@ if dashboard_file:
                         ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
                         ax.tick_params(axis='x', rotation=45, labelsize=10, ha='right')
                         ax.set_xlabel(chosen_dim, fontsize=10, fontweight='bold')
+                        # 👇 إضافة القيم فوق الأعمدة مع التحقق من NaN
                         for b in bars:
                             h = b.get_height()
-                            ax.annotate(f"{h:,.0f}", xy=(b.get_x() + b.get_width()/2, h),
-                                        xytext=(0, 5), textcoords="offset points", ha='center', va='bottom',
+                            if pd.isna(h):  # تجاهل إذا كانت القيمة غير رقمية
+                                continue
+                            ax.annotate(f"{h:,.0f}", 
+                                        xy=(b.get_x() + b.get_width()/2, h),
+                                        xytext=(0, 5), 
+                                        textcoords="offset points",
+                                        ha='center', va='bottom',
                                         fontsize=9, fontweight='bold')
                         fig_m.tight_layout()
                         img_buf = BytesIO()
@@ -985,6 +991,8 @@ if dashboard_file:
                             ax.tick_params(axis='x', rotation=45, labelsize=9)
                             for b in bars:
                                 h = b.get_height()
+                                if pd.isna(h):
+                                    continue
                                 ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=8)
                             fig_m.tight_layout()
                             img_buf = BytesIO()
