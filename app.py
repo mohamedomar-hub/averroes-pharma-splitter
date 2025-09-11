@@ -480,12 +480,10 @@ if merge_files:
                 combined_wb = Workbook()
                 combined_ws = combined_wb.active
                 combined_ws.title = "Consolidated"
-
                 # Use the first file as template for header and formatting
                 first_file = merge_files[0]
                 first_wb = load_workbook(filename=BytesIO(first_file.getvalue()), data_only=False)
                 first_ws = first_wb.active
-
                 # Copy header with styles
                 for cell in first_ws[1]:
                     new_cell = combined_ws.cell(1, cell.column, cell.value)
@@ -521,7 +519,6 @@ if merge_files:
                             new_cell.number_format = cell.number_format
                         except Exception:
                             pass
-
                 # Copy merged cells from first sheet
                 if first_ws.merged_cells.ranges:
                     for merged_range in first_ws.merged_cells.ranges:
@@ -529,14 +526,12 @@ if merge_files:
                         # Ensure value is copied
                         top_left_cell = first_ws.cell(merged_range.min_row, merged_range.min_col)
                         combined_ws.cell(merged_range.min_row, merged_range.min_col, top_left_cell.value)
-
                 # Copy column widths
                 try:
                     for col_letter in first_ws.column_dimensions:
                         combined_ws.column_dimensions[col_letter].width = first_ws.column_dimensions[col_letter].width
                 except Exception:
                     pass
-
                 # Copy data rows from all files
                 row_idx = 2
                 for file in merge_files:
@@ -579,7 +574,6 @@ if merge_files:
                                     except Exception:
                                         pass
                         row_idx += 1
-
                 # Save and download
                 output_buffer = BytesIO()
                 combined_wb.save(output_buffer)
@@ -823,22 +817,28 @@ if dashboard_file:
                 try:
                     series = filtered.groupby(chosen_dim)[measure_col].sum().sort_values(ascending=False).head(10)
                     df_series = series.reset_index().rename(columns={measure_col: "value"})
+                    # 👇 تأكد أن القيم على محور X هي نصية (أسماء) وليس أرقام
+                    df_series[chosen_dim] = df_series[chosen_dim].astype(str).str.strip()
                     fig_bar = px.bar(df_series, x=chosen_dim, y="value", title=f"Top by {chosen_dim}", text="value")
+                    fig_bar.update_xaxes(type='category')  # 👈 هذا السطر مهم جدًا — يجبر المحور على التعامل مع القيم كفئات (نصوص) وليس أرقام
                     fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
                     # Use matplotlib ONLY for PDF (no kaleido)
                     try:
                         fig_m, ax = plt.subplots(figsize=(10, 5))
-                        bars = ax.bar(series.index.astype(str), series.values)
+                        # 👇 تحويل الأسماء إلى نصوص وتنظيف المسافات لتجنب عرض الأرقام أو الفهارس
+                        x_labels = series.index.astype(str).str.strip()
+                        bars = ax.bar(x_labels, series.values)
                         ax.set_title(f"Top by {chosen_dim}", fontsize=14, fontweight='bold')
                         ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                        ax.tick_params(axis='x', rotation=45, labelsize=10)
-                        ax.tick_params(axis='y', labelsize=10)
+                        ax.tick_params(axis='x', rotation=45, labelsize=10, ha='right')
+                        ax.set_xlabel(chosen_dim, fontsize=10, fontweight='bold')
                         for b in bars:
                             h = b.get_height()
-                            ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h),
-                                        xytext=(0, 5), textcoords="offset points", ha='center', va='bottom', fontsize=9, fontweight='bold')
+                            ax.annotate(f"{h:,.0f}", xy=(b.get_x() + b.get_width()/2, h),
+                                        xytext=(0, 5), textcoords="offset points", ha='center', va='bottom',
+                                        fontsize=9, fontweight='bold')
                         fig_m.tight_layout()
                         img_buf = BytesIO()
                         fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
@@ -1124,4 +1124,3 @@ with st.expander("📖 How to Use - Click to view instructions"):
     ---
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
-
