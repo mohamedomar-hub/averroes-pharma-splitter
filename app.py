@@ -727,10 +727,10 @@ if dashboard_file:
                     'value': f"{kpi_values['total']:,.0f}",
                     'color': 'linear-gradient(90deg,#ff8a00,#ffc107)'
                 })
-            # Card 2: Average per Row
+            # Card 2: Average per Sales
             if kpi_values.get('avg') is not None:
                 kpi_cards.append({
-                    'title': f'متوسط {kpi_measure_col}',
+                    'title': f'Average {kpi_measure_col}',
                     'value': f"{kpi_values['avg']:,.0f}",
                     'color': 'linear-gradient(90deg,#00c0ff,#007bff)'
                 })
@@ -744,7 +744,7 @@ if dashboard_file:
             # Card 4: Unique Reps
             if kpi_values.get('unique_rep') is not None:
                 kpi_cards.append({
-                    'title': f'عدد المندوبين',
+                    'title': f'Count Mr ',
                     'value': f"{kpi_values['unique_rep']}",
                     'color': 'linear-gradient(90deg,#6f42c1,#a779e9)'
                 })
@@ -1124,3 +1124,4 @@ with st.expander("📖 How to Use - Click to view instructions"):
     ---
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
+
