@@ -863,7 +863,9 @@ if dashboard_file:
                     bars = ax.bar(x_labels, series.values)
                     ax.set_title(f"Top by {chosen_dim}", fontsize=14, fontweight='bold')
                     ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                    ax.tick_params(axis='x', rotation=45, labelsize=10, ha='right')
+                    ax.tick_params(axis='x', rotation=45, labelsize=10)
+                    for label in ax.get_xticklabels():
+                        label.set_ha('right')  # ✅ التعديل هنا: استخدم set_ha بدلاً من ha في tick_params
                     ax.set_xlabel(chosen_dim, fontsize=10, fontweight='bold')
                     for b in bars:
                         h = b.get_height()
@@ -954,7 +956,7 @@ if dashboard_file:
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate fallback pie chart: {e}")
 
-            # Chart C: Trend
+            # Chart C: Trend (Line) - ONLY if Month exists
             if "Month" in filtered.columns and measure_col and measure_col in filtered.columns:
                 try:
                     ser = filtered.dropna(subset=["Month"])
@@ -979,7 +981,8 @@ if dashboard_file:
                     ax.set_ylabel("Total")
                     ax.grid(True, alpha=0.3)
                     ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                    plt.xticks(rotation=45, ha='right')
+                    for label in ax.get_xticklabels():
+                        label.set_ha('right')  # ✅ التعديل هنا أيضًا
                     fig_m.tight_layout()
                     img_buf = BytesIO()
                     fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
@@ -1005,6 +1008,8 @@ if dashboard_file:
                         ax.set_title(f"By {ex_dim}", fontsize=12, fontweight='bold')
                         ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
                         ax.tick_params(axis='x', rotation=45, labelsize=9)
+                        for label in ax.get_xticklabels():
+                            label.set_ha('right')  # ✅ التعديل هنا أيضًا
                         for b in bars:
                             h = b.get_height()
                             if pd.isna(h):
@@ -1019,8 +1024,8 @@ if dashboard_file:
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate chart for {ex_dim}: {e}")
 
-            # Histogram
-            if measure_col and measure_col in filtered.columns:
+            # Histogram - Only if we have numeric data AND no time dimension
+            if measure_col and measure_col in filtered.columns and "Month" not in filtered.columns:
                 try:
                     series_vals = filtered[measure_col].dropna().astype(float)
                     if len(series_vals) > 0:
