@@ -149,6 +149,40 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
+    /* ========== Navigation Bar ========== */
+    .nav-bar {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+        background-color: #001a33;
+        border-bottom: 1px solid #FFD700;
+        margin: 10px 0;
+    }
+    .nav-button {
+        background-color: #003366;
+        color: #FFD700;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 2px solid #FFD700;
+        font-weight: bold;
+        font-size: 14px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .nav-button:hover {
+        background-color: #FFD700;
+        color: black;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    .nav-button i {
+        font-size: 16px;
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -176,41 +210,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ------------------ Navigation Bar ------------------
+# ------------------ Navigation Bar الجديد ------------------
 st.markdown(
     """
-    <style>
-    .nav-buttons {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        margin: 15px 0;
-        flex-wrap: wrap;
-    }
-    .nav-button {
-        background-color: #003366;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 12px;
-        text-decoration: none;
-        font-weight: bold;
-        font-size: 16px;
-        transition: all 0.3s ease;
-        border: 1px solid #FFD700;
-    }
-    .nav-button:hover {
-        background-color: #FFD700;
-        color: black;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    }
-    </style>
-    <div class="nav-buttons">
-        <a href="#split-section" class="nav-button">✂ Split</a>
-        <a href="#merge-section" class="nav-button">🔄 Merge</a>
-        <a href="#image-pdf-section" class="nav-button">📷 Image to PDF</a>
-        <a href="#dashboard-section" class="nav-button">📊 Dashboard</a>
-        <a href="#info-section" class="nav-button">ℹ️ Info</a>
+    <div class="nav-bar">
+        <a href="#split-section" class="nav-button"><i>✂</i> Split</a>
+        <a href="#merge-section" class="nav-button"><i>🔄</i> Merge</a>
+        <a href="#image-pdf-section" class="nav-button"><i>📷</i> Image to PDF</a>
+        <a href="#dashboard-section" class="nav-button"><i>📊</i> Dashboard</a>
+        <a href="#info-section" class="nav-button"><i>ℹ️</i> Info</a>
     </div>
     """,
     unsafe_allow_html=True
@@ -245,6 +253,7 @@ st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image
 # ------------------ Utility functions ------------------
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -256,6 +265,7 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
+
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -266,6 +276,7 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
+
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -304,6 +315,7 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
+
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -728,7 +740,7 @@ else:
 # 📊 Dashboard Generator
 # ====================================================================================
 st.markdown('<div id="dashboard-section"></div>', unsafe_allow_html=True)
-st.markdown("<hr class='divider' id='dashboard-section-inner'>", unsafe_allow_html=True)
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown("### 📊 Interactive Auto Dashboard Generator")
 dashboard_file = st.file_uploader(
     "📊 Upload Excel File for Dashboard (Auto)",
