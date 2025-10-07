@@ -149,22 +149,20 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    /* ========== تحسين وضوح أسماء الملفات المرفوعة ========== */
-    [data-testid="stFileUploadDropzone"] div div div div span {
-        color: #ffffff !important;
-        font-weight: 500 !important;
-        background-color: #003366 !important;
-        padding: 4px 8px;
-        border-radius: 4px;
-        margin: 2px 0;
-    }
-    [data-testid="stFileUploadDropzone"] div div div div small {
-        color: #a0d2ff !important;
-        font-size: 12px !important;
-    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
+# ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
+def display_uploaded_files(file_list, file_type="Excel"):
+    if file_list:
+        st.markdown("### 📁 Uploaded Files:")
+        for i, f in enumerate(file_list):
+            st.markdown(
+                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
+                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
+                unsafe_allow_html=True
+            )
 
 # ------------------ شريط التنقل العلوي ------------------
 st.markdown(
@@ -312,6 +310,7 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file:
+    display_uploaded_files([uploaded_file], "Excel")
     if st.button("🗑️ Clear Uploaded File", key="clear_split"):
         st.session_state.clear_counter += 1
         st.rerun()
@@ -541,6 +540,7 @@ merge_files = st.file_uploader(
 )
 
 if merge_files:
+    display_uploaded_files(merge_files, "Excel")
     if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
         st.session_state.clear_counter += 1
         st.rerun()
@@ -666,6 +666,7 @@ uploaded_images = st.file_uploader(
 )
 
 if uploaded_images:
+    display_uploaded_files(uploaded_images, "Image")
     if st.button("🗑️ Clear All Images", key="clear_images"):
         st.session_state.clear_counter += 1
         st.rerun()
@@ -708,6 +709,7 @@ dashboard_file = st.file_uploader(
 )
 
 if dashboard_file:
+    display_uploaded_files([dashboard_file], "Excel")
     if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
         st.session_state.clear_counter += 1
         st.rerun()
