@@ -25,9 +25,11 @@ from pptx.enum.text import PP_ALIGN
 # ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
 
-# Initialize session state for theme
+# Initialize session state for theme and clear
 if 'theme' not in st.session_state:
     st.session_state.theme = 'dark'  # 'dark' or 'light'
+if 'clear_counter' not in st.session_state:
+    st.session_state.clear_counter = 0
 
 # ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
 def display_uploaded_files(file_list, file_type="Excel"):
@@ -41,20 +43,10 @@ def display_uploaded_files(file_list, file_type="Excel"):
             )
 
 # ------------------ إعدادات السمة (Light/Dark) ------------------
-if st.session_state.theme == 'light':
-    bg_color = "#ffffff"
-    text_color = "#000000"
-    nav_bg = "#f0f0f0"
-    card_bg = "#f9f9f9"
-    button_color = "#FFD700"
-    file_uploader_bg = "rgba(255, 215, 0, 0.1)"
-else:
-    bg_color = "#001f3f"
-    text_color = "#ffffff"
-    nav_bg = "#001a33"
-    card_bg = "#00264d"
-    button_color = "#FFD700"
-    file_uploader_bg = "rgba(255, 215, 0, 0.1)"
+bg_color = "#ffffff" if st.session_state.theme == "light" else "#001f3f"
+text_color = "#000000" if st.session_state.theme == "light" else "#ffffff"
+nav_bg = "#f0f0f0" if st.session_state.theme == "light" else "#001a33"
+card_bg = "#f9f9f9" if st.session_state.theme == "light" else "#00264d"
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -113,7 +105,7 @@ custom_css = f"""
         font-weight: bold !important;
     }}
     .stButton>button, .stDownloadButton>button {{
-        background-color: {button_color} !important;
+        background-color: #FFD700 !important;
         color: black !important;
         font-weight: bold !important;
         font-size: 18px !important;
@@ -161,7 +153,7 @@ custom_css = f"""
         border: 2px dashed #FFD700;
         border-radius: 10px;
         padding: 15px;
-        background-color: {file_uploader_bg};
+        background-color: rgba(255, 215, 0, 0.1);
     }}
     .guide-title {{
         color: #FFD700;
@@ -329,10 +321,14 @@ st.markdown("### ✂ Split Excel File")
 uploaded_file = st.file_uploader(
     "📂 Upload Excel File (Splitter/Merge)",
     type=["xlsx"],
-    accept_multiple_files=False
+    accept_multiple_files=False,
+    key=f"split_uploader_{st.session_state.clear_counter}"
 )
 if uploaded_file:
     display_uploaded_files([uploaded_file], "Excel")
+    if st.button("🗑️ Clear Uploaded File", key="clear_split"):
+        st.session_state.clear_counter += 1
+        st.rerun()
     try:
         input_bytes = uploaded_file.getvalue()
         original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
@@ -552,10 +548,14 @@ st.markdown("### 🔄 Merge Excel Files (Keep Original Format & Merged Cells)")
 merge_files = st.file_uploader(
     "📤 Upload Excel Files to Merge",
     type=["xlsx"],
-    accept_multiple_files=True
+    accept_multiple_files=True,
+    key=f"merge_uploader_{st.session_state.clear_counter}"
 )
 if merge_files:
     display_uploaded_files(merge_files, "Excel")
+    if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
+        st.session_state.clear_counter += 1
+        st.rerun()
     if st.button("✨ Merge Files with Format"):
         with st.spinner("Merging files while preserving formatting and merged cells..."):
             try:
@@ -671,10 +671,14 @@ st.markdown("### 📷 Convert Images to PDF")
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
     type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True
+    accept_multiple_files=True,
+    key=f"image_uploader_{st.session_state.clear_counter}"
 )
 if uploaded_images:
     display_uploaded_files(uploaded_images, "Image")
+    if st.button("🗑️ Clear All Images", key="clear_images"):
+        st.session_state.clear_counter += 1
+        st.rerun()
     if st.button("🖨️ Create PDF from Images"):
         with st.spinner("Converting images to PDF..."):
             try:
@@ -703,9 +707,16 @@ else:
 # ====================================================================================
 st.markdown("<hr class='divider' id='dashboard-section'>", unsafe_allow_html=True)
 st.markdown("### 📊 Interactive Auto Dashboard Generator")
-dashboard_file = st.file_uploader("📊 Upload Excel File for Dashboard (Auto)", type=["xlsx"])
+dashboard_file = st.file_uploader(
+    "📊 Upload Excel File for Dashboard (Auto)",
+    type=["xlsx"],
+    key=f"dashboard_uploader_{st.session_state.clear_counter}"
+)
 if dashboard_file:
     display_uploaded_files([dashboard_file], "Excel")
+    if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
+        st.session_state.clear_counter += 1
+        st.rerun()
     try:
         df_dict = pd.read_excel(dashboard_file, sheet_name=None)
         sheet_names = list(df_dict.keys())
@@ -1208,6 +1219,7 @@ with st.expander("📖 How to Use - Click to view instructions"):
     - ارفع صور JPG أو JPEG أو PNG في قسم "Convert Images to PDF".
     - اضغط **"Create PDF from Images"**.
     - نزّل ملف PDF يحتوي على كل الصور كصفحات.
+    - استخدم زر **"Clear All Images"** لمسح كل الصور دفعة واحدة.
     ---
     ### 📊 رابعًا: الـ Dashboard
     - ارفع ملف Excel في خانة "Upload Excel File for Dashboard (Auto)".
