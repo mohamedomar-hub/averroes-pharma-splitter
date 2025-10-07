@@ -25,6 +25,10 @@ from pptx.enum.text import PP_ALIGN
 # ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
 
+# Initialize clear counter in session state
+if 'clear_counter' not in st.session_state:
+    st.session_state.clear_counter = 0
+
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
     '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
@@ -145,13 +149,18 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    /* ========== تعديل لون أسماء الملفات المرفوعة ========== */
+    /* ========== تحسين وضوح أسماء الملفات المرفوعة ========== */
     [data-testid="stFileUploadDropzone"] div div div div span {
-        color: white !important;
+        color: #ffffff !important;
         font-weight: 500 !important;
+        background-color: #003366 !important;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin: 2px 0;
     }
     [data-testid="stFileUploadDropzone"] div div div div small {
         color: #a0d2ff !important;
+        font-size: 12px !important;
     }
     </style>
 """
@@ -294,24 +303,17 @@ def build_pptx(sheet_title, charts_buffers):
 
 # ------------------ قسم التقسيم (Splitter) ------------------
 st.markdown("### ✂ Split Excel File")
-if 'split_file' not in st.session_state:
-    st.session_state.split_file = None
 
 uploaded_file = st.file_uploader(
     "📂 Upload Excel File (Splitter/Merge)",
     type=["xlsx"],
     accept_multiple_files=False,
-    key="split_uploader"
+    key=f"split_uploader_{st.session_state.clear_counter}"
 )
-
-if uploaded_file and st.session_state.split_file is None:
-    st.session_state.split_file = uploaded_file
-elif st.session_state.split_file:
-    uploaded_file = st.session_state.split_file
 
 if uploaded_file:
     if st.button("🗑️ Clear Uploaded File", key="clear_split"):
-        st.session_state.split_file = None
+        st.session_state.clear_counter += 1
         st.rerun()
 
     try:
@@ -531,24 +533,16 @@ else:
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 st.markdown("### 🔄 Merge Excel Files (Keep Original Format & Merged Cells)")
 
-if 'merge_files' not in st.session_state:
-    st.session_state.merge_files = None
-
 merge_files = st.file_uploader(
     "📤 Upload Excel Files to Merge",
     type=["xlsx"],
     accept_multiple_files=True,
-    key="merge_uploader"
+    key=f"merge_uploader_{st.session_state.clear_counter}"
 )
-
-if merge_files and st.session_state.merge_files is None:
-    st.session_state.merge_files = merge_files
-elif st.session_state.merge_files:
-    merge_files = st.session_state.merge_files
 
 if merge_files:
     if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
-        st.session_state.merge_files = None
+        st.session_state.clear_counter += 1
         st.rerun()
 
     if st.button("✨ Merge Files with Format"):
@@ -664,24 +658,16 @@ if merge_files:
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown("### 📷 Convert Images to PDF")
 
-if 'image_files' not in st.session_state:
-    st.session_state.image_files = None
-
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG Images to Convert to PDF",
     type=["jpg", "jpeg"],
     accept_multiple_files=True,
-    key="image_uploader"
+    key=f"image_uploader_{st.session_state.clear_counter}"
 )
-
-if uploaded_images and st.session_state.image_files is None:
-    st.session_state.image_files = uploaded_images
-elif st.session_state.image_files:
-    uploaded_images = st.session_state.image_files
 
 if uploaded_images:
     if st.button("🗑️ Clear All Images", key="clear_images"):
-        st.session_state.image_files = None
+        st.session_state.clear_counter += 1
         st.rerun()
 
     if st.button("🖨️ Create PDF from Images"):
@@ -715,23 +701,15 @@ else:
 st.markdown("<hr class='divider' id='dashboard-section'>", unsafe_allow_html=True)
 st.markdown("### 📊 Interactive Auto Dashboard Generator")
 
-if 'dashboard_file' not in st.session_state:
-    st.session_state.dashboard_file = None
-
 dashboard_file = st.file_uploader(
     "📊 Upload Excel File for Dashboard (Auto)",
     type=["xlsx"],
-    key="dashboard_uploader"
+    key=f"dashboard_uploader_{st.session_state.clear_counter}"
 )
-
-if dashboard_file and st.session_state.dashboard_file is None:
-    st.session_state.dashboard_file = dashboard_file
-elif st.session_state.dashboard_file:
-    dashboard_file = st.session_state.dashboard_file
 
 if dashboard_file:
     if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
-        st.session_state.dashboard_file = None
+        st.session_state.clear_counter += 1
         st.rerun()
 
     try:
