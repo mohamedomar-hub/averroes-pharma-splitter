@@ -145,9 +145,18 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
+    /* ========== تعديل لون أسماء الملفات المرفوعة ========== */
+    [data-testid="stFileUploadDropzone"] div div div div span {
+        color: white !important;
+        font-weight: 500 !important;
+    }
+    [data-testid="stFileUploadDropzone"] div div div div small {
+        color: #a0d2ff !important;
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
 # ------------------ شريط التنقل العلوي ------------------
 st.markdown(
     """
@@ -159,6 +168,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # ------------------ عرض اللوجو ------------------
 logo_path = "logo.png"
 if os.path.exists(logo_path):
@@ -167,6 +177,7 @@ if os.path.exists(logo_path):
     st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
+
 # ------------------ معلومات المطور ------------------
 st.markdown(
     """
@@ -179,12 +190,15 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge and Auto Dashboard Generator</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
+
 # ------------------ Utility functions ------------------
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -196,6 +210,7 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
+
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -206,6 +221,7 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
+
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -244,6 +260,7 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
+
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -274,9 +291,29 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
-# ------------------ Upload for Splitter ------------------
-uploaded_file = st.file_uploader("📂 Upload Excel File (Splitter/Merge) — Use this to Split or Merge as before", type=["xlsx"], accept_multiple_files=False)
+
+# ------------------ قسم التقسيم (Splitter) ------------------
+st.markdown("### ✂ Split Excel File")
+if 'split_file' not in st.session_state:
+    st.session_state.split_file = None
+
+uploaded_file = st.file_uploader(
+    "📂 Upload Excel File (Splitter/Merge)",
+    type=["xlsx"],
+    accept_multiple_files=False,
+    key="split_uploader"
+)
+
+if uploaded_file and st.session_state.split_file is None:
+    st.session_state.split_file = uploaded_file
+elif st.session_state.split_file:
+    uploaded_file = st.session_state.split_file
+
 if uploaded_file:
+    if st.button("🗑️ Clear Uploaded File", key="clear_split"):
+        st.session_state.split_file = None
+        st.rerun()
+
     try:
         input_bytes = uploaded_file.getvalue()
         original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
@@ -487,18 +524,33 @@ if uploaded_file:
         st.error(f"❌ Error processing file: {e}")
 else:
     st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
+
 # -----------------------------------------------
 # Merge area
 # -----------------------------------------------
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 st.markdown("### 🔄 Merge Excel Files (Keep Original Format & Merged Cells)")
+
+if 'merge_files' not in st.session_state:
+    st.session_state.merge_files = None
+
 merge_files = st.file_uploader(
     "📤 Upload Excel Files to Merge",
     type=["xlsx"],
     accept_multiple_files=True,
     key="merge_uploader"
 )
+
+if merge_files and st.session_state.merge_files is None:
+    st.session_state.merge_files = merge_files
+elif st.session_state.merge_files:
+    merge_files = st.session_state.merge_files
+
 if merge_files:
+    if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
+        st.session_state.merge_files = None
+        st.rerun()
+
     if st.button("✨ Merge Files with Format"):
         with st.spinner("Merging files while preserving formatting and merged cells..."):
             try:
@@ -612,6 +664,9 @@ if merge_files:
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown("### 📷 Convert Images to PDF")
 
+if 'image_files' not in st.session_state:
+    st.session_state.image_files = None
+
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG Images to Convert to PDF",
     type=["jpg", "jpeg"],
@@ -619,20 +674,25 @@ uploaded_images = st.file_uploader(
     key="image_uploader"
 )
 
+if uploaded_images and st.session_state.image_files is None:
+    st.session_state.image_files = uploaded_images
+elif st.session_state.image_files:
+    uploaded_images = st.session_state.image_files
+
 if uploaded_images:
+    if st.button("🗑️ Clear All Images", key="clear_images"):
+        st.session_state.image_files = None
+        st.rerun()
+
     if st.button("🖨️ Create PDF from Images"):
         with st.spinner("Converting images to PDF..."):
             try:
-                # فتح الصورة الأولى
                 first_image = Image.open(uploaded_images[0]).convert("RGB")
                 other_images = []
-
-                # فتح باقي الصور وتحويلها لـ RGB
                 for img_file in uploaded_images[1:]:
                     img = Image.open(img_file).convert("RGB")
                     other_images.append(img)
 
-                # حفظ كـ PDF
                 pdf_buffer = BytesIO()
                 first_image.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
                 pdf_buffer.seek(0)
@@ -654,8 +714,26 @@ else:
 # ====================================================================================
 st.markdown("<hr class='divider' id='dashboard-section'>", unsafe_allow_html=True)
 st.markdown("### 📊 Interactive Auto Dashboard Generator")
-dashboard_file = st.file_uploader("📊 Upload Excel File for Dashboard (Auto)", type=["xlsx"], key="dashboard_uploader")
+
+if 'dashboard_file' not in st.session_state:
+    st.session_state.dashboard_file = None
+
+dashboard_file = st.file_uploader(
+    "📊 Upload Excel File for Dashboard (Auto)",
+    type=["xlsx"],
+    key="dashboard_uploader"
+)
+
+if dashboard_file and st.session_state.dashboard_file is None:
+    st.session_state.dashboard_file = dashboard_file
+elif st.session_state.dashboard_file:
+    dashboard_file = st.session_state.dashboard_file
+
 if dashboard_file:
+    if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
+        st.session_state.dashboard_file = None
+        st.rerun()
+
     try:
         df_dict = pd.read_excel(dashboard_file, sheet_name=None)
         sheet_names = list(df_dict.keys())
@@ -746,7 +824,6 @@ if dashboard_file:
             if kpi_measure_col and kpi_measure_col in filtered.columns:
                 kpi_values['total'] = filtered[kpi_measure_col].sum()
                 kpi_values['avg'] = filtered[kpi_measure_col].mean()
-                # Average per Date
                 if "Month" in filtered.columns:
                     unique_dates = filtered["Month"].nunique()
                     if unique_dates > 0:
@@ -875,7 +952,7 @@ if dashboard_file:
                     ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
                     ax.tick_params(axis='x', rotation=45, labelsize=10)
                     for label in ax.get_xticklabels():
-                        label.set_ha('right')  # ✅ التعديل هنا: استخدم set_ha بدلاً من ha في tick_params
+                        label.set_ha('right')
                     ax.set_xlabel(chosen_dim, fontsize=10, fontweight='bold')
                     for b in bars:
                         h = b.get_height()
@@ -990,7 +1067,7 @@ if dashboard_file:
                     ax.grid(True, alpha=0.3)
                     ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
                     for label in ax.get_xticklabels():
-                        label.set_ha('right')  # ✅ التعديل هنا أيضًا
+                        label.set_ha('right')
                     fig_m.tight_layout()
                     img_buf = BytesIO()
                     fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
@@ -1016,7 +1093,7 @@ if dashboard_file:
                         ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
                         ax.tick_params(axis='x', rotation=45, labelsize=9)
                         for label in ax.get_xticklabels():
-                            label.set_ha('right')  # ✅ التعديل هنا أيضًا
+                            label.set_ha('right')
                         for b in bars:
                             h = b.get_height()
                             if pd.isna(h):
@@ -1135,6 +1212,7 @@ if dashboard_file:
                         st.error(f"❌ PowerPoint generation failed: {e}")
     except Exception as e:
         st.error(f"❌ Error generating dashboard: {e}")
+
 # ------------------ قسم Info ------------------
 st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
 with st.expander("📖 How to Use - Click to view instructions"):
@@ -1158,6 +1236,7 @@ with st.expander("📖 How to Use - Click to view instructions"):
     - ارفع صور JPG أو JPEG في قسم "Convert Images to PDF".
     - اضغط **"Create PDF from Images"**.
     - نزّل ملف PDF يحتوي على كل الصور كصفحات.
+    - استخدم زر **"Clear All Images"** لمسح كل الصور دفعة واحدة.
     ---
     ### 📊 رابعًا: الـ Dashboard
     - ارفع ملف Excel في خانة "Upload Excel File for Dashboard (Auto)".
