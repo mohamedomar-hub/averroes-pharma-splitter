@@ -24,10 +24,33 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 # ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
+# ------------------ إضافة pdf2image لتحويل PDF إلى صور ------------------
+try:
+    from pdf2image import convert_from_bytes
+    PDF2IMAGE_AVAILABLE = True
+except ImportError:
+    PDF2IMAGE_AVAILABLE = False
 
-# Initialize clear counter in session state
+# Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
+if 'activity_log' not in st.session_state:
+    st.session_state.activity_log = []
+
+# ------------------ دالة لتسجيل النشاط ------------------
+def log_activity(message):
+    st.session_state.activity_log.append(f"✅ {message}")
+
+# ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
+def display_uploaded_files(file_list, file_type="Excel"):
+    if file_list:
+        st.markdown("### 📁 Uploaded Files:")
+        for i, f in enumerate(file_list):
+            st.markdown(
+                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
+                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
+                unsafe_allow_html=True
+            )
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -60,7 +83,7 @@ custom_css = """
     }
     .top-nav {
         display: flex;
-        justify-content: flex-end;
+        justify-content: space-between;
         gap: 20px;
         padding: 10px 30px;
         background-color: #001a33;
@@ -149,76 +172,35 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    /* ========== Navigation Bar ========== */
-    .nav-bar {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 0;
-        background-color: #001a33;
-        border-bottom: 1px solid #FFD700;
-        margin: 10px 0;
-    }
-    .nav-button {
-        background-color: #003366;
-        color: #FFD700;
-        padding: 8px 16px;
-        border-radius: 8px;
-        border: 2px solid #FFD700;
-        font-weight: bold;
-        font-size: 14px;
-        text-decoration: none;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .nav-button:hover {
-        background-color: #FFD700;
-        color: black;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    }
-    .nav-button i {
-        font-size: 16px;
+    .home-card {
+        background-color: #00264d;
+        border: 1px solid #FFD700;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 10px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
-def display_uploaded_files(file_list, file_type="Excel"):
-    if file_list:
-        st.markdown("### 📁 Uploaded Files:")
-        for i, f in enumerate(file_list):
-            st.markdown(
-                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
-                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
-                unsafe_allow_html=True
-            )
-
 # ------------------ شريط التنقل العلوي ------------------
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.markdown('<div style="font-weight:bold; font-size:18px; color:#FFD700;">Averroes Pharma</div>', unsafe_allow_html=True)
+with col2:
+    if st.button("🔄 Reset All", key="reset_all_top"):
+        st.session_state.clear_counter += 1
+        st.session_state.activity_log = []
+        st.rerun()
+
 st.markdown(
     """
     <div class="top-nav">
-        <a href="#">Home</a>
+        <a href="#home-section">Home</a>
         <a href="https://wa.me/201554694554" target="_blank">Contact</a>
         <a href="#info-section">Info</a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# ------------------ Navigation Bar الجديد ------------------
-st.markdown(
-    """
-    <div class="nav-bar">
-        <a href="#split-section" class="nav-button"><i>✂</i> Split</a>
-        <a href="#merge-section" class="nav-button"><i>🔄</i> Merge</a>
-        <a href="#image-pdf-section" class="nav-button"><i>📷</i> Image to PDF</a>
-        <a href="#dashboard-section" class="nav-button"><i>📊</i> Dashboard</a>
-        <a href="#info-section" class="nav-button"><i>ℹ️</i> Info</a>
     </div>
     """,
     unsafe_allow_html=True
@@ -233,22 +215,56 @@ if os.path.exists(logo_path):
 else:
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
 
-# ------------------ معلومات المطور ------------------
-st.markdown(
-    """
-    <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
-        By <strong>Mohamed Abd ELGhany</strong> – 
-        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
-            01554694554 (WhatsApp)
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
+
+# ------------------ الصفحة الرئيسية ------------------
+st.markdown('<div id="home-section"></div>', unsafe_allow_html=True)
+st.markdown("### 🏠 Welcome to Averroes Pharma!")
+st.markdown("#### Choose a service to get started")
+cols = st.columns(3)
+with cols[0]:
+    st.markdown("""
+    <div class="home-card">
+        <h3>✂ Split</h3>
+        <p>Split Excel files by column values</p>
+        <a href="#split-section" style="color:#FFD700; text-decoration:none; font-weight:bold;">→ Start Now</a>
+    </div>
+    """, unsafe_allow_html=True)
+with cols[1]:
+    st.markdown("""
+    <div class="home-card">
+        <h3>🔄 Merge</h3>
+        <p>Merge multiple Excel files into one</p>
+        <a href="#merge-section" style="color:#FFD700; text-decoration:none; font-weight:bold;">→ Start Now</a>
+    </div>
+    """, unsafe_allow_html=True)
+with cols[2]:
+    st.markdown("""
+    <div class="home-card">
+        <h3>📷 Image to PDF</h3>
+        <p>Convert JPG/PNG images to PDF</p>
+        <a href="#image-pdf-section" style="color:#FFD700; text-decoration:none; font-weight:bold;">→ Start Now</a>
+    </div>
+    """, unsafe_allow_html=True)
+cols2 = st.columns(2)
+with cols2[0]:
+    st.markdown("""
+    <div class="home-card">
+        <h3>📄 PDF to Images</h3>
+        <p>Convert PDF pages to images</p>
+        <a href="#pdf-image-section" style="color:#FFD700; text-decoration:none; font-weight:bold;">→ Start Now</a>
+    </div>
+    """, unsafe_allow_html=True)
+with cols2[1]:
+    st.markdown("""
+    <div class="home-card">
+        <h3>📊 Dashboard</h3>
+        <p>Generate interactive dashboards from Excel</p>
+        <a href="#dashboard-section" style="color:#FFD700; text-decoration:none; font-weight:bold;">→ Start Now</a>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ------------------ Utility functions ------------------
 def _safe_name(s):
@@ -486,6 +502,7 @@ if uploaded_file:
                                 zip_file.writestr(file_name, file_buffer.read())
                                 st.write(f"📁 Created file: `{value}`")
                         zip_buffer.seek(0)
+                        log_activity("Split completed successfully!")
                         st.success("🎉 Splitting completed successfully!")
                         st.download_button(
                             label="📥 Download Split Files (ZIP)",
@@ -560,6 +577,7 @@ if uploaded_file:
                                 zip_file.writestr(file_name, file_buffer.read())
                                 st.write(f"📁 Created file: `{sheet_name}`")
                         zip_buffer.seek(0)
+                        log_activity("Split by sheets completed successfully!")
                         st.success("🎉 Splitting completed successfully!")
                         st.download_button(
                             label="📥 Download Split Files (ZIP)",
@@ -686,6 +704,7 @@ if merge_files:
                 output_buffer = BytesIO()
                 combined_wb.save(output_buffer)
                 output_buffer.seek(0)
+                log_activity("Merge completed successfully!")
                 st.success("✅ Merged successfully with full format preserved!")
                 st.download_button(
                     label="📥 Download Merged File (with Format)",
@@ -703,8 +722,8 @@ st.markdown('<div id="image-pdf-section"></div>', unsafe_allow_html=True)
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown("### 📷 Convert Images to PDF")
 uploaded_images = st.file_uploader(
-    "📤 Upload JPG/JPEG Images to Convert to PDF",
-    type=["jpg", "jpeg"],
+    "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
+    type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
     key=f"image_uploader_{st.session_state.clear_counter}"
 )
@@ -724,6 +743,7 @@ if uploaded_images:
                 pdf_buffer = BytesIO()
                 first_image.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
                 pdf_buffer.seek(0)
+                log_activity("Image to PDF conversion completed!")
                 st.success("✅ PDF created successfully!")
                 st.download_button(
                     label="📥 Download Images as PDF",
@@ -734,7 +754,51 @@ if uploaded_images:
             except Exception as e:
                 st.error(f"❌ Error creating PDF: {e}")
 else:
-    st.info("📤 Please upload one or more JPG/JPEG images to convert them into a single PDF file.")
+    st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
+
+# ====================================================================================
+# 📄 PDF to Images Converter
+# ====================================================================================
+st.markdown('<div id="pdf-image-section"></div>', unsafe_allow_html=True)
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+st.markdown("### 📄 Convert PDF to Images")
+if not PDF2IMAGE_AVAILABLE:
+    st.warning("⚠️ This feature requires 'pdf2image' and 'poppler'. Not available in this environment.")
+else:
+    uploaded_pdf = st.file_uploader(
+        "📤 Upload PDF to Convert to Images",
+        type=["pdf"],
+        key=f"pdf_uploader_{st.session_state.clear_counter}"
+    )
+    if uploaded_pdf:
+        display_uploaded_files([uploaded_pdf], "PDF")
+        if st.button("🗑️ Clear PDF", key="clear_pdf"):
+            st.session_state.clear_counter += 1
+            st.rerun()
+        if st.button("🖼️ Convert PDF to Images"):
+            with st.spinner("Converting PDF to images..."):
+                try:
+                    images = convert_from_bytes(uploaded_pdf.getvalue())
+                    zip_buffer = BytesIO()
+                    with ZipFile(zip_buffer, "w") as zip_file:
+                        for i, img in enumerate(images):
+                            img_buffer = BytesIO()
+                            img.save(img_buffer, format="PNG")
+                            img_buffer.seek(0)
+                            zip_file.writestr(f"page_{i+1}.png", img_buffer.getvalue())
+                    zip_buffer.seek(0)
+                    log_activity("PDF to Images conversion completed!")
+                    st.success("✅ PDF converted to images successfully!")
+                    st.download_button(
+                        label="📥 Download Images (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name="PDF_Pages_Images.zip",
+                        mime="application/zip"
+                    )
+                except Exception as e:
+                    st.error(f"❌ Error converting PDF: {e}")
+    else:
+        st.info("📤 Please upload a PDF file to convert its pages to images.")
 
 # ====================================================================================
 # 📊 Dashboard Generator
@@ -1191,6 +1255,7 @@ if dashboard_file:
                 with st.spinner("Generating Dashboard PDF (charts only)..."):
                     try:
                         pdf_buffer = build_pdf(sheet_title, charts_buffers=charts_buffers, include_table=False, filtered_df=None)
+                        log_activity("Dashboard PDF (charts only) generated!")
                         st.success("✅ Dashboard PDF جاهز.")
                         st.download_button(
                             label="⬇️ Download Dashboard PDF",
@@ -1205,6 +1270,7 @@ if dashboard_file:
                     with st.spinner("Generating full PDF..."):
                         try:
                             pdf_buffer = build_pdf(sheet_title, charts_buffers=charts_buffers, include_table=True, filtered_df=filtered)
+                            log_activity("Full Dashboard PDF (charts + table) generated!")
                             st.success("✅ Full PDF جاهز.")
                             st.download_button(
                                 label="⬇️ Download Full PDF (charts + table)",
@@ -1219,6 +1285,7 @@ if dashboard_file:
                 with st.spinner("Generating PowerPoint..."):
                     try:
                         pptx_buffer = build_pptx(sheet_title, charts_buffers)
+                        log_activity("Dashboard PowerPoint generated!")
                         st.success("✅ PowerPoint جاهز.")
                         st.download_button(
                             label="⬇️ Download Dashboard PowerPoint",
@@ -1231,9 +1298,17 @@ if dashboard_file:
     except Exception as e:
         st.error(f"❌ Error generating dashboard: {e}")
 
-# ------------------ قسم Info ------------------
-st.markdown('<div id="info-section"></div>', unsafe_allow_html=True)
+# ------------------ سجل النشاط ------------------
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+st.markdown("### 📝 Activity Log")
+if st.session_state.activity_log:
+    for log in reversed(st.session_state.activity_log[-5:]):  # آخر 5 عمليات
+        st.markdown(f"- {log}")
+else:
+    st.info("No activity yet")
+
+# ------------------ قسم Info ------------------
+st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
 with st.expander("📖 How to Use - Click to view instructions"):
     st.markdown("""
     <div class='guide-title'>🎯 Welcome to a free tool provided by the company admin.!</div>
@@ -1252,12 +1327,17 @@ with st.expander("📖 How to Use - Click to view instructions"):
     - طالع لك ملف واحد مدمج بالحفاظ على التنسيق.
     ---
     ### 📷 ثالثًا: تحويل الصور إلى PDF (جديد!)
-    - ارفع صور JPG أو JPEG في قسم "Convert Images to PDF".
+    - ارفع صور JPG أو JPEG أو PNG في قسم "Convert Images to PDF".
     - اضغط **"Create PDF from Images"**.
     - نزّل ملف PDF يحتوي على كل الصور كصفحات.
     - استخدم زر **"Clear All Images"** لمسح كل الصور دفعة واحدة.
     ---
-    ### 📊 رابعًا: الـ Dashboard
+    ### 📄 رابعًا: تحويل PDF إلى صور (جديد!)
+    - ارفع ملف PDF في قسم "Convert PDF to Images".
+    - اضغط **"Convert PDF to Images"**.
+    - نزّل ملف ZIP يحتوي على صور لكل صفحة.
+    ---
+    ### 📊 خامسًا: الـ Dashboard
     - ارفع ملف Excel في خانة "Upload Excel File for Dashboard (Auto)".
     - اختر الشيت.
     - استخدم Sidebar لاختيار "Primary Filter Column" (دروب ليست) ثم قيمه.
