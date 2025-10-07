@@ -176,6 +176,46 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# ------------------ Navigation Bar ------------------
+st.markdown(
+    """
+    <style>
+    .nav-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin: 15px 0;
+        flex-wrap: wrap;
+    }
+    .nav-button {
+        background-color: #003366;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        border: 1px solid #FFD700;
+    }
+    .nav-button:hover {
+        background-color: #FFD700;
+        color: black;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    </style>
+    <div class="nav-buttons">
+        <a href="#split-section" class="nav-button">✂ Split</a>
+        <a href="#merge-section" class="nav-button">🔄 Merge</a>
+        <a href="#image-pdf-section" class="nav-button">📷 Image to PDF</a>
+        <a href="#dashboard-section" class="nav-button">📊 Dashboard</a>
+        <a href="#info-section" class="nav-button">ℹ️ Info</a>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 # ------------------ عرض اللوجو ------------------
 logo_path = "logo.png"
 if os.path.exists(logo_path):
@@ -205,7 +245,6 @@ st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image
 # ------------------ Utility functions ------------------
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
-
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -217,7 +256,6 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
-
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -228,7 +266,6 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
-
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -267,7 +304,6 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
-
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -300,21 +336,19 @@ def build_pptx(sheet_title, charts_buffers):
     return pptx_buffer
 
 # ------------------ قسم التقسيم (Splitter) ------------------
+st.markdown('<div id="split-section"></div>', unsafe_allow_html=True)
 st.markdown("### ✂ Split Excel File")
-
 uploaded_file = st.file_uploader(
     "📂 Upload Excel File (Splitter/Merge)",
     type=["xlsx"],
     accept_multiple_files=False,
     key=f"split_uploader_{st.session_state.clear_counter}"
 )
-
 if uploaded_file:
     display_uploaded_files([uploaded_file], "Excel")
     if st.button("🗑️ Clear Uploaded File", key="clear_split"):
         st.session_state.clear_counter += 1
         st.rerun()
-
     try:
         input_bytes = uploaded_file.getvalue()
         original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
@@ -529,22 +563,20 @@ else:
 # -----------------------------------------------
 # Merge area
 # -----------------------------------------------
+st.markdown('<div id="merge-section"></div>', unsafe_allow_html=True)
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 st.markdown("### 🔄 Merge Excel Files (Keep Original Format & Merged Cells)")
-
 merge_files = st.file_uploader(
     "📤 Upload Excel Files to Merge",
     type=["xlsx"],
     accept_multiple_files=True,
     key=f"merge_uploader_{st.session_state.clear_counter}"
 )
-
 if merge_files:
     display_uploaded_files(merge_files, "Excel")
     if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
         st.session_state.clear_counter += 1
         st.rerun()
-
     if st.button("✨ Merge Files with Format"):
         with st.spinner("Merging files while preserving formatting and merged cells..."):
             try:
@@ -655,22 +687,20 @@ if merge_files:
 # ====================================================================================
 # 📷 Image to PDF Converter
 # ====================================================================================
+st.markdown('<div id="image-pdf-section"></div>', unsafe_allow_html=True)
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown("### 📷 Convert Images to PDF")
-
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG Images to Convert to PDF",
     type=["jpg", "jpeg"],
     accept_multiple_files=True,
     key=f"image_uploader_{st.session_state.clear_counter}"
 )
-
 if uploaded_images:
     display_uploaded_files(uploaded_images, "Image")
     if st.button("🗑️ Clear All Images", key="clear_images"):
         st.session_state.clear_counter += 1
         st.rerun()
-
     if st.button("🖨️ Create PDF from Images"):
         with st.spinner("Converting images to PDF..."):
             try:
@@ -679,11 +709,9 @@ if uploaded_images:
                 for img_file in uploaded_images[1:]:
                     img = Image.open(img_file).convert("RGB")
                     other_images.append(img)
-
                 pdf_buffer = BytesIO()
                 first_image.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
                 pdf_buffer.seek(0)
-
                 st.success("✅ PDF created successfully!")
                 st.download_button(
                     label="📥 Download Images as PDF",
@@ -699,21 +727,19 @@ else:
 # ====================================================================================
 # 📊 Dashboard Generator
 # ====================================================================================
-st.markdown("<hr class='divider' id='dashboard-section'>", unsafe_allow_html=True)
+st.markdown('<div id="dashboard-section"></div>', unsafe_allow_html=True)
+st.markdown("<hr class='divider' id='dashboard-section-inner'>", unsafe_allow_html=True)
 st.markdown("### 📊 Interactive Auto Dashboard Generator")
-
 dashboard_file = st.file_uploader(
     "📊 Upload Excel File for Dashboard (Auto)",
     type=["xlsx"],
     key=f"dashboard_uploader_{st.session_state.clear_counter}"
 )
-
 if dashboard_file:
     display_uploaded_files([dashboard_file], "Excel")
     if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
         st.session_state.clear_counter += 1
         st.rerun()
-
     try:
         df_dict = pd.read_excel(dashboard_file, sheet_name=None)
         sheet_names = list(df_dict.keys())
@@ -1194,7 +1220,8 @@ if dashboard_file:
         st.error(f"❌ Error generating dashboard: {e}")
 
 # ------------------ قسم Info ------------------
-st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
+st.markdown('<div id="info-section"></div>', unsafe_allow_html=True)
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 with st.expander("📖 How to Use - Click to view instructions"):
     st.markdown("""
     <div class='guide-title'>🎯 Welcome to a free tool provided by the company admin.!</div>
