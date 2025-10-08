@@ -25,40 +25,9 @@ from pptx.enum.text import PP_ALIGN
 # ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
 
-# Initialize session state for theme and clear
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'dark'  # 'dark' or 'light'
+# Initialize clear counter in session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
-
-# ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
-def display_uploaded_files(file_list, file_type="Excel"):
-    if file_list:
-        st.markdown("### 📁 Uploaded Files:")
-        for i, f in enumerate(file_list):
-            st.markdown(
-                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
-                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
-                unsafe_allow_html=True
-            )
-
-# ------------------ إعدادات السمة (Light/Dark) ------------------
-if st.session_state.theme == 'light':
-    bg_color = "#ffffff"
-    text_color = "#222222"
-    nav_bg = "#f8f9fa"
-    card_bg = "#ffffff"
-    button_color = "#007BFF"
-    file_uploader_bg = "#f8f9fa"
-    divider_color = "#666666"
-else:
-    bg_color = "#001f3f"
-    text_color = "#ffffff"
-    nav_bg = "#001a33"
-    card_bg = "#00264d"
-    button_color = "#FFD700"
-    file_uploader_bg = "rgba(255, 215, 0, 0.1)"
-    divider_color = "#FFD700"
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -82,43 +51,43 @@ hide_default = """
 """
 st.markdown(hide_default, unsafe_allow_html=True)
 # ------------------ ستايل مخصص ------------------
-custom_css = f"""
+custom_css = """
     <style>
-    .stApp {{
-        background-color: {bg_color};
-        color: {text_color};
+    .stApp {
+        background-color: #001f3f;
+        color: white;
         font-family: 'Cairo', sans-serif;
-    }}
-    .top-nav {{
+    }
+    .top-nav {
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-end;
         gap: 20px;
         padding: 10px 30px;
-        background-color: {nav_bg};
-        border-bottom: 1px solid {divider_color};
+        background-color: #001a33;
+        border-bottom: 1px solid #FFD700;
         font-size: 18px;
-        color: {text_color};
-    }}
-    .top-nav a {{
-        color: {button_color};
+        color: white;
+    }
+    .top-nav a {
+        color: #FFD700;
         text-decoration: none;
         font-weight: bold;
         padding: 5px 10px;
         border-radius: 8px;
         transition: all 0.3s ease;
-    }}
-    .top-nav a:hover {{
-        background-color: {button_color};
-        color: white;
-    }}
-    label, .stSelectbox label, .stFileUploader label {{
-        color: {button_color} !important;
+    }
+    .top-nav a:hover {
+        background-color: #FFD700;
+        color: black;
+    }
+    label, .stSelectbox label, .stFileUploader label {
+        color: #FFD700 !important;
         font-size: 18px !important;
         font-weight: bold !important;
-    }}
-    .stButton>button, .stDownloadButton>button {{
-        background-color: {button_color} !important;
-        color: white !important;
+    }
+    .stButton>button, .stDownloadButton>button {
+        background-color: #FFD700 !important;
+        color: black !important;
         font-weight: bold !important;
         font-size: 18px !important;
         border-radius: 12px !important;
@@ -127,13 +96,13 @@ custom_css = f"""
         box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
         transition: all 0.3s ease !important;
         margin-top: 10px !important;
-    }}
-    .stButton>button:hover, .stDownloadButton>button:hover {{
-        background-color: {'#0056b3' if st.session_state.theme == 'light' else '#FFC107'} !important;
+    }
+    .stButton>button:hover, .stDownloadButton>button:hover {
+        background-color: #FFC107 !important;
         transform: scale(1.08);
         box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
-    }}
-    .kpi-card {{
+    }
+    .kpi-card {
         padding: 16px;
         border-radius: 12px;
         color: white;
@@ -142,58 +111,60 @@ custom_css = f"""
         font-weight: 700;
         background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
         margin: 8px;
-    }}
-    .kpi-title {{ font-size: 14px; opacity: 0.9; }}
-    .kpi-value {{ font-size: 22px; margin-top:6px; }}
-    hr.divider {{
-        border: 1px solid {divider_color};
+    }
+    .kpi-title { font-size: 14px; opacity: 0.9; }
+    .kpi-value { font-size: 22px; margin-top:6px; }
+    hr.divider {
+        border: 1px solid #FFD700;
         opacity: 0.6;
         margin: 30px 0;
-    }}
-    hr.divider-dashed {{
-        border: 1px dashed {divider_color};
+    }
+    hr.divider-dashed {
+        border: 1px dashed #FFD700;
         opacity: 0.7;
         margin: 25px 0;
-    }}
-    .stDataFrame {{
+    }
+    .stDataFrame {
         box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         border-radius: 12px;
         overflow: hidden;
         margin: 10px 0;
-    }}
-    .stFileUploader {{
-        border: 2px dashed {button_color};
+    }
+    .stFileUploader {
+        border: 2px dashed #FFD700;
         border-radius: 10px;
         padding: 15px;
-        background-color: {file_uploader_bg};
-    }}
-    .guide-title {{
-        color: {button_color};
+        background-color: rgba(255, 215, 0, 0.1);
+    }
+    .guide-title {
+        color: #FFD700;
         font-weight: bold;
         font-size: 20px;
-    }}
-    .chart-card {{
-        background-color: {card_bg};
-        border: 1px solid {divider_color};
+    }
+    .chart-card {
+        background-color: #00264d;
+        border: 1px solid #FFD700;
         border-radius: 12px;
         padding: 12px;
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }}
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ شريط التنقل العلوي ------------------
-col1, col2 = st.columns([3, 1])
-with col1:
-    st.markdown(f'<div style="font-weight:bold; font-size:18px; color:{button_color};">Averroes Pharma</div>', unsafe_allow_html=True)
-with col2:
-    theme_text = "☀️ Light Mode" if st.session_state.theme == 'dark' else "🌙 Dark Mode"
-    if st.button(theme_text, key="toggle_theme"):
-        st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
-        st.rerun()
+# ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
+def display_uploaded_files(file_list, file_type="Excel"):
+    if file_list:
+        st.markdown("### 📁 Uploaded Files:")
+        for i, f in enumerate(file_list):
+            st.markdown(
+                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
+                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
+                unsafe_allow_html=True
+            )
 
+# ------------------ شريط التنقل العلوي ------------------
 st.markdown(
     """
     <div class="top-nav">
@@ -676,22 +647,93 @@ if merge_files:
                 st.error(f"❌ Error during merge: {e}")
 
 # ====================================================================================
-# 📷 Image to PDF Converter
+# 📷 Image to PDF Converter with CamScanner Effect
 # ====================================================================================
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown("### 📷 Convert Images to PDF")
+
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
     type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
     key=f"image_uploader_{st.session_state.clear_counter}"
 )
+
 if uploaded_images:
     display_uploaded_files(uploaded_images, "Image")
     if st.button("🗑️ Clear All Images", key="clear_images"):
         st.session_state.clear_counter += 1
         st.rerun()
-    if st.button("🖨️ Create PDF from Images"):
+
+    # --- دالة لتحسين الصورة مثل CamScanner ---
+    try:
+        import cv2
+        import numpy as np
+
+        def enhance_image_for_pdf(image_pil):
+            """تحسّن الصورة لتكون مثل ما يفعله CamScanner"""
+            # تحويل PIL إلى OpenCV
+            image = np.array(image_pil)
+            if image.shape[2] == 4:  # RGBA
+                image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+            # تحويل إلى رمادي
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # تحسين التباين (CLAHE)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            enhanced = clahe.apply(gray)
+            
+            # إضافة إطار أبيض
+            border_size = 20
+            bordered = cv2.copyMakeBorder(
+                enhanced,
+                top=border_size,
+                bottom=border_size,
+                left=border_size,
+                right=border_size,
+                borderType=cv2.BORDER_CONSTANT,
+                value=[255, 255, 255]
+            )
+            
+            # تحويل العمق لـ 8-bit
+            if bordered.dtype != np.uint8:
+                bordered = np.clip(bordered, 0, 255).astype(np.uint8)
+            
+            # إعادة التحويل لـ RGB
+            result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
+            return Image.fromarray(result)
+
+        if st.button("🖨️ Create PDF (CamScanner Style)"):
+            with st.spinner("Enhancing images for PDF..."):
+                try:
+                    first_image = Image.open(uploaded_images[0])
+                    first_image_enhanced = enhance_image_for_pdf(first_image)
+                    
+                    other_images = []
+                    for img_file in uploaded_images[1:]:
+                        img = Image.open(img_file)
+                        enhanced_img = enhance_image_for_pdf(img)
+                        other_images.append(enhanced_img.convert("RGB"))
+                    
+                    pdf_buffer = BytesIO()
+                    first_image_enhanced.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
+                    pdf_buffer.seek(0)
+                    st.success("✅ Enhanced PDF created successfully!")
+                    st.download_button(
+                        label="📥 Download Enhanced PDF",
+                        data=pdf_buffer.getvalue(),
+                        file_name="Enhanced_Images_CamScanner.pdf",
+                        mime="application/pdf"
+                    )
+                except Exception as e:
+                    st.error(f"❌ Error creating enhanced PDF: {e}")
+    except ImportError:
+        st.warning("⚠️ CamScanner effect requires 'opencv-python'. Install it to enable this feature.")
+    
+    # --- الزر العادي (بدون تحسين) ---
+    if st.button("🖨️ Create PDF (Original Quality)"):
         with st.spinner("Converting images to PDF..."):
             try:
                 first_image = Image.open(uploaded_images[0]).convert("RGB")
@@ -704,7 +746,7 @@ if uploaded_images:
                 pdf_buffer.seek(0)
                 st.success("✅ PDF created successfully!")
                 st.download_button(
-                    label="📥 Download Images as PDF",
+                    label="📥 Download Original PDF",
                     data=pdf_buffer.getvalue(),
                     file_name="Images_Combined.pdf",
                     mime="application/pdf"
@@ -1137,7 +1179,7 @@ if dashboard_file:
                     if fig is not None:
                         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
                         st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                        st.markdown(f'<div style="text-align:center; color:{button_color}; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.write("")
@@ -1148,7 +1190,7 @@ if dashboard_file:
                     if fig is not None:
                         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
                         st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                        st.markdown(f'<div style="text-align:center; color:{button_color}; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.write("")
@@ -1229,7 +1271,9 @@ with st.expander("📖 How to Use - Click to view instructions"):
     ---
     ### 📷 ثالثًا: تحويل الصور إلى PDF (جديد!)
     - ارفع صور JPG أو JPEG أو PNG في قسم "Convert Images to PDF".
-    - اضغط **"Create PDF from Images"**.
+    - اختر بين:
+      - **"Create PDF (Original Quality)"** → PDF عادي.
+      - **"Create PDF (CamScanner Style)"** → PDF مُحسّن (إذا كان `opencv` مثبتًا).
     - نزّل ملف PDF يحتوي على كل الصور كصفحات.
     - استخدم زر **"Clear All Images"** لمسح كل الصور دفعة واحدة.
     ---
