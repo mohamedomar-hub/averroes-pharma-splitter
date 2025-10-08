@@ -657,16 +657,20 @@ if uploaded_images:
             image = np.array(image_pil)
             if image.shape[2] == 4:  # RGBA
                 image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-            original_color = image.copy()  # نحفظ النسخة الأصلية بالألوان
+            original_color = image.copy()
 
             # --- 1. اكتشاف الحواف وقص الورقة (Document Detection) ---
             def find_document_contour(img):
                 gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
                 blur = cv2.GaussianBlur(gray, (5,5), 0)
-                edged = cv2.Canny(blur, 75, 200)
+                # استخدام Canny مع حدود ديناميكية
+                v = np.median(gray)
+                lower = int(max(0, (1.0 - 0.33) * v))
+                upper = int(min(255, (1.0 + 0.33) * v))
+                edged = cv2.Canny(blur, lower, upper)
 
                 contours, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-                contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+                contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
 
                 for c in contours:
                     peri = cv2.arcLength(c, True)
@@ -707,10 +711,7 @@ if uploaded_images:
                 image = warped  # نستبدل الصورة الأصلية بالصورة المقطوعة والمعدلة
 
             # --- 2. تحسين الألوان والتباين (بدون تحويل للرمادي) ---
-            # نستخدم CLAHE على كل قناة RGB بشكل منفصل
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-
-            # إذا كان الصورة تحتوي على 3 قنوات (RGB)
             if len(image.shape) == 3 and image.shape[2] == 3:
                 channels = cv2.split(image)
                 enhanced_channels = []
