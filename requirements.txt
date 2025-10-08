@@ -2,6 +2,9 @@ streamlit
 pandas
 openpyxl
 matplotlib
-plotly
 reportlab
+plotly
 python-pptx
+Pillow
+opencv-python
+numpy
