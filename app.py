@@ -43,10 +43,22 @@ def display_uploaded_files(file_list, file_type="Excel"):
             )
 
 # ------------------ إعدادات السمة (Light/Dark) ------------------
-bg_color = "#ffffff" if st.session_state.theme == "light" else "#001f3f"
-text_color = "#000000" if st.session_state.theme == "light" else "#ffffff"
-nav_bg = "#f0f0f0" if st.session_state.theme == "light" else "#001a33"
-card_bg = "#f9f9f9" if st.session_state.theme == "light" else "#00264d"
+if st.session_state.theme == 'light':
+    bg_color = "#ffffff"
+    text_color = "#222222"
+    nav_bg = "#f8f9fa"
+    card_bg = "#ffffff"
+    button_color = "#007BFF"
+    file_uploader_bg = "#f8f9fa"
+    divider_color = "#666666"
+else:
+    bg_color = "#001f3f"
+    text_color = "#ffffff"
+    nav_bg = "#001a33"
+    card_bg = "#00264d"
+    button_color = "#FFD700"
+    file_uploader_bg = "rgba(255, 215, 0, 0.1)"
+    divider_color = "#FFD700"
 
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
@@ -83,12 +95,12 @@ custom_css = f"""
         gap: 20px;
         padding: 10px 30px;
         background-color: {nav_bg};
-        border-bottom: 1px solid #FFD700;
+        border-bottom: 1px solid {divider_color};
         font-size: 18px;
         color: {text_color};
     }}
     .top-nav a {{
-        color: #FFD700;
+        color: {button_color};
         text-decoration: none;
         font-weight: bold;
         padding: 5px 10px;
@@ -96,17 +108,17 @@ custom_css = f"""
         transition: all 0.3s ease;
     }}
     .top-nav a:hover {{
-        background-color: #FFD700;
-        color: black;
+        background-color: {button_color};
+        color: white;
     }}
     label, .stSelectbox label, .stFileUploader label {{
-        color: #FFD700 !important;
+        color: {button_color} !important;
         font-size: 18px !important;
         font-weight: bold !important;
     }}
     .stButton>button, .stDownloadButton>button {{
-        background-color: #FFD700 !important;
-        color: black !important;
+        background-color: {button_color} !important;
+        color: white !important;
         font-weight: bold !important;
         font-size: 18px !important;
         border-radius: 12px !important;
@@ -117,7 +129,7 @@ custom_css = f"""
         margin-top: 10px !important;
     }}
     .stButton>button:hover, .stDownloadButton>button:hover {{
-        background-color: #FFC107 !important;
+        background-color: {'#0056b3' if st.session_state.theme == 'light' else '#FFC107'} !important;
         transform: scale(1.08);
         box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
     }}
@@ -134,12 +146,12 @@ custom_css = f"""
     .kpi-title {{ font-size: 14px; opacity: 0.9; }}
     .kpi-value {{ font-size: 22px; margin-top:6px; }}
     hr.divider {{
-        border: 1px solid #FFD700;
+        border: 1px solid {divider_color};
         opacity: 0.6;
         margin: 30px 0;
     }}
     hr.divider-dashed {{
-        border: 1px dashed #FFD700;
+        border: 1px dashed {divider_color};
         opacity: 0.7;
         margin: 25px 0;
     }}
@@ -150,19 +162,19 @@ custom_css = f"""
         margin: 10px 0;
     }}
     .stFileUploader {{
-        border: 2px dashed #FFD700;
+        border: 2px dashed {button_color};
         border-radius: 10px;
         padding: 15px;
-        background-color: rgba(255, 215, 0, 0.1);
+        background-color: {file_uploader_bg};
     }}
     .guide-title {{
-        color: #FFD700;
+        color: {button_color};
         font-weight: bold;
         font-size: 20px;
     }}
     .chart-card {{
         background-color: {card_bg};
-        border: 1px solid #FFD700;
+        border: 1px solid {divider_color};
         border-radius: 12px;
         padding: 12px;
         margin: 10px 0;
@@ -175,7 +187,7 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # ------------------ شريط التنقل العلوي ------------------
 col1, col2 = st.columns([3, 1])
 with col1:
-    st.markdown(f'<div style="font-weight:bold; font-size:18px; color:#FFD700;">Averroes Pharma</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-weight:bold; font-size:18px; color:{button_color};">Averroes Pharma</div>', unsafe_allow_html=True)
 with col2:
     theme_text = "☀️ Light Mode" if st.session_state.theme == 'dark' else "🌙 Dark Mode"
     if st.button(theme_text, key="toggle_theme"):
@@ -1125,7 +1137,7 @@ if dashboard_file:
                     if fig is not None:
                         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
                         st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                        st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="text-align:center; color:{button_color}; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.write("")
@@ -1136,7 +1148,7 @@ if dashboard_file:
                     if fig is not None:
                         st.markdown('<div class="chart-card">', unsafe_allow_html=True)
                         st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                        st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="text-align:center; color:{button_color}; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.write("")
