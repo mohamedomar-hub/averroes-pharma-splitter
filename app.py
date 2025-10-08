@@ -24,11 +24,9 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 # ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
-
 # Initialize clear counter in session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
-
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
     '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
@@ -152,7 +150,6 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
 # ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
 def display_uploaded_files(file_list, file_type="Excel"):
     if file_list:
@@ -163,7 +160,6 @@ def display_uploaded_files(file_list, file_type="Excel"):
                 f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
                 unsafe_allow_html=True
             )
-
 # ------------------ شريط التنقل العلوي ------------------
 st.markdown(
     """
@@ -175,7 +171,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 # ------------------ عرض اللوجو ------------------
 logo_path = "logo.png"
 if os.path.exists(logo_path):
@@ -184,7 +179,6 @@ if os.path.exists(logo_path):
     st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
-
 # ------------------ معلومات المطور ------------------
 st.markdown(
     """
@@ -197,15 +191,12 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
-
 # ------------------ Utility functions ------------------
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
-
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -217,7 +208,6 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
-
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -228,7 +218,6 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
-
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -267,7 +256,6 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
-
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -298,7 +286,6 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
-
 # ------------------ قسم التقسيم (Splitter) ------------------
 st.markdown("### ✂ Split Excel File")
 uploaded_file = st.file_uploader(
@@ -522,7 +509,6 @@ if uploaded_file:
         st.error(f"❌ Error processing file: {e}")
 else:
     st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
-
 # -----------------------------------------------
 # Merge area
 # -----------------------------------------------
@@ -645,50 +631,98 @@ if merge_files:
                 )
             except Exception as e:
                 st.error(f"❌ Error during merge: {e}")
-
 # ====================================================================================
 # 📷 Image to PDF Converter with CamScanner Effect
 # ====================================================================================
 st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 st.markdown("### 📷 Convert Images to PDF")
-
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
     type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
     key=f"image_uploader_{st.session_state.clear_counter}"
 )
-
 if uploaded_images:
     display_uploaded_files(uploaded_images, "Image")
     if st.button("🗑️ Clear All Images", key="clear_images"):
         st.session_state.clear_counter += 1
         st.rerun()
-
     # --- دالة لتحسين الصورة مثل CamScanner ---
     try:
         import cv2
         import numpy as np
-
         def enhance_image_for_pdf(image_pil):
-            """تحسّن الصورة لتكون مثل ما يفعله CamScanner"""
+            """تحسين الصورة لتكون مثل ما يفعله CamScanner: اكتشاف الحواف، القص، تحسين الألوان"""
             # تحويل PIL إلى OpenCV
             image = np.array(image_pil)
             if image.shape[2] == 4:  # RGBA
                 image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            original_color = image.copy()  # نحفظ النسخة الأصلية بالألوان
 
-            # تحويل إلى رمادي
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            
-            # تحسين التباين (CLAHE)
+            # --- 1. اكتشاف الحواف وقص الورقة (Document Detection) ---
+            def find_document_contour(img):
+                gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                blur = cv2.GaussianBlur(gray, (5,5), 0)
+                edged = cv2.Canny(blur, 75, 200)
+
+                contours, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+                contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+
+                for c in contours:
+                    peri = cv2.arcLength(c, True)
+                    approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+                    if len(approx) == 4:
+                        return approx
+                return None
+
+            doc_contour = find_document_contour(original_color)
+            if doc_contour is not None:
+                # حساب الإحداثيات للقص
+                pts = doc_contour.reshape(4, 2)
+                rect = np.zeros((4, 2), dtype="float32")
+                s = pts.sum(axis=1)
+                rect[0] = pts[np.argmin(s)]   # top-left
+                rect[2] = pts[np.argmax(s)]   # bottom-right
+                diff = np.diff(pts, axis=1)
+                rect[1] = pts[np.argmin(diff)]  # top-right
+                rect[3] = pts[np.argmax(diff)]  # bottom-left
+
+                # حساب الأبعاد الجديدة (عرض وارتفاع)
+                widthA = np.sqrt(((rect[2][0] - rect[3][0]) ** 2) + ((rect[2][1] - rect[3][1]) ** 2))
+                widthB = np.sqrt(((rect[1][0] - rect[0][0]) ** 2) + ((rect[1][1] - rect[0][1]) ** 2))
+                maxWidth = max(int(widthA), int(widthB))
+
+                heightA = np.sqrt(((rect[1][0] - rect[2][0]) ** 2) + ((rect[1][1] - rect[2][1]) ** 2))
+                heightB = np.sqrt(((rect[0][0] - rect[3][0]) ** 2) + ((rect[0][1] - rect[3][1]) ** 2))
+                maxHeight = max(int(heightA), int(heightB))
+
+                dst = np.array([
+                    [0, 0],
+                    [maxWidth - 1, 0],
+                    [maxWidth - 1, maxHeight - 1],
+                    [0, maxHeight - 1]], dtype="float32")
+
+                M = cv2.getPerspectiveTransform(rect, dst)
+                warped = cv2.warpPerspective(original_color, M, (maxWidth, maxHeight))
+                image = warped  # نستبدل الصورة الأصلية بالصورة المقطوعة والمعدلة
+
+            # --- 2. تحسين الألوان والتباين (بدون تحويل للرمادي) ---
+            # نستخدم CLAHE على كل قناة RGB بشكل منفصل
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-            enhanced = clahe.apply(gray)
-            
-            # إضافة إطار أبيض
+
+            # إذا كان الصورة تحتوي على 3 قنوات (RGB)
+            if len(image.shape) == 3 and image.shape[2] == 3:
+                channels = cv2.split(image)
+                enhanced_channels = []
+                for channel in channels:
+                    enhanced = clahe.apply(channel)
+                    enhanced_channels.append(enhanced)
+                image = cv2.merge(enhanced_channels)
+
+            # --- 3. إضافة إطار أبيض (اختياري) ---
             border_size = 20
             bordered = cv2.copyMakeBorder(
-                enhanced,
+                image,
                 top=border_size,
                 bottom=border_size,
                 left=border_size,
@@ -696,13 +730,13 @@ if uploaded_images:
                 borderType=cv2.BORDER_CONSTANT,
                 value=[255, 255, 255]
             )
-            
-            # تحويل العمق لـ 8-bit
+
+            # --- 4. التأكد من العمق (uint8) ---
             if bordered.dtype != np.uint8:
                 bordered = np.clip(bordered, 0, 255).astype(np.uint8)
-            
-            # إعادة التحويل لـ RGB
-            result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
+
+            # --- 5. تحويل إلى PIL (RGB) ---
+            result = cv2.cvtColor(bordered, cv2.COLOR_BGR2RGB)
             return Image.fromarray(result)
 
         if st.button("🖨️ Create PDF (CamScanner Style)"):
@@ -710,13 +744,11 @@ if uploaded_images:
                 try:
                     first_image = Image.open(uploaded_images[0])
                     first_image_enhanced = enhance_image_for_pdf(first_image)
-                    
                     other_images = []
                     for img_file in uploaded_images[1:]:
                         img = Image.open(img_file)
                         enhanced_img = enhance_image_for_pdf(img)
                         other_images.append(enhanced_img.convert("RGB"))
-                    
                     pdf_buffer = BytesIO()
                     first_image_enhanced.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
                     pdf_buffer.seek(0)
@@ -731,7 +763,6 @@ if uploaded_images:
                     st.error(f"❌ Error creating enhanced PDF: {e}")
     except ImportError:
         st.warning("⚠️ CamScanner effect requires 'opencv-python'. Install it to enable this feature.")
-    
     # --- الزر العادي (بدون تحسين) ---
     if st.button("🖨️ Create PDF (Original Quality)"):
         with st.spinner("Converting images to PDF..."):
@@ -755,7 +786,6 @@ if uploaded_images:
                 st.error(f"❌ Error creating PDF: {e}")
 else:
     st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
-
 # ====================================================================================
 # 📊 Dashboard Generator
 # ====================================================================================
@@ -1249,7 +1279,6 @@ if dashboard_file:
                         st.error(f"❌ PowerPoint generation failed: {e}")
     except Exception as e:
         st.error(f"❌ Error generating dashboard: {e}")
-
 # ------------------ قسم Info ------------------
 st.markdown("<hr class='divider' id='info-section'>", unsafe_allow_html=True)
 with st.expander("📖 How to Use - Click to view instructions"):
