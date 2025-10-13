@@ -151,6 +151,28 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
+    /* Custom Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 20px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #FFD700 !important;
+        color: black !important;
+        border: 2px solid #FFC107 !important;
+    }
+    .stTabs [aria-selected="false"] {
+        background-color: #003366 !important;
+        color: #FFD700 !important;
+        border: 1px solid #FFD700 !important;
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -205,7 +227,12 @@ st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma 
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
 
 # ------------------ Tabs ------------------
-tab1, tab2, tab3, tab4 = st.tabs(["📂 Split & Merge", "📷 Image to PDF", "📊 Auto Dashboard", "ℹ️ Info"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📂 Split & Merge", 
+    "📷 Image to PDF", 
+    "📊 Auto Dashboard", 
+    "ℹ️ Info"
+])
 
 # ------------------ Utility functions ------------------
 def _safe_name(s):
@@ -1010,6 +1037,41 @@ with tab3:
                         st.warning(f"⚠️ Not enough employees ({len(rep_data)}) to show Top/Bottom 10.")
 
                 # ==============================
+                # ✅ Top 5 Products (if exists)
+                # ==============================
+                product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
+                if product_col and kpi_measure_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
+                    try:
+                        product_data = filtered.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False).head(5)
+                        df_product = product_data.reset_index().rename(columns={kpi_measure_col: "value"})
+                        df_product[product_col] = df_product[product_col].astype(str).str.strip()
+                        fig_product = px.bar(df_product, x=product_col, y="value", title="🏆 Top 5 Products", text="value")
+                        fig_product.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                        fig_product.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                        plotly_figs.append((fig_product, "Top 5 Products"))
+                        fig_m, ax = plt.subplots(figsize=(10, 5))
+                        x_labels = product_data.index.astype(str).str.strip()
+                        bars = ax.bar(x_labels, product_data.values)
+                        ax.set_title("Top 5 Products", fontsize=14, fontweight='bold')
+                        ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
+                        ax.tick_params(axis='x', rotation=45, labelsize=10)
+                        for label in ax.get_xticklabels():
+                            label.set_ha('right')
+                        ax.set_xlabel(product_col, fontsize=10, fontweight='bold')
+                        for b in bars:
+                            h = b.get_height()
+                            if pd.isna(h): continue
+                            ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=9)
+                        fig_m.tight_layout()
+                        img_buf = BytesIO()
+                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
+                        img_buf.seek(0)
+                        charts_buffers.append((img_buf, "Top 5 Products"))
+                        plt.close(fig_m)
+                    except Exception as e:
+                        st.warning(f"⚠️ Could not generate Top 5 Products chart: {e}")
+
+                # ==============================
                 # Other charts
                 # ==============================
                 pie_prefer_order = ["area", "region", "territory", "branch", "location", "city"]
@@ -1325,38 +1387,52 @@ with tab3:
 with tab4:
     st.markdown("""
     <div class='guide-title'>🎯 Welcome to a free tool provided by the company admin.!</div>
-    هذه الأداة تقسم ودمج ملفات الإكسل <strong>بدقة وبدون فقدان التنسيق</strong>.
-    ---
-    ### 🔧 أولًا: التقسيم
-    1. ارفع ملف Excel في خانة "Upload Excel File (Splitter/Merge)".
-    2. اختر الشيت.
-    3. اختر العمود اللي عاوز تقسّم عليه (مثل: "Area Manager").
-    4. اضغط على **"Start Split"**.
-    5. هيطلعلك ملف ZIP يحتوي على ملف منفصل لكل قيمة.
-    ---
-    ### 🔗 ثانيًا: الدمج
-    - ارفع أكثر من ملف Excel في خانة "Upload Excel Files to Merge".
-    - اضغط "Merge Files with Format".
-    - طالع لك ملف واحد مدمج بالحفاظ على التنسيق.
-    ---
-    ### 📷 ثالثًا: تحويل الصور إلى PDF (جديد!)
-    - ارفع صور JPG أو JPEG أو PNG في قسم "Convert Images to PDF".
-    - اختر بين:
-      - **"Create PDF (Original Quality)"** → PDF عادي.
-      - **"Create PDF (CamScanner Style)"** → PDF مُحسّن (إذا كان `opencv` مثبتًا).
-    - نزّل ملف PDF يحتوي على كل الصور كصفحات.
-    - استخدم زر **"Clear All Images"** لمسح كل الصور دفعة واحدة.
-    ---
-    ### 📊 رابعًا: الـ Dashboard
-    - ارفع ملف Excel في خانة "Upload Excel File for Dashboard (Auto)".
-    - اختر الشيت.
-    - استخدم Sidebar لاختيار "Primary Filter Column" (دروب ليست) ثم قيمه.
-    - اختياريًا اختار أعمدة فلترة إضافية.
-    - الداشبورد يبني رسومات أوتوماتيك ويعرضها في شبكة 3×2 داخل كروت.
-    - **جديد**: إذا وُجد عمود موظفين ومبيعات → يعرض Top 10 و Bottom 10 تلقائيًا.
-    - اضغط **"Generate Dashboard PDF (charts only)"** لتنزيل PDF يحتوي على الرسومات فقط.
-    - إذا حبيت تضيف جدول بالبيانات داخل الـ PDF فعّل الخيار "Include table in PDF report (optional)".
-    - **جديد**: اضغط **"Export Dashboard to PowerPoint (PPTX)"** لتنزيل عرض تقديمي احترافي.
-    ---
-    🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
+    <br>
+    <h3 style='color:#FFD700;'>📌 How to Use</h3>
+    <ol style='color:white; font-size:16px; line-height:1.6;'>
+        <li><strong>Upload Excel File (Splitter/Merge)</strong>: 
+            <ul>
+                <li>Select the sheet you want to split.</li>
+                <li>Choose the column to split by (e.g., 'Area Manager').</li>
+                <li>Click "Start Split" to create separate files for each value.</li>
+            </ul>
+        </li>
+        <li><strong>Merge Excel Files with Format</strong>: 
+            <ul>
+                <li>Upload multiple Excel files.</li>
+                <li>Click "Merge Files with Format" to combine them while preserving formatting.</li>
+            </ul>
+        </li>
+        <li><strong>Convert Images to PDF</strong>: 
+            <ul>
+                <li>Upload JPG, JPEG, or PNG images.</li>
+                <li>Choose between "Original Quality" or "CamScanner Style".</li>
+                <li>Download the PDF containing all images as pages.</li>
+            </ul>
+        </li>
+        <li><strong>Auto Dashboard Generator</strong>: 
+            <ul>
+                <li>Upload an Excel file for dashboard.</li>
+                <li>Select the sheet.</li>
+                <li>Use the sidebar to apply filters.</li>
+                <li>The dashboard will auto-generate KPIs and charts.</li>
+                <li>Export to PDF or PowerPoint.</li>
+            </ul>
+        </li>
+    </ol>
+    <br>
+    <h3 style='color:#FFD700;'>📞 Contact</h3>
+    <p style='color:white; font-size:16px;'>
+        For any questions or support, contact us via WhatsApp: 
+        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:underline;">
+            01554694554
+        </a>
+    </p>
+    <br>
+    <h3 style='color:#FFD700;'>💡 Tips</h3>
+    <ul style='color:white; font-size:16px; line-height:1.6;'>
+        <li>Use the "Clear" buttons to reset uploads or filters.</li>
+        <li>For best results, ensure your Excel files are well-structured.</li>
+        <li>Dashboard supports dynamic filtering — select different dimensions to see updated charts.</li>
+    </ul>
     """, unsafe_allow_html=True)
