@@ -886,7 +886,7 @@ if dashboard_file:
 
             if kpi_values.get('total') is not None:
                 kpi_cards.append({
-                    'title': f'إجمالي {kpi_measure_col}',
+                    'title': f'Total {kpi_measure_col}',
                     'value': f"{kpi_values['total']:,.0f}",
                     'color': 'linear-gradient(135deg, #ff8a00, #ffc107)',
                     'icon': '💰'
@@ -894,7 +894,7 @@ if dashboard_file:
 
             if kpi_values.get('avg') is not None:
                 kpi_cards.append({
-                    'title': f'متوسط {kpi_measure_col}',
+                    'title': f'Average Total {kpi_measure_col}',
                     'value': f"{kpi_values['avg']:,.0f}",
                     'color': 'linear-gradient(135deg, #00c0ff, #007bff)',
                     'icon': '📊'
@@ -902,7 +902,7 @@ if dashboard_file:
 
             if kpi_values.get('avg_per_date') is not None:
                 kpi_cards.append({
-                    'title': 'متوسط شهري',
+                    'title': 'Monthly Average',
                     'value': f"{kpi_values['avg_per_date']:,.0f}",
                     'color': 'linear-gradient(135deg, #28a745, #85e085)',
                     'icon': '📅'
@@ -910,7 +910,7 @@ if dashboard_file:
 
             if kpi_values.get('unique_area') is not None:
                 kpi_cards.append({
-                    'title': 'عدد المناطق',
+                    'title': 'Total Area',
                     'value': f"{kpi_values['unique_area']}",
                     'color': 'linear-gradient(135deg, #6f42c1, #a779e9)',
                     'icon': '🌍'
@@ -919,7 +919,7 @@ if dashboard_file:
             # ✅ نعرض "عدد الموظفين" فقط كـ KPI (بدون استخدامه في حسابات خاطئة)
             if kpi_values.get('unique_rep') is not None:
                 kpi_cards.append({
-                    'title': 'عدد الموظفين',
+                    'title': 'Total Employee ',
                     'value': f"{kpi_values['unique_rep']}",
                     'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)',
                     'icon': '👨‍💼'
@@ -927,7 +927,7 @@ if dashboard_file:
 
             if kpi_values.get('unique_branch') is not None:
                 kpi_cards.append({
-                    'title': 'عدد الفروع',
+                    'title': 'Total Branch',
                     'value': f"{kpi_values['unique_branch']}",
                     'color': 'linear-gradient(135deg, #20c997, #66d9b3)',
                     'icon': '🏢'
@@ -1356,3 +1356,4 @@ with st.expander("📖 How to Use - Click to view instructions"):
     ---
     🙋‍♂️ لأي استفسار: <a href="https://wa.me/201554694554" target="_blank">01554694554 (واتساب)</a>
     """, unsafe_allow_html=True)
+
