@@ -968,8 +968,8 @@ with tab3:
                     # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
                     st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
                         # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
-                        st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-                        st.markdown("### 🧠 Smart Insights (تحليل ذكي)")
+                   st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+                   st.markdown("### 🧠 Smart Insights (تحليل ذكي)")
                     
                         try:
                             insights = []
@@ -1564,6 +1564,7 @@ with tab4:
         <li>Period comparison works automatically if you have columns like "Sales_2023" and "Sales_2024".</li>
     </ul>
     """, unsafe_allow_html=True)
+
 
 
 
