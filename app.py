@@ -652,78 +652,21 @@ if uploaded_images:
         import cv2
         import numpy as np
         def enhance_image_for_pdf(image_pil):
-            """تحسين الصورة لتكون مثل ما يفعله CamScanner: اكتشاف الحواف، القص، تحسين الألوان"""
+            """تحسّن الصورة لتكون مثل ما يفعله CamScanner"""
             # تحويل PIL إلى OpenCV
             image = np.array(image_pil)
             if image.shape[2] == 4:  # RGBA
                 image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-            original_color = image.copy()
-
-            # --- 1. اكتشاف الحواف وقص الورقة (Document Detection) ---
-            def find_document_contour(img):
-                gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-                blur = cv2.GaussianBlur(gray, (5,5), 0)
-                # استخدام Canny مع حدود ديناميكية
-                v = np.median(gray)
-                lower = int(max(0, (1.0 - 0.33) * v))
-                upper = int(min(255, (1.0 + 0.33) * v))
-                edged = cv2.Canny(blur, lower, upper)
-
-                contours, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-                contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
-
-                for c in contours:
-                    peri = cv2.arcLength(c, True)
-                    approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-                    if len(approx) == 4:
-                        return approx
-                return None
-
-            doc_contour = find_document_contour(original_color)
-            if doc_contour is not None:
-                # حساب الإحداثيات للقص
-                pts = doc_contour.reshape(4, 2)
-                rect = np.zeros((4, 2), dtype="float32")
-                s = pts.sum(axis=1)
-                rect[0] = pts[np.argmin(s)]   # top-left
-                rect[2] = pts[np.argmax(s)]   # bottom-right
-                diff = np.diff(pts, axis=1)
-                rect[1] = pts[np.argmin(diff)]  # top-right
-                rect[3] = pts[np.argmax(diff)]  # bottom-left
-
-                # حساب الأبعاد الجديدة (عرض وارتفاع)
-                widthA = np.sqrt(((rect[2][0] - rect[3][0]) ** 2) + ((rect[2][1] - rect[3][1]) ** 2))
-                widthB = np.sqrt(((rect[1][0] - rect[0][0]) ** 2) + ((rect[1][1] - rect[0][1]) ** 2))
-                maxWidth = max(int(widthA), int(widthB))
-
-                heightA = np.sqrt(((rect[1][0] - rect[2][0]) ** 2) + ((rect[1][1] - rect[2][1]) ** 2))
-                heightB = np.sqrt(((rect[0][0] - rect[3][0]) ** 2) + ((rect[0][1] - rect[3][1]) ** 2))
-                maxHeight = max(int(heightA), int(heightB))
-
-                dst = np.array([
-                    [0, 0],
-                    [maxWidth - 1, 0],
-                    [maxWidth - 1, maxHeight - 1],
-                    [0, maxHeight - 1]], dtype="float32")
-
-                M = cv2.getPerspectiveTransform(rect, dst)
-                warped = cv2.warpPerspective(original_color, M, (maxWidth, maxHeight))
-                image = warped  # نستبدل الصورة الأصلية بالصورة المقطوعة والمعدلة
-
-            # --- 2. تحسين الألوان والتباين (بدون تحويل للرمادي) ---
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            # تحويل إلى رمادي
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            # تحسين التباين (CLAHE)
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-            if len(image.shape) == 3 and image.shape[2] == 3:
-                channels = cv2.split(image)
-                enhanced_channels = []
-                for channel in channels:
-                    enhanced = clahe.apply(channel)
-                    enhanced_channels.append(enhanced)
-                image = cv2.merge(enhanced_channels)
-
-            # --- 3. إضافة إطار أبيض (اختياري) ---
+            enhanced = clahe.apply(gray)
+            # إضافة إطار أبيض
             border_size = 20
             bordered = cv2.copyMakeBorder(
-                image,
+                enhanced,
                 top=border_size,
                 bottom=border_size,
                 left=border_size,
@@ -731,15 +674,12 @@ if uploaded_images:
                 borderType=cv2.BORDER_CONSTANT,
                 value=[255, 255, 255]
             )
-
-            # --- 4. التأكد من العمق (uint8) ---
+            # تحويل العمق لـ 8-bit
             if bordered.dtype != np.uint8:
                 bordered = np.clip(bordered, 0, 255).astype(np.uint8)
-
-            # --- 5. تحويل إلى PIL (RGB) ---
-            result = cv2.cvtColor(bordered, cv2.COLOR_BGR2RGB)
+            # إعادة التحويل لـ RGB
+            result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
             return Image.fromarray(result)
-
         if st.button("🖨️ Create PDF (CamScanner Style)"):
             with st.spinner("Enhancing images for PDF..."):
                 try:
@@ -881,14 +821,17 @@ if dashboard_file:
             possible_dim_aliases = {
                 "area": ["area", "region", "territory"],
                 "branch": ["branch", "location", "store"],
-                "rep": ["rep", "representative", "salesman", "employee", "name"]
+                # ⚠️ تم حذف "rep" لأنك لا تريد KPI للموظفين
             }
             found_dims = {}
             for dim_key, aliases in possible_dim_aliases.items():
                 col = _find_col(filtered, aliases)
                 if col:
                     found_dims[dim_key] = col
+
+            # --- حساب القيم المطلوبة فقط ---
             kpi_values = {}
+
             if kpi_measure_col and kpi_measure_col in filtered.columns:
                 kpi_values['total'] = filtered[kpi_measure_col].sum()
                 kpi_values['avg'] = filtered[kpi_measure_col].mean()
@@ -904,9 +847,21 @@ if dashboard_file:
                 kpi_values['total'] = None
                 kpi_values['avg'] = None
                 kpi_values['avg_per_date'] = None
-            for dim_key, col_name in found_dims.items():
-                kpi_values[f'unique_{dim_key}'] = filtered[col_name].nunique()
+
+            # فقط Area و Branch — لا Reps ولا Total Rows
+            if 'area' in found_dims:
+                kpi_values['unique_area'] = filtered[found_dims['area']].nunique()
+            else:
+                kpi_values['unique_area'] = None
+
+            if 'branch' in found_dims:
+                kpi_values['unique_branch'] = filtered[found_dims['branch']].nunique()
+            else:
+                kpi_values['unique_branch'] = None
+
+            # Build KPI Cards (بدون Reps وبدون Total Rows)
             kpi_cards = []
+
             if kpi_values.get('total') is not None:
                 kpi_cards.append({
                     'title': f'إجمالي {kpi_measure_col}',
@@ -914,41 +869,39 @@ if dashboard_file:
                     'color': 'linear-gradient(135deg, #ff8a00, #ffc107)',
                     'icon': '💰'
                 })
+
             if kpi_values.get('avg') is not None:
                 kpi_cards.append({
-                    'title': f'Average {kpi_measure_col}',
+                    'title': f'متوسط {kpi_measure_col}',
                     'value': f"{kpi_values['avg']:,.0f}",
                     'color': 'linear-gradient(135deg, #00c0ff, #007bff)',
                     'icon': '📊'
                 })
+
             if kpi_values.get('avg_per_date') is not None:
                 kpi_cards.append({
-                    'title': f'Average per Date',
+                    'title': 'متوسط شهري',
                     'value': f"{kpi_values['avg_per_date']:,.0f}",
                     'color': 'linear-gradient(135deg, #28a745, #85e085)',
                     'icon': '📅'
                 })
+
             if kpi_values.get('unique_area') is not None:
                 kpi_cards.append({
-                    'title': f'عدد المناطق',
+                    'title': 'عدد المناطق',
                     'value': f"{kpi_values['unique_area']}",
                     'color': 'linear-gradient(135deg, #6f42c1, #a779e9)',
                     'icon': '🌍'
                 })
-            if kpi_values.get('unique_rep') is not None:
-                kpi_cards.append({
-                    'title': f'Count Mr ',
-                    'value': f"{kpi_values['unique_rep']}",
-                    'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)',
-                    'icon': '👨‍💼'
-                })
+
             if kpi_values.get('unique_branch') is not None:
                 kpi_cards.append({
-                    'title': f'عدد الفروع',
+                    'title': 'عدد الفروع',
                     'value': f"{kpi_values['unique_branch']}",
                     'color': 'linear-gradient(135deg, #20c997, #66d9b3)',
                     'icon': '🏢'
                 })
+
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:6]):
@@ -960,6 +913,7 @@ if dashboard_file:
                     </div>
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
+
             # === Auto Charts ===
             st.markdown("### 📊 Auto Charts (built from data)")
             charts_buffers = []
