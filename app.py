@@ -966,88 +966,97 @@ with tab3:
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
                     # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
-st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-st.markdown("### 🧠 Smart Insights (تحليل ذكي)")
-
-try:
-    insights = []
-    # الأساسيات
-    if kpi_measure_col in filtered.columns:
-        total = filtered[kpi_measure_col].sum()
-        avg = filtered[kpi_measure_col].mean()
-        insights.append({
-            "ar": f"إجمالي {kpi_measure_col} هو {total:,.0f} بمتوسط {avg:,.0f} لكل سجل.",
-            "en": f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record."
-        })
-
-    # أعلى مندوب
-    rep_col = found_dims.get('rep')
-    if rep_col and rep_col in filtered.columns:
-        rep_sum = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
-        if not rep_sum.empty:
-            top_rep = rep_sum.index[0]
-            bottom_rep = rep_sum.index[-1]
-            insights.append({
-                "ar": f"أعلى مندوب مبيعات هو **{top_rep}** بينما الأقل أداء هو **{bottom_rep}**.",
-                "en": f"The top-performing representative is **{top_rep}**, while the lowest is **{bottom_rep}**."
-            })
-
-    # الاتجاه العام الزمني
-    date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
-    if date_cols:
-        date_col = date_cols[0]
-        df_sorted = filtered.sort_values(date_col)
-        first_val = df_sorted[kpi_measure_col].iloc[0] if not df_sorted.empty else None
-        last_val = df_sorted[kpi_measure_col].iloc[-1] if not df_sorted.empty else None
-        if first_val is not None and last_val is not None:
-            if last_val > first_val:
-                insights.append({
-                    "ar": "📈 الاتجاه العام تصاعدي عبر الفترة الزمنية.",
-                    "en": "📈 The overall trend is upward over the given period."
-                })
-            elif last_val < first_val:
-                insights.append({
-                    "ar": "📉 الاتجاه العام تنازلي عبر الفترة الزمنية.",
-                    "en": "📉 The overall trend is downward over the given period."
-                })
-            else:
-                insights.append({
-                    "ar": "➖ الأداء مستقر تقريبًا على مدار الفترة الزمنية.",
-                    "en": "➖ Performance remains relatively stable over the period."
-                })
-
-    # أعلى منتج مبيعاتًا (إن وجد)
-    product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
-    if product_col and product_col in filtered.columns:
-        prod_sum = filtered.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False)
-        if not prod_sum.empty:
-            top_prod = prod_sum.index[0]
-            insights.append({
-                "ar": f"المنتج الأعلى مبيعات هو **{top_prod}**.",
-                "en": f"The top-selling product is **{top_prod}**."
-            })
-
-    # عرض التحليل داخل بطاقات جميلة
-    for ins in insights:
-        st.markdown(
-            f"""
-            <div style='background:linear-gradient(135deg,#003366,#001a33);
-                        border:1px solid #FFD700; border-radius:12px; 
-                        padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
-                <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
-                    🇪🇬 {ins["ar"]}
-                </p>
-                <p style='color:white; font-size:16px;'>
-                    🇬🇧 {ins["en"]}
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-except Exception as e:
-    st.warning(f"⚠️ لم يتمكن التحل
-
+                   st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+                    # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
+                    st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+                    st.markdown("### 🧠 Smart Insights (تحليل ذكي)")
+                    
+                    try:
+                        insights = []
+                    
+                        # الأساسيات
+                        if kpi_measure_col and kpi_measure_col in filtered.columns:
+                            total = filtered[kpi_measure_col].sum()
+                            avg = filtered[kpi_measure_col].mean()
+                            insights.append({
+                                "ar": f"إجمالي {kpi_measure_col} هو {total:,.0f} بمتوسط {avg:,.0f} لكل سجل.",
+                                "en": f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record."
+                            })
+                    
+                        # أعلى وأدنى مندوب
+                        rep_col = found_dims.get('rep')
+                        if rep_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
+                            rep_sum = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
+                            if not rep_sum.empty:
+                                top_rep = rep_sum.index[0]
+                                bottom_rep = rep_sum.index[-1]
+                                insights.append({
+                                    "ar": f"أعلى مندوب مبيعات هو **{top_rep}** بينما الأقل أداء هو **{bottom_rep}**.",
+                                    "en": f"The top-performing representative is **{top_rep}**, while the lowest is **{bottom_rep}**."
+                                })
+                    
+                        # الاتجاه العام الزمني (لو فيه عمود تاريخ)
+                        date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
+                        if date_cols and kpi_measure_col in filtered.columns:
+                            date_col = date_cols[0]
+                            try:
+                                df_sorted = filtered.dropna(subset=[date_col, kpi_measure_col]).sort_values(date_col)
+                                if not df_sorted.empty and len(df_sorted) >= 2:
+                                    first_sum = df_sorted.iloc[0][kpi_measure_col]
+                                    last_sum = df_sorted.iloc[-1][kpi_measure_col]
+                                    if last_sum > first_sum:
+                                        insights.append({
+                                            "ar": "📈 الاتجاه العام تصاعدي عبر الفترة الزمنية.",
+                                            "en": "📈 The overall trend is upward over the given period."
+                                        })
+                                    elif last_sum < first_sum:
+                                        insights.append({
+                                            "ar": "📉 الاتجاه العام تنازلي عبر الفترة الزمنية.",
+                                            "en": "📉 The overall trend is downward over the given period."
+                                        })
+                                    else:
+                                        insights.append({
+                                            "ar": "➖ الأداء مستقر تقريبًا على مدار الفترة الزمنية.",
+                                            "en": "➖ Performance remains relatively stable over the period."
+                                        })
+                            except Exception:
+                                # لو فيه مشكلة بتحليل التاريخ، نكمل بدون خطأ
+                                pass
+                    
+                        # أعلى منتج مبيعاتًا (إن وجد)
+                        product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
+                        if product_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
+                            try:
+                                prod_sum = filtered.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False)
+                                if not prod_sum.empty:
+                                    top_prod = prod_sum.index[0]
+                                    insights.append({
+                                        "ar": f"المنتج الأعلى مبيعات هو **{top_prod}**.",
+                                        "en": f"The top-selling product is **{top_prod}**."
+                                    })
+                            except Exception:
+                                pass
+                    
+                        # عرض التحليل داخل بطاقات جميلة
+                        for ins in insights:
+                            st.markdown(
+                                f"""
+                                <div style='background:linear-gradient(135deg,#003366,#001a33);
+                                            border:1px solid #FFD700; border-radius:12px; 
+                                            padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
+                                    <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
+                                        🇪🇬 {ins["ar"]}
+                                    </p>
+                                    <p style='color:white; font-size:16px;'>
+                                        🇬🇧 {ins["en"]}
+                                    </p>
+                                                </div>
+                                                """,
+                                                unsafe_allow_html=True
+                                            )
+                                    
+                                    except Exception as e:
+                                        st.warning(f"⚠️ لم يتمكن التحليل الذكي من التنفيذ: {e}")
 
             # === Summary Tables ===
             rep_col = found_dims.get('rep')
@@ -1555,4 +1564,5 @@ with tab4:
         <li>Period comparison works automatically if you have columns like "Sales_2023" and "Sales_2024".</li>
     </ul>
     """, unsafe_allow_html=True)
+
 
