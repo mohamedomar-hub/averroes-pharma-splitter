@@ -839,7 +839,7 @@ if dashboard_file:
 
             # === KPIs with Icons & Gradients ===
             kpi_measure_col = measure_col
-            possible_measure_aliases = ["sales", "amount", "value", "total", "revenue", "target", "achievement"]
+            possible_measure_aliases = ["sales", "amount", "value", "total", "revenue", "target", "achievement", "quantity"]
             for alias in possible_measure_aliases:
                 col = _find_col(filtered, [alias])
                 if col:
@@ -849,7 +849,7 @@ if dashboard_file:
             possible_dim_aliases = {
                 "area": ["area", "region", "territory"],
                 "branch": ["branch", "location", "store"],
-                # ⚠️ تم حذف "rep" لأنك لا تريد KPI للموظفين
+                "rep": ["rep", "representative", "salesman", "employee", "name", "mr"]
             }
 
             found_dims = {}
@@ -878,16 +878,8 @@ if dashboard_file:
                 kpi_values['avg'] = None
                 kpi_values['avg_per_date'] = None
 
-            # فقط Area و Branch — لا Reps ولا Total Rows
-            if 'area' in found_dims:
-                kpi_values['unique_area'] = filtered[found_dims['area']].nunique()
-            else:
-                kpi_values['unique_area'] = None
-
-            if 'branch' in found_dims:
-                kpi_values['unique_branch'] = filtered[found_dims['branch']].nunique()
-            else:
-                kpi_values['unique_branch'] = None
+            for dim_key, col_name in found_dims.items():
+                kpi_values[f'unique_{dim_key}'] = filtered[col_name].nunique()
 
             # Build KPI Cards
             kpi_cards = []
@@ -924,6 +916,15 @@ if dashboard_file:
                     'icon': '🌍'
                 })
 
+            # ✅ نعرض "عدد الموظفين" فقط كـ KPI (بدون استخدامه في حسابات خاطئة)
+            if kpi_values.get('unique_rep') is not None:
+                kpi_cards.append({
+                    'title': 'عدد الموظفين',
+                    'value': f"{kpi_values['unique_rep']}",
+                    'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)',
+                    'icon': '👨‍💼'
+                })
+
             if kpi_values.get('unique_branch') is not None:
                 kpi_cards.append({
                     'title': 'عدد الفروع',
@@ -949,10 +950,62 @@ if dashboard_file:
             charts_buffers = []
             plotly_figs = []
 
-            # Exclude measure_col and known date columns from dims
+            # Detect employee column
+            rep_col = found_dims.get('rep')
             date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
-            possible_dims = [c for c in filtered.columns if c != kpi_measure_col and c not in date_cols]
+            possible_dims = [c for c in filtered.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
 
+            # ==============================
+            # ✅ Top 10 & Bottom 10 Employees (if rep + measure exist)
+            # ==============================
+            if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
+                try:
+                    # Top 10
+                    top10 = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
+                    df_top = top10.reset_index().rename(columns={kpi_measure_col: "value"})
+                    df_top[rep_col] = df_top[rep_col].astype(str).str.strip()
+                    fig_top = px.bar(df_top, x=rep_col, y="value", title="Top 10 Employees", text="value")
+                    fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                    fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    plotly_figs.append((fig_top, "Top 10 Employees"))
+
+                    # Bottom 10
+                    bottom10 = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=True).head(10)
+                    df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
+                    df_bottom[rep_col] = df_bottom[rep_col].astype(str).str.strip()
+                    fig_bottom = px.bar(df_bottom, x=rep_col, y="value", title="Bottom 10 Employees", text="value")
+                    fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                    fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
+
+                    # Save to buffers for PDF/PPT
+                    for data, title in [(top10, "Top 10 Employees"), (bottom10, "Bottom 10 Employees")]:
+                        fig_m, ax = plt.subplots(figsize=(10, 5))
+                        x_labels = data.index.astype(str).str.strip()
+                        bars = ax.bar(x_labels, data.values)
+                        ax.set_title(title, fontsize=14, fontweight='bold')
+                        ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
+                        ax.tick_params(axis='x', rotation=45, labelsize=10)
+                        for label in ax.get_xticklabels():
+                            label.set_ha('right')
+                        ax.set_xlabel(rep_col, fontsize=10, fontweight='bold')
+                        for b in bars:
+                            h = b.get_height()
+                            if pd.isna(h): continue
+                            ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=9)
+                        fig_m.tight_layout()
+                        img_buf = BytesIO()
+                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
+                        img_buf.seek(0)
+                        charts_buffers.append((img_buf, title))
+                        plt.close(fig_m)
+
+                except Exception as e:
+                    st.warning(f"⚠️ Could not generate Top/Bottom 10 charts: {e}")
+
+            # ==============================
+            # Other charts (Area, Branch, etc.)
+            # ==============================
             pie_prefer_order = ["area", "region", "territory", "branch", "location", "city"]
             bar_prefer_order = ["item", "product", "sku", "category", "brand"]
 
@@ -994,7 +1047,7 @@ if dashboard_file:
                 dims_for_charts.append(r)
             dims_for_charts = dims_for_charts[:5]
 
-            # Chart A: Bar
+            # Chart A: Bar (if not already added Top/Bottom)
             if chosen_dim and kpi_measure_col and chosen_dim in filtered.columns:
                 try:
                     series = filtered.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
@@ -1104,19 +1157,16 @@ if dashboard_file:
                         st.warning(f"⚠️ Could not generate fallback pie chart: {e}")
 
             # Chart C: Trend (Line) - ONLY if Date/Month exists
-            date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
             if date_cols and kpi_measure_col and kpi_measure_col in filtered.columns:
                 date_col = date_cols[0]
                 try:
                     ser = filtered.dropna(subset=[date_col]).copy()
-                    # If it's a datetime column
                     if pd.api.types.is_datetime64_any_dtype(ser[date_col]):
                         ser["_yyyymm"] = ser[date_col].dt.to_period("M")
                         trend = ser.groupby("_yyyymm")[kpi_measure_col].sum().reset_index()
                         trend["_yyyymm"] = trend["_yyyymm"].astype(str)
                         x_col = "_yyyymm"
                     else:
-                        # Assume it's a categorical month/year
                         trend = ser.groupby(date_col)[kpi_measure_col].sum().reset_index()
                         x_col = date_col
 
@@ -1180,7 +1230,7 @@ if dashboard_file:
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate chart for {ex_dim}: {e}")
 
-            # ❌ تم حذف رسمة "Distribution of Measure" تمامًا — لا يوجد كود لها هنا
+            # ❌ Distribution of Measure محذوفة تمامًا
 
             # === Display Charts in Cards ===
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
@@ -1299,6 +1349,7 @@ with st.expander("📖 How to Use - Click to view instructions"):
     - استخدم Sidebar لاختيار "Primary Filter Column" (دروب ليست) ثم قيمه.
     - اختياريًا اختار أعمدة فلترة إضافية.
     - الداشبورد يبني رسومات أوتوماتيك ويعرضها في شبكة 3×2 داخل كروت.
+    - **جديد**: إذا وُجد عمود موظفين ومبيعات → يعرض Top 10 و Bottom 10 تلقائيًا.
     - اضغط **"Generate Dashboard PDF (charts only)"** لتنزيل PDF يحتوي على الرسومات فقط.
     - إذا حبيت تضيف جدول بالبيانات داخل الـ PDF فعّل الخيار "Include table in PDF report (optional)".
     - **جديد**: اضغط **"Export Dashboard to PowerPoint (PPTX)"** لتنزيل عرض تقديمي احترافي.
