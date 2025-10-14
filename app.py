@@ -859,7 +859,6 @@ with tab3:
             else:
                 st.info("ℹ️ Rep column not found for performance grouping.")
 
-            # Use filtered_with_group for all subsequent analysis
             final_df = filtered_with_group
 
             # === KPIs ===
@@ -890,7 +889,6 @@ with tab3:
             if period_comparison and '__pct_change__' in final_df.columns:
                 kpi_values['growth_pct'] = final_df['__pct_change__'].mean() * 100
 
-            # Build KPI cards
             kpi_cards = []
             if kpi_values.get('total') is not None:
                 kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
@@ -971,7 +969,7 @@ with tab3:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # === Auto Charts (with fixed categorical selection) ===
+            # === Auto Charts ===
             st.markdown("### 📊 Auto Charts")
             charts_buffers = []
             plotly_figs = []
@@ -1018,7 +1016,6 @@ with tab3:
                     chosen_dim = col
                     break
             if not chosen_dim and possible_dims:
-                # Pick the column with the fewest unique values (likely categorical)
                 chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
 
             if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
@@ -1064,7 +1061,6 @@ with tab3:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-            # PDF/PPTX Export
             if st.button("📥 Generate Dashboard PDF (charts only)"):
                 with st.spinner("Generating Dashboard PDF..."):
                     try:
@@ -1078,6 +1074,9 @@ with tab3:
                         )
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
+
+        except Exception as e:
+            st.error(f"❌ Error generating dashboard: {e}")
 
 # ------------------ Tab 4: Info ------------------
 with tab4:
