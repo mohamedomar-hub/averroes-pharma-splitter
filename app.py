@@ -7,38 +7,28 @@ import re
 import os
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl import load_workbook, Workbook
-# ====== إضافات للداش بورد والتقارير ======
+# ====== Dashboard & Reporting ======
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage, Spacer, PageBreak
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
-# Plotly for modern interactive charts (on-screen only)
 import plotly.express as px
 import plotly.graph_objects as go
-# PowerPoint export
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-# ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
-# ------------------ إضافة sklearn للتنبؤ البسيط ------------------
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
-# Initialize clear counter in session state
+# Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
 
-# ------------------ ربط بخط عربي جميل (Cairo) ------------------
-st.markdown(
-    '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
-    unsafe_allow_html=True
-)
-
-# ------------------ إعدادات الصفحة ------------------
+# ------------------ Page Setup ------------------
 st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
@@ -46,7 +36,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ------------------ إخفاء شعار Streamlit والفوتر ------------------
+# Hide default Streamlit elements
 hide_default = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -56,7 +46,7 @@ hide_default = """
 """
 st.markdown(hide_default, unsafe_allow_html=True)
 
-# ------------------ ستايل مخصص ------------------
+# ------------------ Custom CSS ------------------
 custom_css = """
     <style>
     .stApp {
@@ -154,7 +144,6 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    /* Custom Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 20px;
     }
@@ -180,7 +169,7 @@ custom_css = """
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
+# ------------------ Helper Functions ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
         st.markdown("### 📁 Uploaded Files:")
@@ -191,45 +180,6 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
                 unsafe_allow_html=True
             )
 
-# ------------------ شريط التنقل العلوي ------------------
-st.markdown(
-    """
-    <div class="top-nav">
-        <a href="#">Home</a>
-        <a href="https://wa.me/201554694554" target="_blank">Contact</a>
-        <a href="#info-section">Info</a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# ------------------ عرض اللوجو ------------------
-logo_path = "logo.png"
-if os.path.exists(logo_path):
-    st.markdown('<div style="text-align:center; margin:20px 0;">', unsafe_allow_html=True)
-    st.image(logo_path, width=200)
-    st.markdown('</div>', unsafe_allow_html=True)
-else:
-    st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
-
-# ------------------ معلومات المطور ------------------
-st.markdown(
-    """
-    <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
-        By <strong>Mohamed Abd ELGhany</strong> – 
-        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
-            01554694554 (WhatsApp)
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# ------------------ العنوان ------------------
-st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
-
-# ------------------ Utility functions ------------------
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
 
@@ -305,13 +255,12 @@ def build_pptx(sheet_title, charts_buffers):
     for img_buf, caption in charts_buffers:
         try:
             img_buf.seek(0)
-            slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank layout
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
             left = Inches(0.5)
             top = Inches(0.8)
             width = Inches(9)
             height = Inches(5)
             slide.shapes.add_picture(img_buf, left, top, width=width, height=height)
-            # Add caption
             txBox = slide.shapes.add_textbox(left, top + height + Inches(0.1), width, Inches(0.5))
             tf = txBox.text_frame
             p = tf.paragraphs[0]
@@ -326,141 +275,38 @@ def build_pptx(sheet_title, charts_buffers):
     pptx_buffer.seek(0)
     return pptx_buffer
 
-# ------------------ دالة التنبؤ المحسنة ------------------
-def generate_forecast_plot(df, date_col, value_col, periods_ahead=3):
+# ------------------ Navigation & Logo ------------------
+st.markdown(
     """
-    Generates forecast using both Linear Regression and Moving Average.
-    Returns Plotly figure and forecast summary text.
+    <div class="top-nav">
+        <a href="#">Home</a>
+        <a href="https://wa.me/201554694554" target="_blank">Contact</a>
+        <a href="#info-section">Info</a>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+logo_path = "logo.png"
+if os.path.exists(logo_path):
+    st.image(logo_path, width=200)
+else:
+    st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
+
+st.markdown(
     """
-    try:
-        # Ensure date_col is datetime or categorical
-        temp_df = df[[date_col, value_col]].dropna().copy()
-        if temp_df.empty:
-            return None, None
+    <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
+        By <strong>Mohamed Abd ELGhany</strong> – 
+        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
+            01554694554 (WhatsApp)
+        </a>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-        # Try to convert to datetime
-        temp_df[date_col] = pd.to_datetime(temp_df[date_col], errors='coerce')
-        if temp_df[date_col].isna().all():
-            # Fallback: treat as categorical/numeric index
-            temp_df = temp_df.reset_index(drop=True)
-            temp_df['_idx'] = range(len(temp_df))
-            x_vals = temp_df['_idx'].values.reshape(-1, 1)
-            x_labels = temp_df[date_col].astype(str).values
-            is_datetime = False
-        else:
-            temp_df = temp_df.sort_values(date_col).reset_index(drop=True)
-            # Use formatted date string for labels
-            temp_df['_date_str'] = temp_df[date_col].dt.strftime('%Y-%m')  # e.g., "2025-01"
-            x_vals = np.arange(len(temp_df)).reshape(-1, 1)  # Use numeric index for regression
-            x_labels = temp_df['_date_str'].values
-            is_datetime = True
-
-        y_vals = temp_df[value_col].values
-
-        # Fit linear regression
-        model = LinearRegression()
-        model.fit(x_vals, y_vals)
-
-        # Generate future dates for labels
-        last_date_str = x_labels[-1]
-        last_year, last_month = map(int, last_date_str.split('-'))
-        future_dates = []
-        for i in range(periods_ahead):
-            next_month = last_month + i + 1
-            next_year = last_year + (next_month - 1) // 12
-            next_month = ((next_month - 1) % 12) + 1
-            future_dates.append(f"{next_year:04d}-{next_month:02d}")
-
-        # Forecast next periods
-        future_x = np.array([len(temp_df) + i for i in range(periods_ahead)]).reshape(-1, 1)
-        future_y_lr = model.predict(future_x)
-
-        # Moving Average Forecast (last 3 periods average)
-        if len(y_vals) >= 3:
-            ma_window = 3
-            ma_forecast = np.mean(y_vals[-ma_window:])
-            future_y_ma = np.full(periods_ahead, ma_forecast)
-        else:
-            ma_forecast = None
-            future_y_ma = np.full(periods_ahead, np.nan)
-
-        # Combine actual + forecast for plot
-        all_x = np.concatenate([np.arange(len(temp_df)), np.arange(len(temp_df), len(temp_df) + periods_ahead)])
-        all_y_actual = np.concatenate([y_vals, np.full(periods_ahead, np.nan)])
-        all_y_lr = np.concatenate([np.full(len(temp_df), np.nan), future_y_lr])
-        all_y_ma = np.concatenate([np.full(len(temp_df), np.nan), future_y_ma])
-
-        # Create Plotly figure with two forecast lines
-        fig = go.Figure()
-
-        # Actual data
-        fig.add_trace(go.Scatter(
-            x=x_labels,
-            y=y_vals,
-            mode='lines+markers',
-            name='Actual',
-            line=dict(color='#007bff', width=3),
-            marker=dict(size=6),
-            hovertemplate='<b>Period</b>: %{x}<br><b>Value</b>: %{y:,.0f}<extra></extra>'
-        ))
-
-        # Linear Regression Forecast
-        fig.add_trace(go.Scatter(
-            x=future_dates,
-            y=future_y_lr,
-            mode='lines+markers',
-            name='Forecast (Linear)',
-            line=dict(color='#ff6347', dash='dash', width=3),
-            marker=dict(size=8, symbol='diamond'),
-            hovertemplate='<b>Period</b>: %{x}<br><b>Forecast</b>: %{y:,.0f}<extra></extra>'
-        ))
-
-        # Moving Average Forecast (if available)
-        if ma_forecast is not None:
-            fig.add_trace(go.Scatter(
-                x=future_dates,
-                y=future_y_ma,
-                mode='lines+markers',
-                name='Forecast (MA)',
-                line=dict(color='#2ca02c', dash='dot', width=3),
-                marker=dict(size=8, symbol='square'),
-                hovertemplate='<b>Period</b>: %{x}<br><b>Forecast (MA)</b>: %{y:,.0f}<extra></extra>'
-            ))
-
-        fig.update_layout(
-            title=f"📈 Sales Forecast for Next {periods_ahead} Periods",
-            xaxis_title=date_col,
-            yaxis_title=value_col,
-            template="plotly_white",
-            margin=dict(t=40, b=20, l=10, r=10),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
-        )
-
-        # Forecast summary
-        last_actual = y_vals[-1]
-        next_forecast_lr = future_y_lr[0]
-        change_lr = ((next_forecast_lr - last_actual) / last_actual * 100) if last_actual != 0 else 0
-        trend_lr = "increase" if change_lr > 0 else "decrease" if change_lr < 0 else "stable"
-        summary_lr = f"Based on linear regression, **{value_col}** is expected to {trend_lr} by **{abs(change_lr):.1f}%** in the next period, reaching **{next_forecast_lr:,.0f}**."
-
-        if ma_forecast is not None:
-            change_ma = ((ma_forecast - last_actual) / last_actual * 100) if last_actual != 0 else 0
-            trend_ma = "increase" if change_ma > 0 else "decrease" if change_ma < 0 else "stable"
-            summary_ma = f"Based on moving average (last 3 periods), **{value_col}** is expected to {trend_ma} by **{abs(change_ma):.1f}%**, reaching **{ma_forecast:,.0f}**."
-            summary = f"{summary_lr}\n\n{summary_ma}"
-        else:
-            summary = summary_lr
-
-        return fig, summary
-
-    except Exception as e:
-        return None, None
+st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
 
 # ------------------ Tabs ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -469,8 +315,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Auto Dashboard", 
     "ℹ️ Info"
 ])
-
-# ... (Tab 1 و Tab 2 كما هما دون تغيير)
 
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
@@ -513,7 +357,7 @@ with tab1:
                 "Choose split method:",
                 ["Split by Column Values", "Split Each Sheet into Separate File"],
                 index=0,
-                help="اختر 'Split by Column Values' لتقسيم الشيت الحالي حسب قيم عمود. اختر 'Split Each Sheet into Separate File' لإنشاء ملف منفصل لكل شيت في الـ Workbook."
+                help="Choose 'Split by Column Values' to split the current sheet by column values. Choose 'Split Each Sheet into Separate File' to create a separate file for each sheet."
             )
             if st.button("🚀 Start Split"):
                 with st.spinner("Splitting process in progress..."):
@@ -874,12 +718,12 @@ with tab3:
                 sheet_title = selected_sheet_dash
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
-            # Detect period columns for comparison (e.g., Sales_2023, Sales_2024)
+
+            # Detect period columns
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             period_cols = []
             base_names = {}
             for col in numeric_cols:
-                # Look for patterns like "Sales_2023", "Revenue_Q1", etc.
                 match = re.search(r'(.+?)[_\s\-](\d{4}|Q[1-4]|[A-Za-z]+_\d{4})$', col.strip())
                 if match:
                     base = match.group(1).strip()
@@ -887,35 +731,26 @@ with tab3:
                     if base not in base_names:
                         base_names[base] = []
                     base_names[base].append((col, period))
-            # Keep only bases with exactly 2 periods
             valid_periods = {}
             for base, cols in base_names.items():
                 if len(cols) == 2:
                     valid_periods[base] = cols
             if valid_periods:
-                # Use the first valid base
                 base_key = list(valid_periods.keys())[0]
                 col1, period1 = valid_periods[base_key][0]
                 col2, period2 = valid_periods[base_key][1]
-                # Ensure period2 is the newer one (e.g., 2024 > 2023)
                 if period1 > period2:
                     col1, col2 = col2, col1
                     period1, period2 = period2, period1
                 df0['__abs_change__'] = df0[col2] - df0[col1]
                 df0['__pct_change__'] = df0['__abs_change__'] / df0[col1].replace(0, pd.NA)
-                period_comparison = {
-                    'col1': col1,
-                    'col2': col2,
-                    'period1': period1,
-                    'period2': period2,
-                    'base': base_key
-                }
+                period_comparison = {'col1': col1, 'col2': col2, 'period1': period1, 'period2': period2, 'base': base_key}
                 st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
             else:
                 period_comparison = None
-            # Handle month columns (Jan, Feb, etc.)
+
+            # Handle month columns
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
-            cols_lower = [c.strip().lower() for c in df0.columns]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
             if potential_months:
                 id_vars = [c for c in df0.columns if c not in potential_months]
@@ -925,13 +760,10 @@ with tab3:
                 measure_col = "Value"
             else:
                 numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-                if len(numeric_cols) >= 1:
-                    measure_col = numeric_cols[0]
-                    df_long = df0.copy()
-                else:
-                    measure_col = None
-                    df_long = df0.copy()
-            # Manual measure column selection
+                measure_col = numeric_cols[0] if numeric_cols else None
+                df_long = df0.copy()
+
+            # Select measure column
             numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
             if numeric_cols_in_long:
                 user_measure_col = st.selectbox(
@@ -942,15 +774,19 @@ with tab3:
                 kpi_measure_col = user_measure_col
             else:
                 kpi_measure_col = measure_col
+
+            # Identify categorical columns
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
-                if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype != "float64" and df_long[c].dtype != "int64":
+                if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
+
+            # Sidebar filters
             st.sidebar.header("🔍 Dynamic Filters")
             primary_filter_col = None
             if len(cat_cols) > 0:
-                primary_filter_col = st.sidebar.selectbox("Primary Filter Column (drop-list)", ["-- None --"] + cat_cols, index=0)
+                primary_filter_col = st.sidebar.selectbox("Primary Filter Column", ["-- None --"] + cat_cols, index=0)
                 if primary_filter_col == "-- None --":
                     primary_filter_col = None
             primary_values = None
@@ -958,271 +794,205 @@ with tab3:
                 vals = df_long[primary_filter_col].dropna().astype(str).unique().tolist()
                 try:
                     vals = sorted(vals)
-                except Exception:
+                except:
                     pass
                 primary_values = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
-            other_filter_cols = st.sidebar.multiselect("Choose additional filter columns (optional)", [c for c in cat_cols if c != primary_filter_col], default=[])
+            other_filter_cols = st.sidebar.multiselect("Additional filter columns", [c for c in cat_cols if c != primary_filter_col], default=[])
             active_filters = {}
             for fc in other_filter_cols:
                 opts = df_long[fc].dropna().astype(str).unique().tolist()
                 try:
                     opts = sorted(opts)
-                except Exception:
+                except:
                     pass
                 sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
                 active_filters[fc] = sel
+
+            # Apply filters
             filtered = df_long.copy()
-            if primary_filter_col and primary_values is not None:
-                if len(primary_values) > 0:
-                    filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
+            if primary_filter_col and primary_values is not None and len(primary_values) > 0:
+                filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
             for fc, sel in active_filters.items():
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
+
             st.markdown("### 📈 Filtered Data Preview")
             st.dataframe(filtered.head(200), use_container_width=True)
+
+            # === Auto Group Low-Performers ===
+            rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
+            performance_group_col = None
+            filtered_with_group = filtered.copy()
+            if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
+                sales_by_rep = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
+                total_reps = len(sales_by_rep)
+                if total_reps >= 5:
+                    high_idx = int(0.2 * total_reps)
+                    low_idx = int(0.8 * total_reps)
+                    high_reps = set(sales_by_rep.index[:high_idx])
+                    low_reps = set(sales_by_rep.index[low_idx:])
+                    def assign_group(rep):
+                        if rep in high_reps:
+                            return "High Performer"
+                        elif rep in low_reps:
+                            return "Needs Support"
+                        else:
+                            return "Medium Performer"
+                    filtered_with_group['Performance Group'] = filtered_with_group[rep_col].apply(assign_group)
+                    performance_group_col = 'Performance Group'
+
+                    # Show colored table
+                    st.markdown("### 👥 Performance Groups")
+                    group_summary = filtered_with_group.groupby([rep_col, 'Performance Group'])[kpi_measure_col].sum().reset_index()
+                    group_summary = group_summary.sort_values(kpi_measure_col, ascending=False)
+                    def color_group(val):
+                        if val == "High Performer":
+                            return 'background-color: #d4edda; color: #155724;'
+                        elif val == "Needs Support":
+                            return 'background-color: #f8d7da; color: #721c24;'
+                        else:
+                            return 'background-color: #fff3cd; color: #856404;'
+                    styled_df = group_summary.style.applymap(color_group, subset=['Performance Group'])
+                    st.dataframe(styled_df, use_container_width=True)
+                else:
+                    st.info("ℹ️ Not enough representatives to group (min 5 required).")
+            else:
+                st.info("ℹ️ Rep column not found for performance grouping.")
+
+            # Use filtered_with_group for all subsequent analysis
+            final_df = filtered_with_group
+
             # === KPIs ===
-            possible_dim_aliases = {
-                "area": ["area", "region", "territory"],
-                "branch": ["branch", "location", "store"],
-                "rep": ["rep", "representative", "salesman", "employee", "name", "mr"]
-            }
             found_dims = {}
-            for dim_key, aliases in possible_dim_aliases.items():
-                col = _find_col(filtered, aliases)
+            for dim_key, aliases in {"area": ["area", "region"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
+                col = _find_col(final_df, aliases)
                 if col:
                     found_dims[dim_key] = col
+
             kpi_values = {}
-            if kpi_measure_col and kpi_measure_col in filtered.columns:
-                kpi_values['total'] = filtered[kpi_measure_col].sum()
-                kpi_values['avg'] = filtered[kpi_measure_col].mean()
-                date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
+            if kpi_measure_col and kpi_measure_col in final_df.columns:
+                kpi_values['total'] = final_df[kpi_measure_col].sum()
+                kpi_values['avg'] = final_df[kpi_measure_col].mean()
+                date_cols = [c for c in final_df.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
                 if date_cols:
-                    unique_dates = filtered[date_cols[0]].nunique()
-                    if unique_dates > 0:
-                        kpi_values['avg_per_date'] = kpi_values['total'] / unique_dates
-                    else:
-                        kpi_values['avg_per_date'] = None
+                    unique_dates = final_df[date_cols[0]].nunique()
+                    kpi_values['avg_per_date'] = kpi_values['total'] / unique_dates if unique_dates > 0 else None
                 else:
                     kpi_values['avg_per_date'] = None
             else:
                 kpi_values['total'] = None
                 kpi_values['avg'] = None
                 kpi_values['avg_per_date'] = None
+
             for dim_key, col_name in found_dims.items():
-                kpi_values[f'unique_{dim_key}'] = filtered[col_name].nunique()
-            # Period-over-Period KPI
-            if period_comparison and '__pct_change__' in filtered.columns:
-                avg_growth = filtered['__pct_change__'].mean()
-                kpi_values['growth_pct'] = avg_growth * 100
-            # Build KPI Cards
+                kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
+
+            if period_comparison and '__pct_change__' in final_df.columns:
+                kpi_values['growth_pct'] = final_df['__pct_change__'].mean() * 100
+
+            # Build KPI cards
             kpi_cards = []
             if kpi_values.get('total') is not None:
-                kpi_cards.append({
-                    'title': f'Total {kpi_measure_col}',
-                    'value': f"{kpi_values['total']:,.0f}",
-                    'color': 'linear-gradient(135deg, #28a745, #85e085)',
-                    'icon': '📈'
-                })
+                kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
             if kpi_values.get('avg') is not None:
-                kpi_cards.append({
-                    'title': f'Average {kpi_measure_col}',
-                    'value': f"{kpi_values['avg']:,.0f}",
-                    'color': 'linear-gradient(135deg, #00c0ff, #007bff)',
-                    'icon': '📊'
-                })
+                kpi_cards.append({'title': f'Average {kpi_measure_col}', 'value': f"{kpi_values['avg']:,.0f}", 'color': 'linear-gradient(135deg, #00c0ff, #007bff)', 'icon': '📊'})
             if kpi_values.get('avg_per_date') is not None:
-                kpi_cards.append({
-                    'title': 'Monthly Avg',
-                    'value': f"{kpi_values['avg_per_date']:,.0f}",
-                    'color': 'linear-gradient(135deg, #17a2b8, #66d9b3)',
-                    'icon': '📅'
-                })
+                kpi_cards.append({'title': 'Monthly Avg', 'value': f"{kpi_values['avg_per_date']:,.0f}", 'color': 'linear-gradient(135deg, #17a2b8, #66d9b3)', 'icon': '📅'})
             if kpi_values.get('growth_pct') is not None:
-                growth_color = 'linear-gradient(135deg, #28a745, #85e085)' if kpi_values['growth_pct'] >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)'
-                kpi_cards.append({
-                    'title': f'Avg Growth',
-                    'value': f"{kpi_values['growth_pct']:.1f}%",
-                    'color': growth_color,
-                    'icon': '↗️' if kpi_values['growth_pct'] >= 0 else '↘️'
-                })
+                color = 'linear-gradient(135deg, #28a745, #85e085)' if kpi_values['growth_pct'] >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)'
+                kpi_cards.append({'title': 'Avg Growth', 'value': f"{kpi_values['growth_pct']:.1f}%", 'color': color, 'icon': '↗️' if kpi_values['growth_pct'] >= 0 else '↘️'})
             if kpi_values.get('unique_area') is not None:
-                kpi_cards.append({
-                    'title': 'Number of Areas',
-                    'value': f"{kpi_values['unique_area']}",
-                    'color': 'linear-gradient(135deg, #6f42c1, #a779e9)',
-                    'icon': '🌍'
-                })
+                kpi_cards.append({'title': 'Number of Areas', 'value': f"{kpi_values['unique_area']}", 'color': 'linear-gradient(135deg, #6f42c1, #a779e9)', 'icon': '🌍'})
             if kpi_values.get('unique_rep') is not None:
-                kpi_cards.append({
-                    'title': 'Number of Reps',
-                    'value': f"{kpi_values['unique_rep']}",
-                    'color': 'linear-gradient(135deg, #ffc107, #ff8a00)',
-                    'icon': '👥'
-                })
+                kpi_cards.append({'title': 'Number of Reps', 'value': f"{kpi_values['unique_rep']}", 'color': 'linear-gradient(135deg, #ffc107, #ff8a00)', 'icon': '👥'})
             if kpi_values.get('unique_branch') is not None:
-                kpi_cards.append({
-                    'title': 'Number of Branches',
-                    'value': f"{kpi_values['unique_branch']}",
-                    'color': 'linear-gradient(135deg, #20c997, #66d9b3)',
-                    'icon': '🏢'
-                })
+                kpi_cards.append({'title': 'Number of Branches', 'value': f"{kpi_values['unique_branch']}", 'color': 'linear-gradient(135deg, #20c997, #66d9b3)', 'icon': '🏢'})
+            if performance_group_col:
+                num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
+                kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
+
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:6]):
                 with cols[i]:
-                    kpi_html = f"""
+                    st.markdown(f"""
                     <div class='kpi-card' style='background:{card['color']};'>
                         <div class='kpi-title'>{card['icon']} {card['title']}</div>
                         <div class='kpi-value'>{card['value']}</div>
                     </div>
-                    """
-                    st.markdown(kpi_html, unsafe_allow_html=True)
-            # ------------------ 🧠 Smart Insights (English Only) ------------------
+                    """, unsafe_allow_html=True)
+
+            # === Smart Insights ===
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
             st.markdown("### 🧠 Smart Insights")
-            try:
-                insights = []
-                # Basics
-                if kpi_measure_col and kpi_measure_col in filtered.columns:
-                    total = filtered[kpi_measure_col].sum()
-                    avg = filtered[kpi_measure_col].mean()
-                    insights.append({
-                        "en": f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record."
-                    })
-                # Top & Bottom Rep
-                rep_col = found_dims.get('rep')
-                if rep_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
-                    rep_sum = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
-                    if not rep_sum.empty:
-                        top_rep = rep_sum.index[0]
-                        bottom_rep = rep_sum.index[-1]
-                        insights.append({
-                            "en": f"The top-performing representative is **{top_rep}**, while the lowest is **{bottom_rep}**."
-                        })
-                # Trend Analysis
-                date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
-                if date_cols and kpi_measure_col in filtered.columns:
-                    date_col = date_cols[0]
-                    try:
-                        df_sorted = filtered.dropna(subset=[date_col, kpi_measure_col]).sort_values(date_col)
-                        if not df_sorted.empty and len(df_sorted) >= 2:
-                            first_sum = df_sorted.iloc[0][kpi_measure_col]
-                            last_sum = df_sorted.iloc[-1][kpi_measure_col]
-                            if last_sum > first_sum:
-                                insights.append({
-                                    "en": "📈 The overall trend is upward over the given period."
-                                })
-                            elif last_sum < first_sum:
-                                insights.append({
-                                    "en": "📉 The overall trend is downward over the given period."
-                                })
-                            else:
-                                insights.append({
-                                    "en": "➖ Performance remains relatively stable over the period."
-                                })
-                    except Exception:
-                        pass
-                # Top Product
-                product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
-                if product_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
-                    try:
-                        prod_sum = filtered.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False)
-                        if not prod_sum.empty:
-                            top_prod = prod_sum.index[0]
-                            insights.append({
-                                "en": f"The top-selling product is **{top_prod}**."
-                            })
-                    except Exception:
-                        pass
-                # Display insights
-                for ins in insights:
-                    st.markdown(
-                        f"""
-                        <div style='background:linear-gradient(135deg,#003366,#001a33);
-                                    border:1px solid #FFD700; border-radius:12px; 
-                                    padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
-                            <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
-                                🇬🇧 {ins["en"]}
-                            </p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-            except Exception as e:
-                st.warning(f"⚠️ Could not generate smart insights: {e}")
-
-            # === Forecast Section ===
-            st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-            st.markdown("### 🔮 Auto Forecast")
-            date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day", "period"])]
-            numeric_cols = filtered.select_dtypes(include='number').columns.tolist()
-
-            if date_cols and numeric_cols:
+            insights = []
+            if kpi_measure_col and kpi_measure_col in final_df.columns:
+                total = final_df[kpi_measure_col].sum()
+                avg = final_df[kpi_measure_col].mean()
+                insights.append(f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record.")
+            if rep_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
+                rep_sum = final_df.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
+                if not rep_sum.empty:
+                    top_rep = rep_sum.index[0]
+                    bottom_rep = rep_sum.index[-1]
+                    insights.append(f"The top-performing representative is **{top_rep}**, while the lowest is **{bottom_rep}**.")
+                    if performance_group_col:
+                        low_count = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
+                        insights.append(f"🔴 **{low_count} representatives** are classified as 'Needs Support' (bottom 20%). Consider follow-up actions.")
+            date_cols = [c for c in final_df.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
+            if date_cols and kpi_measure_col in final_df.columns:
                 date_col = date_cols[0]
-                value_col = kpi_measure_col if kpi_measure_col in numeric_cols else numeric_cols[0]
+                try:
+                    df_sorted = final_df.dropna(subset=[date_col, kpi_measure_col]).sort_values(date_col)
+                    if len(df_sorted) >= 2:
+                        first_sum = df_sorted.iloc[0][kpi_measure_col]
+                        last_sum = df_sorted.iloc[-1][kpi_measure_col]
+                        if last_sum > first_sum:
+                            insights.append("📈 The overall trend is upward over the given period.")
+                        elif last_sum < first_sum:
+                            insights.append("📉 The overall trend is downward over the given period.")
+                        else:
+                            insights.append("➖ Performance remains relatively stable over the period.")
+                except:
+                    pass
+            product_col = _find_col(final_df, ["product", "item", "sku", "brand"])
+            if product_col and product_col in final_df.columns and kpi_measure_col in final_df.columns:
+                try:
+                    prod_sum = final_df.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False)
+                    if not prod_sum.empty:
+                        top_prod = prod_sum.index[0]
+                        insights.append(f"The top-selling product is **{top_prod}**.")
+                except:
+                    pass
+            for ins in insights:
+                st.markdown(f"""
+                <div style='background:linear-gradient(135deg,#003366,#001a33); border:1px solid #FFD700; border-radius:12px; padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
+                    <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>🇬🇧 {ins}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-                with st.spinner("Generating forecast..."):
-                    forecast_fig, forecast_summary = generate_forecast_plot(filtered, date_col, value_col, periods_ahead=3)
-
-                if forecast_fig:
-                    st.plotly_chart(forecast_fig, use_container_width=True, theme="streamlit")
-                    if forecast_summary:
-                        st.markdown(f"""
-                        <div style='background:linear-gradient(135deg,#003366,#001a33);
-                                    border:1px solid #FFD700; border-radius:12px; 
-                                    padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
-                            <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
-                                🇬🇧 Forecast Summary
-                            </p>
-                            <p style='color:white; font-size:16px;'>
-                                {forecast_summary}
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("ℹ️ Could not generate forecast (insufficient or invalid time-series data).")
-            else:
-                st.info("ℹ️ No suitable time-series data found for forecasting (requires a date/time column and a numeric column).")
-
-            # === Summary Tables ===
-            rep_col = found_dims.get('rep')
-            if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
-                rep_summary = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False).reset_index()
-                rep_summary.columns = [rep_col, kpi_measure_col]
-                st.markdown("### 👥 Top & Bottom Employees Summary")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("#### 🥇 Top 5 Employees")
-                    st.dataframe(rep_summary.head(5), use_container_width=True)
-                with col2:
-                    st.markdown("#### 🥉 Bottom 5 Employees")
-                    st.dataframe(rep_summary.tail(5).iloc[::-1].reset_index(drop=True), use_container_width=True)
-            # === Period Comparison Table ===
-            if period_comparison:
-                growth_df = filtered.copy()
-                if rep_col and rep_col in growth_df.columns:
-                    growth_summary = growth_df.groupby(rep_col)[['__abs_change__', '__pct_change__']].mean().sort_values(by='__pct_change__', ascending=False).reset_index()
-                    growth_summary = growth_summary.head(5)
-                    growth_summary['__pct_change__'] = (growth_summary['__pct_change__'] * 100).round(1).astype(str) + '%'
-                    growth_summary['__abs_change__'] = growth_summary['__abs_change__'].apply(lambda x: f"{x:,.0f}")
-                    st.markdown(f"### 📈 Top 5 Growth ({period_comparison['period1']} → {period_comparison['period2']})")
-                    st.dataframe(growth_summary.rename(columns={
-                        rep_col: 'Employee',
-                        '__abs_change__': 'Absolute Change',
-                        '__pct_change__': 'Percentage Change'
-                    }), use_container_width=True)
-            # === Auto Charts ===
-            st.markdown("### 📊 Auto Charts (built from data)")
+            # === Auto Charts (with fixed categorical selection) ===
+            st.markdown("### 📊 Auto Charts")
             charts_buffers = []
             plotly_figs = []
-            rep_col = found_dims.get('rep')
-            date_cols_main = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
-            possible_dims = [c for c in filtered.columns if c != kpi_measure_col and c not in date_cols_main and c != rep_col]
-            # Top/Bottom 10 Employees
-            if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
-                rep_data = filtered.groupby(rep_col)[kpi_measure_col].sum()
+
+            # Performance Group Chart
+            if performance_group_col:
+                try:
+                    group_total = final_df.groupby('Performance Group')[kpi_measure_col].sum().reset_index()
+                    color_map = {'High Performer': '#28a745', 'Medium Performer': '#ffc107', 'Needs Support': '#dc3545'}
+                    fig = px.bar(group_total, x='Performance Group', y=kpi_measure_col, title="📊 Performance Groups - Total Sales",
+                                 color='Performance Group', color_discrete_map=color_map, text=kpi_measure_col)
+                    fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    fig.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                    plotly_figs.append((fig, "Performance Groups"))
+                except Exception as e:
+                    st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
+
+            # Top/Bottom Employees
+            if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
+                rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
                 if len(rep_data) >= 10:
-                    # Top 10
                     top10 = rep_data.sort_values(ascending=False).head(10)
                     df_top = top10.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_top[rep_col] = df_top[rep_col].astype(str).str.strip()
@@ -1230,7 +1000,7 @@ with tab3:
                     fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_top, "Top 10 Employees"))
-                    # Bottom 10
+
                     bottom10 = rep_data.sort_values(ascending=True).head(10)
                     df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_bottom[rep_col] = df_bottom[rep_col].astype(str).str.strip()
@@ -1238,127 +1008,22 @@ with tab3:
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
-                    # Save to buffers
-                    for data, title in [(top10, "Top 10 Employees"), (bottom10, "Bottom 10 Employees")]:
-                        fig_m, ax = plt.subplots(figsize=(10, 5))
-                        x_labels = data.index.astype(str).str.strip()
-                        bars = ax.bar(x_labels, data.values)
-                        ax.set_title(title, fontsize=14, fontweight='bold')
-                        ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                        ax.tick_params(axis='x', rotation=45, labelsize=10)
-                        for label in ax.get_xticklabels():
-                            label.set_ha('right')
-                        ax.set_xlabel(rep_col, fontsize=10, fontweight='bold')
-                        for b in bars:
-                            h = b.get_height()
-                            if pd.isna(h): continue
-                            ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-                        fig_m.tight_layout()
-                        img_buf = BytesIO()
-                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                        img_buf.seek(0)
-                        charts_buffers.append((img_buf, title))
-                        plt.close(fig_m)
-                else:
-                    st.warning(f"⚠️ Not enough employees ({len(rep_data)}) to show Top/Bottom 10.")
-            # Period Comparison Chart
-            if period_comparison:
-                comp_data = filtered[[period_comparison['col1'], period_comparison['col2']]].sum()
-                comp_df = pd.DataFrame({
-                    'Period': [period_comparison['period1'], period_comparison['period2']],
-                    'Value': [comp_data[period_comparison['col1']], comp_data[period_comparison['col2']]]
-                })
-                fig_comp = px.bar(comp_df, x='Period', y='Value', title=f"📊 Comparison: {period_comparison['period1']} vs {period_comparison['period2']}", text='Value')
-                fig_comp.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                fig_comp.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                plotly_figs.append((fig_comp, f"Comparison: {period_comparison['period1']} vs {period_comparison['period2']}"))
-                fig_m, ax = plt.subplots(figsize=(8, 5))
-                bars = ax.bar(comp_df['Period'], comp_df['Value'], color=['#1f77b4', '#ff7f0e'])
-                ax.set_title(f"Comparison: {period_comparison['period1']} vs {period_comparison['period2']}", fontsize=14, fontweight='bold')
-                ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                for b in bars:
-                    h = b.get_height()
-                    ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=10)
-                fig_m.tight_layout()
-                img_buf = BytesIO()
-                fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                img_buf.seek(0)
-                charts_buffers.append((img_buf, f"Comparison: {period_comparison['period1']} vs {period_comparison['period2']}"))
-                plt.close(fig_m)
-            # Top 5 Products
-            product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
-            if product_col and kpi_measure_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
-                try:
-                    product_data = filtered.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False).head(5)
-                    df_product = product_data.reset_index().rename(columns={kpi_measure_col: "value"})
-                    df_product[product_col] = df_product[product_col].astype(str).str.strip()
-                    fig_product = px.bar(df_product, x=product_col, y="value", title="🏆 Top 5 Products", text="value")
-                    fig_product.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                    fig_product.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                    plotly_figs.append((fig_product, "Top 5 Products"))
-                    fig_m, ax = plt.subplots(figsize=(10, 5))
-                    x_labels = product_data.index.astype(str).str.strip()
-                    bars = ax.bar(x_labels, product_data.values)
-                    ax.set_title("Top 5 Products", fontsize=14, fontweight='bold')
-                    ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                    ax.tick_params(axis='x', rotation=45, labelsize=10)
-                    for label in ax.get_xticklabels():
-                        label.set_ha('right')
-                    ax.set_xlabel(product_col, fontsize=10, fontweight='bold')
-                    for b in bars:
-                        h = b.get_height()
-                        if pd.isna(h): continue
-                        ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-                    fig_m.tight_layout()
-                    img_buf = BytesIO()
-                    fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                    img_buf.seek(0)
-                    charts_buffers.append((img_buf, "Top 5 Products"))
-                    plt.close(fig_m)
-                except Exception as e:
-                    st.warning(f"⚠️ Could not generate Top 5 Products chart: {e}")
-            # Other charts (Area, Branch, etc.)
-            pie_prefer_order = ["area", "region", "territory", "branch", "location", "city"]
-            bar_prefer_order = ["item", "product", "sku", "category", "brand"]
-            pie_dim = None
-            bar_dim = None
-            for p in pie_prefer_order:
-                for c in possible_dims:
-                    if p in c.lower():
-                        pie_dim = c
-                        break
-                if pie_dim:
+
+            # Other charts: ensure chosen_dim is categorical
+            possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
+            chosen_dim = None
+            for alias in ["area", "region", "branch", "product", "item"]:
+                col = _find_col(final_df, [alias])
+                if col:
+                    chosen_dim = col
                     break
-            for p in bar_prefer_order:
-                for c in possible_dims:
-                    if p in c.lower():
-                        bar_dim = c
-                        break
-                if bar_dim:
-                    break
-            if not pie_dim and not bar_dim and len(possible_dims) > 0:
-                lens = [(c, filtered[c].nunique(dropna=True)) for c in possible_dims]
-                lens = sorted([x for x in lens if x[1] > 1], key=lambda x: x[1])
-                if lens:
-                    pie_dim = lens[0][0]
-                    bar_dim = lens[-1][0] if len(lens) > 1 else pie_dim
-            elif pie_dim and not bar_dim:
-                bar_dim = pie_dim
-            elif bar_dim and not pie_dim:
-                pie_dim = bar_dim
-            chosen_dim = bar_dim
-            dims_for_charts = []
-            if chosen_dim:
-                dims_for_charts.append(chosen_dim)
-            remaining = [c for c in possible_dims if c not in dims_for_charts]
-            rem_sorted = sorted(remaining, key=lambda x: filtered[x].nunique(dropna=True))
-            for r in rem_sorted[:4]:
-                dims_for_charts.append(r)
-            dims_for_charts = dims_for_charts[:5]
-            # Chart A: Bar
-            if chosen_dim and kpi_measure_col and chosen_dim in filtered.columns:
+            if not chosen_dim and possible_dims:
+                # Pick the column with the fewest unique values (likely categorical)
+                chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
+
+            if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
                 try:
-                    series = filtered.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
+                    series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
                     df_series = series.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_series[chosen_dim] = df_series[chosen_dim].astype(str).str.strip()
                     fig_bar = px.bar(df_series, x=chosen_dim, y="value", title=f"Top by {chosen_dim}", text="value")
@@ -1366,205 +1031,31 @@ with tab3:
                     fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
-                    fig_m, ax = plt.subplots(figsize=(10, 5))
-                    x_labels = series.index.astype(str).str.strip()
-                    bars = ax.bar(x_labels, series.values)
-                    ax.set_title(f"Top by {chosen_dim}", fontsize=14, fontweight='bold')
-                    ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                    ax.tick_params(axis='x', rotation=45, labelsize=10)
-                    for label in ax.get_xticklabels():
-                        label.set_ha('right')
-                    ax.set_xlabel(chosen_dim, fontsize=10, fontweight='bold')
-                    for b in bars:
-                        h = b.get_height()
-                        if pd.isna(h):
-                            continue
-                        ax.annotate(f"{h:,.0f}", 
-                                    xy=(b.get_x() + b.get_width()/2, h),
-                                    xytext=(0, 5), 
-                                    textcoords="offset points",
-                                    ha='center', va='bottom',
-                                    fontsize=9, fontweight='bold')
-                    fig_m.tight_layout()
-                    img_buf = BytesIO()
-                    fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                    img_buf.seek(0)
-                    charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
-                    plt.close(fig_m)
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
-            # Chart B: Pie
-            if len(dims_for_charts) >= 2 and kpi_measure_col:
-                dim2 = dims_for_charts[1]
-                try:
-                    series2 = filtered.groupby(dim2)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
-                    df_pie = series2.reset_index().rename(columns={kpi_measure_col: "value"})
-                    fig_pie = px.pie(df_pie, names=dim2, values="value", title=f"Share by {dim2}", hole=0.4)
-                    fig_pie.update_traces(
-                        textposition='inside',
-                        textinfo='percent+label',
-                        insidetextorientation='radial',
-                        textfont_size=12
-                    )
-                    fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                    plotly_figs.append((fig_pie, f"Share by {dim2}"))
-                    fig_m, ax = plt.subplots(figsize=(8, 8))
-                    wedges, texts, autotexts = ax.pie(
-                        series2.values,
-                        labels=series2.index.astype(str),
-                        autopct=lambda pct: f"{pct:.1f}%",
-                        startangle=90,
-                        textprops={'fontsize': 10}
-                    )
-                    for text in texts:
-                        text.set_rotation(30)
-                    ax.set_title(f"Share by {dim2}", fontsize=14, fontweight='bold')
-                    ax.axis('equal')
-                    fig_m.tight_layout()
-                    img_buf = BytesIO()
-                    fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                    img_buf.seek(0)
-                    charts_buffers.append((img_buf, f"Share by {dim2}"))
-                    plt.close(fig_m)
-                except Exception as e:
-                    st.warning(f"⚠️ Could not generate pie chart for {dim2}: {e}")
-            else:
-                if chosen_dim and kpi_measure_col:
-                    try:
-                        s = filtered.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(8)
-                        df_pie = s.reset_index().rename(columns={kpi_measure_col: "value"})
-                        fig_pie = px.pie(df_pie, names=chosen_dim, values="value", title=f"Share by {chosen_dim}", hole=0.4)
-                        fig_pie.update_traces(
-                            textposition='inside',
-                            textinfo='percent+label',
-                            insidetextorientation='radial',
-                            textfont_size=12
-                        )
-                        fig_pie.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                        plotly_figs.append((fig_pie, f"Share by {chosen_dim}"))
-                        fig_m, ax = plt.subplots(figsize=(8, 8))
-                        wedges, texts, autotexts = ax.pie(
-                            s.values,
-                            labels=s.index.astype(str),
-                            autopct=lambda pct: f"{pct:.1f}%",
-                            startangle=90,
-                            textprops={'fontsize': 10}
-                        )
-                        for text in texts:
-                            text.set_rotation(30)
-                        ax.set_title(f"Share by {chosen_dim}", fontsize=14, fontweight='bold')
-                        ax.axis('equal')
-                        fig_m.tight_layout()
-                        img_buf = BytesIO()
-                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                        img_buf.seek(0)
-                        charts_buffers.append((img_buf, f"Share by {chosen_dim}"))
-                        plt.close(fig_m)
-                    except Exception as e:
-                        st.warning(f"⚠️ Could not generate fallback pie chart: {e}")
-            # Chart C: Trend (Line) - ONLY if Date/Month exists
-            if date_cols_main and kpi_measure_col and kpi_measure_col in filtered.columns:
-                date_col = date_cols_main[0]
-                try:
-                    ser = filtered.dropna(subset=[date_col]).copy()
-                    if pd.api.types.is_datetime64_any_dtype(ser[date_col]):
-                        ser["_yyyymm"] = ser[date_col].dt.to_period("M")
-                        trend = ser.groupby("_yyyymm")[kpi_measure_col].sum().reset_index()
-                        trend["_yyyymm"] = trend["_yyyymm"].astype(str)
-                        x_col = "_yyyymm"
-                    else:
-                        trend = ser.groupby(date_col)[kpi_measure_col].sum().reset_index()
-                        x_col = date_col
-                    fig_line = px.line(trend, x=x_col, y=kpi_measure_col, markers=True, title=f"📈 Monthly Sales Trend")
-                    fig_line.update_traces(texttemplate='%{y:,.0f}', textposition='top center')
-                    fig_line.update_layout(
-                        margin=dict(t=40,b=20,l=10,r=10),
-                        template="plotly_white",
-                        xaxis_title=date_col,
-                        yaxis_title=kpi_measure_col,
-                        font=dict(size=12)
-                    )
-                    plotly_figs.append((fig_line, f"Monthly Sales Trend"))
-                    fig_m, ax = plt.subplots(figsize=(10, 5))
-                    ax.plot(trend[x_col], trend[kpi_measure_col], marker='o')
-                    ax.set_title(f"Monthly Sales Trend", fontsize=14, fontweight='bold')
-                    ax.set_xlabel(date_col)
-                    ax.set_ylabel(kpi_measure_col)
-                    ax.grid(True, alpha=0.3)
-                    ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                    for label in ax.get_xticklabels():
-                        label.set_ha('right')
-                    fig_m.tight_layout()
-                    img_buf = BytesIO()
-                    fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                    img_buf.seek(0)
-                    charts_buffers.append((img_buf, f"Monthly Sales Trend"))
-                    plt.close(fig_m)
-                except Exception as e:
-                    st.warning(f"⚠️ Could not generate trend chart: {e}")
-            # Extra bars
-            extra_dims = dims_for_charts[2:] if len(dims_for_charts) > 2 else []
-            for ex_dim in extra_dims:
-                if kpi_measure_col and ex_dim in filtered.columns:
-                    try:
-                        s = filtered.groupby(ex_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(8)
-                        dfe = s.reset_index().rename(columns={kpi_measure_col: "value"})
-                        fig_extra = px.bar(dfe, x=ex_dim, y="value", title=f"By {ex_dim}", text="value")
-                        fig_extra.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                        fig_extra.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                        plotly_figs.append((fig_extra, f"By {ex_dim}"))
-                        fig_m, ax = plt.subplots(figsize=(9,4))
-                        bars = ax.bar(s.index.astype(str), s.values)
-                        ax.set_title(f"By {ex_dim}", fontsize=12, fontweight='bold')
-                        ax.yaxis.set_major_formatter(FuncFormatter(_format_millions))
-                        ax.tick_params(axis='x', rotation=45, labelsize=9)
-                        for label in ax.get_xticklabels():
-                            label.set_ha('right')
-                        for b in bars:
-                            h = b.get_height()
-                            if pd.isna(h):
-                                continue
-                            ax.annotate(f"{h:,.0f}", xy=(b.get_x()+b.get_width()/2, h), xytext=(0,5), textcoords="offset points", ha='center', va='bottom', fontsize=8)
-                        fig_m.tight_layout()
-                        img_buf = BytesIO()
-                        fig_m.savefig(img_buf, format="png", dpi=200, bbox_inches="tight")
-                        img_buf.seek(0)
-                        charts_buffers.append((img_buf, f"By {ex_dim}"))
-                        plt.close(fig_m)
-                    except Exception as e:
-                        st.warning(f"⚠️ Could not generate chart for {ex_dim}: {e}")
-            # === Display Charts in Cards ===
+
+            # Display charts
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             plotly_figs = plotly_figs[:6]
             while len(plotly_figs) < 6:
                 plotly_figs.append((None, None))
-            cols_row1 = st.columns(3)
-            for i in range(3):
-                fig, caption = plotly_figs[i]
-                with cols_row1[i]:
-                    if fig is not None:
-                        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-                        st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                        st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.write("")
-            cols_row2 = st.columns(3)
-            for i in range(3,6):
-                fig, caption = plotly_figs[i]
-                with cols_row2[i-3]:
-                    if fig is not None:
-                        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-                        st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                        st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.write("")
+            for i in range(0, 6, 3):
+                cols = st.columns(3)
+                for j in range(3):
+                    if i+j < len(plotly_figs):
+                        fig, caption = plotly_figs[i+j]
+                        with cols[j]:
+                            if fig is not None:
+                                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                                st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                                st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
+                                st.markdown('</div>', unsafe_allow_html=True)
+
             # === Export Section ===
             st.markdown("### 💾 Export Report / Data")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                filtered.to_excel(writer, index=False, sheet_name='Filtered_Data')
+                final_df.to_excel(writer, index=False, sheet_name='Filtered_Data')
             excel_data = excel_buffer.getvalue()
             st.download_button(
                 label="⬇️ Download Filtered Data (Excel)",
@@ -1572,11 +1063,13 @@ with tab3:
                 file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
+            # PDF/PPTX Export
             if st.button("📥 Generate Dashboard PDF (charts only)"):
-                with st.spinner("Generating Dashboard PDF (charts only)..."):
+                with st.spinner("Generating Dashboard PDF..."):
                     try:
-                        pdf_buffer = build_pdf(sheet_title, charts_buffers=charts_buffers, include_table=False, filtered_df=None)
-                        st.success("✅ Dashboard PDF جاهز.")
+                        pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=False)
+                        st.success("✅ Dashboard PDF ready.")
                         st.download_button(
                             label="⬇️ Download Dashboard PDF",
                             data=pdf_buffer,
@@ -1585,35 +1078,6 @@ with tab3:
                         )
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
-            if st.checkbox("Include table in PDF report (optional)"):
-                if st.button("📥 Generate Full PDF Report (charts + table)"):
-                    with st.spinner("Generating full PDF..."):
-                        try:
-                            pdf_buffer = build_pdf(sheet_title, charts_buffers=charts_buffers, include_table=True, filtered_df=filtered)
-                            st.success("✅ Full PDF جاهز.")
-                            st.download_button(
-                                label="⬇️ Download Full PDF (charts + table)",
-                                data=pdf_buffer,
-                                file_name=f"{_safe_name(sheet_title)}_FullReport.pdf",
-                                mime="application/pdf"
-                            )
-                        except Exception as e:
-                            st.error(f"❌ PDF generation failed: {e}")
-            if st.button("📤 Export Dashboard to PowerPoint (PPTX)"):
-                with st.spinner("Generating PowerPoint..."):
-                    try:
-                        pptx_buffer = build_pptx(sheet_title, charts_buffers)
-                        st.success("✅ PowerPoint جاهز.")
-                        st.download_button(
-                            label="⬇️ Download Dashboard PowerPoint",
-                            data=pptx_buffer.getvalue(),
-                            file_name=f"{_safe_name(sheet_title)}_Dashboard.pptx",
-                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                        )
-                    except Exception as e:
-                        st.error(f"❌ PowerPoint generation failed: {e}")
-        except Exception as e:
-            st.error(f"❌ Error generating dashboard: {e}")
 
 # ------------------ Tab 4: Info ------------------
 with tab4:
@@ -1622,53 +1086,22 @@ with tab4:
     <br>
     <h3 style='color:#FFD700;'>📌 How to Use</h3>
     <ol style='color:white; font-size:16px; line-height:1.6;'>
-        <li><strong>Upload Excel/CSV File (Splitter/Merge)</strong>: 
-            <ul>
-                <li>Select the sheet you want to split.</li>
-                <li>Choose the column to split by (e.g., 'Area Manager').</li>
-                <li>Click "Start Split" to create separate files for each value.</li>
-            </ul>
-        </li>
-        <li><strong>Merge Excel/CSV Files</strong>: 
-            <ul>
-                <li>Upload multiple Excel or CSV files.</li>
-                <li>Click "Merge Files" to combine them.</li>
-            </ul>
-        </li>
-        <li><strong>Convert Images to PDF</strong>: 
-            <ul>
-                <li>Upload JPG, JPEG, or PNG images.</li>
-                <li>Choose between "Original Quality" or "CamScanner Style".</li>
-                <li>Download the PDF containing all images as pages.</li>
-            </ul>
-        </li>
+        <li><strong>Upload Excel/CSV File (Splitter/Merge)</strong>: ... </li>
+        <li><strong>Merge Excel/CSV Files</strong>: ... </li>
+        <li><strong>Convert Images to PDF</strong>: ... </li>
         <li><strong>Auto Dashboard Generator</strong>: 
             <ul>
                 <li>Upload an Excel or CSV file for dashboard.</li>
                 <li>Select the sheet (if Excel).</li>
                 <li>Use the sidebar to apply filters.</li>
                 <li>The dashboard will auto-generate KPIs and charts.</li>
-                <li><strong>New:</strong> If your data has period columns (e.g., Sales_2023, Sales_2024), it will show growth comparison.</li>
-                <li><strong>New:</strong> Auto Forecasting for time-series data.</li>
-                <li>Export to PDF or PowerPoint.</li>
+                <li><strong>New:</strong> Auto Group Low-Performers.</li>
             </ul>
         </li>
     </ol>
     <br>
-    <h3 style='color:#FFD700;'>📞 Contact</h3>
-    <p style='color:white; font-size:16px;'>
-        For any questions or support, contact us via WhatsApp: 
-        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:underline;">
-            01554694554
-        </a>
-    </p>
-    <br>
     <h3 style='color:#FFD700;'>💡 Tips</h3>
-    <ul style='color:white; font-size:16px; line-height:1.6;'>
-        <li>Use the "Clear" buttons to reset uploads or filters.</li>
-        <li>For best results, ensure your Excel/CSV files are well-structured.</li>
-        <li>Dashboard supports dynamic filtering — select different dimensions to see updated charts.</li>
-        <li>Period comparison works automatically if you have columns like "Sales_2023" and "Sales_2024".</li>
-        <li>Forecasting requires a date/time column and a numeric column.</li>
+    <ul>
+        <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
