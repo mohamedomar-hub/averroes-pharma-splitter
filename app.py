@@ -24,14 +24,20 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 # ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
+# ------------------ إضافة sklearn للتنبؤ البسيط ------------------
+from sklearn.linear_model import LinearRegression
+import numpy as np
+
 # Initialize clear counter in session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
+
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
     '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
     unsafe_allow_html=True
 )
+
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
@@ -39,6 +45,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
 hide_default = """
     <style>
@@ -48,6 +55,7 @@ hide_default = """
     </style>
 """
 st.markdown(hide_default, unsafe_allow_html=True)
+
 # ------------------ ستايل مخصص ------------------
 custom_css = """
     <style>
@@ -171,6 +179,7 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
 # ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
@@ -181,6 +190,7 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
                 f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
                 unsafe_allow_html=True
             )
+
 # ------------------ شريط التنقل العلوي ------------------
 st.markdown(
     """
@@ -192,6 +202,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # ------------------ عرض اللوجو ------------------
 logo_path = "logo.png"
 if os.path.exists(logo_path):
@@ -200,6 +211,7 @@ if os.path.exists(logo_path):
     st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
+
 # ------------------ معلومات المطور ------------------
 st.markdown(
     """
@@ -212,12 +224,15 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
+
 # ------------------ Utility functions ------------------
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -229,6 +244,7 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
+
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -239,6 +255,7 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
+
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -277,6 +294,7 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
+
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -307,6 +325,91 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
+
+# ------------------ دالة التنبؤ البسيط ------------------
+def generate_forecast_plot(df, date_col, value_col, periods_ahead=3):
+    """
+    Generates a forecast using linear regression.
+    Returns Plotly figure and forecast summary text.
+    """
+    try:
+        # Ensure date_col is datetime or numeric
+        temp_df = df[[date_col, value_col]].dropna().copy()
+        if temp_df.empty:
+            return None, None
+
+        # Try to convert to datetime
+        temp_df[date_col] = pd.to_datetime(temp_df[date_col], errors='coerce')
+        if temp_df[date_col].isna().all():
+            # Fallback: treat as categorical/numeric index
+            temp_df = temp_df.reset_index(drop=True)
+            temp_df['_idx'] = range(len(temp_df))
+            x_vals = temp_df['_idx'].values.reshape(-1, 1)
+            x_labels = temp_df[date_col].astype(str).values
+            is_datetime = False
+        else:
+            temp_df = temp_df.sort_values(date_col).reset_index(drop=True)
+            temp_df['_numeric_date'] = temp_df[date_col].map(pd.Timestamp.timestamp)
+            x_vals = temp_df['_numeric_date'].values.reshape(-1, 1)
+            x_labels = temp_df[date_col].dt.strftime('%Y-%m-%d').values
+            is_datetime = True
+
+        y_vals = temp_df[value_col].values
+
+        # Fit linear regression
+        model = LinearRegression()
+        model.fit(x_vals, y_vals)
+
+        # Forecast next periods
+        last_x = x_vals[-1, 0]
+        step = (last_x - x_vals[0, 0]) / (len(x_vals) - 1) if len(x_vals) > 1 else 1
+        future_x = np.array([last_x + (i+1)*step for i in range(periods_ahead)]).reshape(-1, 1)
+        future_y = model.predict(future_x)
+
+        # Combine actual + forecast for plot
+        all_x = np.concatenate([x_vals.flatten(), future_x.flatten()])
+        all_y = np.concatenate([y_vals, future_y])
+        all_labels = np.concatenate([x_labels, [f"Forecast {i+1}" for i in range(periods_ahead)]])
+
+        # Create Plotly figure
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=x_labels,
+            y=y_vals,
+            mode='lines+markers',
+            name='Actual',
+            line=dict(color='#007bff', width=3),
+            marker=dict(size=6)
+        ))
+        fig.add_trace(go.Scatter(
+            x=all_labels[-periods_ahead:],
+            y=future_y,
+            mode='lines+markers',
+            name='Forecast',
+            line=dict(color='#ff6347', dash='dash', width=3),
+            marker=dict(size=8, symbol='diamond')
+        ))
+
+        fig.update_layout(
+            title=f"📈 Forecast: {value_col} (Next {periods_ahead} Periods)",
+            xaxis_title=date_col,
+            yaxis_title=value_col,
+            template="plotly_white",
+            margin=dict(t=40, b=20, l=10, r=10)
+        )
+
+        # Forecast summary
+        last_actual = y_vals[-1]
+        next_forecast = future_y[0]
+        change = ((next_forecast - last_actual) / last_actual * 100) if last_actual != 0 else 0
+        trend = "increase" if change > 0 else "decrease" if change < 0 else "stable"
+        summary = f"Based on the trend, **{value_col}** is expected to {trend} by **{abs(change):.1f}%** in the next period, reaching **{next_forecast:,.0f}**."
+
+        return fig, summary
+
+    except Exception as e:
+        return None, None
+
 # ------------------ Tabs ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📂 Split & Merge", 
@@ -314,6 +417,9 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Auto Dashboard", 
     "ℹ️ Info"
 ])
+
+# ... (Tab 1 و Tab 2 كما هما دون تغيير)
+
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
     st.markdown("### ✂ Split Excel/CSV File")
@@ -603,6 +709,7 @@ with tab1:
                     )
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
+
 # ------------------ Tab 2: Image to PDF ------------------
 with tab2:
     st.markdown("### 📷 Convert Images to PDF")
@@ -688,6 +795,7 @@ with tab2:
                     st.error(f"❌ Error creating PDF: {e}")
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
+
 # ------------------ Tab 3: Dashboard ------------------
 with tab3:
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
@@ -755,7 +863,7 @@ with tab3:
                 period_comparison = None
             # Handle month columns (Jan, Feb, etc.)
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
-            cols_lower = [c for c in df0.columns if c.strip().lower() in month_names]
+            cols_lower = [c.strip().lower() for c in df0.columns]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
             if potential_months:
                 id_vars = [c for c in df0.columns if c not in potential_months]
@@ -1000,6 +1108,40 @@ with tab3:
                     )
             except Exception as e:
                 st.warning(f"⚠️ لم يتمكن التحليل الذكي من التنفيذ: {e}")
+
+            # === Forecast Section ===
+            st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+            st.markdown("### 🔮 Auto Forecast (التنبؤ التلقائي)")
+            date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day", "period"])]
+            numeric_cols = filtered.select_dtypes(include='number').columns.tolist()
+
+            if date_cols and numeric_cols:
+                date_col = date_cols[0]
+                value_col = kpi_measure_col if kpi_measure_col in numeric_cols else numeric_cols[0]
+
+                with st.spinner("Generating forecast..."):
+                    forecast_fig, forecast_summary = generate_forecast_plot(filtered, date_col, value_col, periods_ahead=3)
+
+                if forecast_fig:
+                    st.plotly_chart(forecast_fig, use_container_width=True, theme="streamlit")
+                    if forecast_summary:
+                        st.markdown(f"""
+                        <div style='background:linear-gradient(135deg,#003366,#001a33);
+                                    border:1px solid #FFD700; border-radius:12px; 
+                                    padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
+                            <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
+                                🇪🇬 التنبؤ التلقائي
+                            </p>
+                            <p style='color:white; font-size:16px;'>
+                                {forecast_summary}
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("ℹ️ Could not generate forecast (insufficient or invalid time-series data).")
+            else:
+                st.info("ℹ️ No suitable time-series data found for forecasting (requires a date/time column and a numeric column).")
+
             # === Summary Tables ===
             rep_col = found_dims.get('rep')
             if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
@@ -1032,8 +1174,8 @@ with tab3:
             charts_buffers = []
             plotly_figs = []
             rep_col = found_dims.get('rep')
-            date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
-            possible_dims = [c for c in filtered.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
+            date_cols_main = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
+            possible_dims = [c for c in filtered.columns if c != kpi_measure_col and c not in date_cols_main and c != rep_col]
             # Top/Bottom 10 Employees
             if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
                 rep_data = filtered.groupby(rep_col)[kpi_measure_col].sum()
@@ -1279,8 +1421,8 @@ with tab3:
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate fallback pie chart: {e}")
             # Chart C: Trend (Line) - ONLY if Date/Month exists
-            if date_cols and kpi_measure_col and kpi_measure_col in filtered.columns:
-                date_col = date_cols[0]
+            if date_cols_main and kpi_measure_col and kpi_measure_col in filtered.columns:
+                date_col = date_cols_main[0]
                 try:
                     ser = filtered.dropna(subset=[date_col]).copy()
                     if pd.api.types.is_datetime64_any_dtype(ser[date_col]):
@@ -1430,6 +1572,7 @@ with tab3:
                         st.error(f"❌ PowerPoint generation failed: {e}")
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
+
 # ------------------ Tab 4: Info ------------------
 with tab4:
     st.markdown("""
@@ -1464,6 +1607,7 @@ with tab4:
                 <li>Use the sidebar to apply filters.</li>
                 <li>The dashboard will auto-generate KPIs and charts.</li>
                 <li><strong>New:</strong> If your data has period columns (e.g., Sales_2023, Sales_2024), it will show growth comparison.</li>
+                <li><strong>New:</strong> Auto Forecasting for time-series data.</li>
                 <li>Export to PDF or PowerPoint.</li>
             </ul>
         </li>
@@ -1483,5 +1627,6 @@ with tab4:
         <li>For best results, ensure your Excel/CSV files are well-structured.</li>
         <li>Dashboard supports dynamic filtering — select different dimensions to see updated charts.</li>
         <li>Period comparison works automatically if you have columns like "Sales_2023" and "Sales_2024".</li>
+        <li>Forecasting requires a date/time column and a numeric column.</li>
     </ul>
     """, unsafe_allow_html=True)
