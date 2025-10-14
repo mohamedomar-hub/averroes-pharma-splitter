@@ -24,17 +24,14 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 # ------------------ إضافة PIL لتحويل الصور إلى PDF ------------------
 from PIL import Image
-
 # Initialize clear counter in session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
-
 # ------------------ ربط بخط عربي جميل (Cairo) ------------------
 st.markdown(
     '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">',
     unsafe_allow_html=True
 )
-
 # ------------------ إعدادات الصفحة ------------------
 st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
@@ -42,7 +39,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
 # ------------------ إخفاء شعار Streamlit والفوتر ------------------
 hide_default = """
     <style>
@@ -52,7 +48,6 @@ hide_default = """
     </style>
 """
 st.markdown(hide_default, unsafe_allow_html=True)
-
 # ------------------ ستايل مخصص ------------------
 custom_css = """
     <style>
@@ -176,7 +171,6 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
 # ------------------ دالة لعرض أسماء الملفات بلون فاتح ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
@@ -187,7 +181,6 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
                 f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
                 unsafe_allow_html=True
             )
-
 # ------------------ شريط التنقل العلوي ------------------
 st.markdown(
     """
@@ -199,7 +192,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 # ------------------ عرض اللوجو ------------------
 logo_path = "logo.png"
 if os.path.exists(logo_path):
@@ -208,7 +200,6 @@ if os.path.exists(logo_path):
     st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
-
 # ------------------ معلومات المطور ------------------
 st.markdown(
     """
@@ -221,15 +212,12 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 # ------------------ العنوان ------------------
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
-
 # ------------------ Utility functions ------------------
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
-
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -241,7 +229,6 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
-
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -252,7 +239,6 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
-
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -291,7 +277,6 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
-
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -322,7 +307,6 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
-
 # ------------------ Tabs ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📂 Split & Merge", 
@@ -330,7 +314,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Auto Dashboard", 
     "ℹ️ Info"
 ])
-
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
     st.markdown("### ✂ Split Excel/CSV File")
@@ -359,7 +342,6 @@ with tab1:
                 st.success(f"✅ Excel file uploaded successfully. Number of sheets: {len(sheet_names)}")
                 selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
                 df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
-            
             st.markdown(f"### 📊 Data View – {selected_sheet}")
             st.dataframe(df, use_container_width=True)
             st.markdown("### ✂ Select Column to Split")
@@ -584,7 +566,6 @@ with tab1:
             st.error(f"❌ Error processing file: {e}")
     else:
         st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
-
     st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
     st.markdown("### 🔄 Merge Excel/CSV Files")
     merge_files = st.file_uploader(
@@ -622,7 +603,6 @@ with tab1:
                     )
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
-
 # ------------------ Tab 2: Image to PDF ------------------
 with tab2:
     st.markdown("### 📷 Convert Images to PDF")
@@ -708,7 +688,6 @@ with tab2:
                     st.error(f"❌ Error creating PDF: {e}")
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
-
 # ------------------ Tab 3: Dashboard ------------------
 with tab3:
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
@@ -733,10 +712,8 @@ with tab3:
                 selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
                 df0 = df_dict[selected_sheet_dash].copy()
                 sheet_title = selected_sheet_dash
-
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
-
             # Detect period columns for comparison (e.g., Sales_2023, Sales_2024)
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             period_cols = []
@@ -750,13 +727,11 @@ with tab3:
                     if base not in base_names:
                         base_names[base] = []
                     base_names[base].append((col, period))
-            
             # Keep only bases with exactly 2 periods
             valid_periods = {}
             for base, cols in base_names.items():
                 if len(cols) == 2:
                     valid_periods[base] = cols
-
             if valid_periods:
                 # Use the first valid base
                 base_key = list(valid_periods.keys())[0]
@@ -778,10 +753,9 @@ with tab3:
                 st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
             else:
                 period_comparison = None
-
             # Handle month columns (Jan, Feb, etc.)
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
-            cols_lower = [c.strip().lower() for c in df0.columns]
+            cols_lower = [c for c in df0.columns if c.strip().lower() in month_names]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
             if potential_months:
                 id_vars = [c for c in df0.columns if c not in potential_months]
@@ -797,7 +771,6 @@ with tab3:
                 else:
                     measure_col = None
                     df_long = df0.copy()
-
             # Manual measure column selection
             numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
             if numeric_cols_in_long:
@@ -809,20 +782,17 @@ with tab3:
                 kpi_measure_col = user_measure_col
             else:
                 kpi_measure_col = measure_col
-
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
                 if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype != "float64" and df_long[c].dtype != "int64":
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
-
             st.sidebar.header("🔍 Dynamic Filters")
             primary_filter_col = None
             if len(cat_cols) > 0:
                 primary_filter_col = st.sidebar.selectbox("Primary Filter Column (drop-list)", ["-- None --"] + cat_cols, index=0)
                 if primary_filter_col == "-- None --":
                     primary_filter_col = None
-
             primary_values = None
             if primary_filter_col:
                 vals = df_long[primary_filter_col].dropna().astype(str).unique().tolist()
@@ -831,9 +801,7 @@ with tab3:
                 except Exception:
                     pass
                 primary_values = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
-
             other_filter_cols = st.sidebar.multiselect("Choose additional filter columns (optional)", [c for c in cat_cols if c != primary_filter_col], default=[])
-
             active_filters = {}
             for fc in other_filter_cols:
                 opts = df_long[fc].dropna().astype(str).unique().tolist()
@@ -843,7 +811,6 @@ with tab3:
                     pass
                 sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
                 active_filters[fc] = sel
-
             filtered = df_long.copy()
             if primary_filter_col and primary_values is not None:
                 if len(primary_values) > 0:
@@ -851,23 +818,19 @@ with tab3:
             for fc, sel in active_filters.items():
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
-
             st.markdown("### 📈 Filtered Data Preview")
             st.dataframe(filtered.head(200), use_container_width=True)
-
             # === KPIs ===
             possible_dim_aliases = {
                 "area": ["area", "region", "territory"],
                 "branch": ["branch", "location", "store"],
                 "rep": ["rep", "representative", "salesman", "employee", "name", "mr"]
             }
-
             found_dims = {}
             for dim_key, aliases in possible_dim_aliases.items():
                 col = _find_col(filtered, aliases)
                 if col:
                     found_dims[dim_key] = col
-
             kpi_values = {}
             if kpi_measure_col and kpi_measure_col in filtered.columns:
                 kpi_values['total'] = filtered[kpi_measure_col].sum()
@@ -885,18 +848,14 @@ with tab3:
                 kpi_values['total'] = None
                 kpi_values['avg'] = None
                 kpi_values['avg_per_date'] = None
-
             for dim_key, col_name in found_dims.items():
                 kpi_values[f'unique_{dim_key}'] = filtered[col_name].nunique()
-
             # Period-over-Period KPI
             if period_comparison and '__pct_change__' in filtered.columns:
                 avg_growth = filtered['__pct_change__'].mean()
                 kpi_values['growth_pct'] = avg_growth * 100
-
             # Build KPI Cards
             kpi_cards = []
-
             if kpi_values.get('total') is not None:
                 kpi_cards.append({
                     'title': f'إجمالي {kpi_measure_col}',
@@ -904,7 +863,6 @@ with tab3:
                     'color': 'linear-gradient(135deg, #28a745, #85e085)',
                     'icon': '📈'
                 })
-
             if kpi_values.get('avg') is not None:
                 kpi_cards.append({
                     'title': f'متوسط {kpi_measure_col}',
@@ -912,7 +870,6 @@ with tab3:
                     'color': 'linear-gradient(135deg, #00c0ff, #007bff)',
                     'icon': '📊'
                 })
-
             if kpi_values.get('avg_per_date') is not None:
                 kpi_cards.append({
                     'title': 'متوسط شهري',
@@ -920,7 +877,6 @@ with tab3:
                     'color': 'linear-gradient(135deg, #17a2b8, #66d9b3)',
                     'icon': '📅'
                 })
-
             if kpi_values.get('growth_pct') is not None:
                 growth_color = 'linear-gradient(135deg, #28a745, #85e085)' if kpi_values['growth_pct'] >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)'
                 kpi_cards.append({
@@ -929,7 +885,6 @@ with tab3:
                     'color': growth_color,
                     'icon': '↗️' if kpi_values['growth_pct'] >= 0 else '↘️'
                 })
-
             if kpi_values.get('unique_area') is not None:
                 kpi_cards.append({
                     'title': 'عدد المناطق',
@@ -937,7 +892,6 @@ with tab3:
                     'color': 'linear-gradient(135deg, #6f42c1, #a779e9)',
                     'icon': '🌍'
                 })
-
             if kpi_values.get('unique_rep') is not None:
                 kpi_cards.append({
                     'title': 'عدد الموظفين',
@@ -945,7 +899,6 @@ with tab3:
                     'color': 'linear-gradient(135deg, #ffc107, #ff8a00)',
                     'icon': '👥'
                 })
-
             if kpi_values.get('unique_branch') is not None:
                 kpi_cards.append({
                     'title': 'عدد الفروع',
@@ -953,7 +906,6 @@ with tab3:
                     'color': 'linear-gradient(135deg, #20c997, #66d9b3)',
                     'icon': '🏢'
                 })
-
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:6]):
@@ -965,99 +917,89 @@ with tab3:
                     </div>
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
-                    # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
-                    st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-                        # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
-                   st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-                   st.markdown("### 🧠 Smart Insights (تحليل ذكي)")
-                    
-                        try:
-                            insights = []
-                    
-                        # الأساسيات
-                        if kpi_measure_col and kpi_measure_col in filtered.columns:
-                            total = filtered[kpi_measure_col].sum()
-                            avg = filtered[kpi_measure_col].mean()
-                            insights.append({
-                                "ar": f"إجمالي {kpi_measure_col} هو {total:,.0f} بمتوسط {avg:,.0f} لكل سجل.",
-                                "en": f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record."
-                            })
-                    
-                        # أعلى وأدنى مندوب
-                        rep_col = found_dims.get('rep')
-                        if rep_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
-                            rep_sum = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
-                            if not rep_sum.empty:
-                                top_rep = rep_sum.index[0]
-                                bottom_rep = rep_sum.index[-1]
+            # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
+            st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+            st.markdown("### 🧠 Smart Insights (تحليل ذكي)")
+            try:
+                insights = []
+                # الأساسيات
+                if kpi_measure_col and kpi_measure_col in filtered.columns:
+                    total = filtered[kpi_measure_col].sum()
+                    avg = filtered[kpi_measure_col].mean()
+                    insights.append({
+                        "ar": f"إجمالي {kpi_measure_col} هو {total:,.0f} بمتوسط {avg:,.0f} لكل سجل.",
+                        "en": f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record."
+                    })
+                # أعلى وأدنى مندوب
+                rep_col = found_dims.get('rep')
+                if rep_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
+                    rep_sum = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
+                    if not rep_sum.empty:
+                        top_rep = rep_sum.index[0]
+                        bottom_rep = rep_sum.index[-1]
+                        insights.append({
+                            "ar": f"أعلى مندوب مبيعات هو **{top_rep}** بينما الأقل أداء هو **{bottom_rep}**.",
+                            "en": f"The top-performing representative is **{top_rep}**, while the lowest is **{bottom_rep}**."
+                        })
+                # الاتجاه العام الزمني (لو فيه عمود تاريخ)
+                date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
+                if date_cols and kpi_measure_col in filtered.columns:
+                    date_col = date_cols[0]
+                    try:
+                        df_sorted = filtered.dropna(subset=[date_col, kpi_measure_col]).sort_values(date_col)
+                        if not df_sorted.empty and len(df_sorted) >= 2:
+                            first_sum = df_sorted.iloc[0][kpi_measure_col]
+                            last_sum = df_sorted.iloc[-1][kpi_measure_col]
+                            if last_sum > first_sum:
                                 insights.append({
-                                    "ar": f"أعلى مندوب مبيعات هو **{top_rep}** بينما الأقل أداء هو **{bottom_rep}**.",
-                                    "en": f"The top-performing representative is **{top_rep}**, while the lowest is **{bottom_rep}**."
+                                    "ar": "📈 الاتجاه العام تصاعدي عبر الفترة الزمنية.",
+                                    "en": "📈 The overall trend is upward over the given period."
                                 })
-                    
-                        # الاتجاه العام الزمني (لو فيه عمود تاريخ)
-                        date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
-                        if date_cols and kpi_measure_col in filtered.columns:
-                            date_col = date_cols[0]
-                            try:
-                                df_sorted = filtered.dropna(subset=[date_col, kpi_measure_col]).sort_values(date_col)
-                                if not df_sorted.empty and len(df_sorted) >= 2:
-                                    first_sum = df_sorted.iloc[0][kpi_measure_col]
-                                    last_sum = df_sorted.iloc[-1][kpi_measure_col]
-                                    if last_sum > first_sum:
-                                        insights.append({
-                                            "ar": "📈 الاتجاه العام تصاعدي عبر الفترة الزمنية.",
-                                            "en": "📈 The overall trend is upward over the given period."
-                                        })
-                                    elif last_sum < first_sum:
-                                        insights.append({
-                                            "ar": "📉 الاتجاه العام تنازلي عبر الفترة الزمنية.",
-                                            "en": "📉 The overall trend is downward over the given period."
-                                        })
-                                    else:
-                                        insights.append({
-                                            "ar": "➖ الأداء مستقر تقريبًا على مدار الفترة الزمنية.",
-                                            "en": "➖ Performance remains relatively stable over the period."
-                                        })
-                            except Exception:
-                                # لو فيه مشكلة بتحليل التاريخ، نكمل بدون خطأ
-                                pass
-                    
-                        # أعلى منتج مبيعاتًا (إن وجد)
-                        product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
-                        if product_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
-                            try:
-                                prod_sum = filtered.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False)
-                                if not prod_sum.empty:
-                                    top_prod = prod_sum.index[0]
-                                    insights.append({
-                                        "ar": f"المنتج الأعلى مبيعات هو **{top_prod}**.",
-                                        "en": f"The top-selling product is **{top_prod}**."
-                                    })
-                            except Exception:
-                                pass
-                    
-                        # عرض التحليل داخل بطاقات جميلة
-                        for ins in insights:
-                            st.markdown(
-                                f"""
-                                <div style='background:linear-gradient(135deg,#003366,#001a33);
-                                            border:1px solid #FFD700; border-radius:12px; 
-                                            padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
-                                    <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
-                                        🇪🇬 {ins["ar"]}
-                                    </p>
-                                    <p style='color:white; font-size:16px;'>
-                                        🇬🇧 {ins["en"]}
-                                    </p>
-                                                </div>
-                                                """,
-                                                unsafe_allow_html=True
-                                            )
-                                    
-                                    except Exception as e:
-                                        st.warning(f"⚠️ لم يتمكن التحليل الذكي من التنفيذ: {e}")
-
+                            elif last_sum < first_sum:
+                                insights.append({
+                                    "ar": "📉 الاتجاه العام تنازلي عبر الفترة الزمنية.",
+                                    "en": "📉 The overall trend is downward over the given period."
+                                })
+                            else:
+                                insights.append({
+                                    "ar": "➖ الأداء مستقر تقريبًا على مدار الفترة الزمنية.",
+                                    "en": "➖ Performance remains relatively stable over the period."
+                                })
+                    except Exception:
+                        # لو فيه مشكلة بتحليل التاريخ، نكمل بدون خطأ
+                        pass
+                # أعلى منتج مبيعاتًا (إن وجد)
+                product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
+                if product_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
+                    try:
+                        prod_sum = filtered.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False)
+                        if not prod_sum.empty:
+                            top_prod = prod_sum.index[0]
+                            insights.append({
+                                "ar": f"المنتج الأعلى مبيعات هو **{top_prod}**.",
+                                "en": f"The top-selling product is **{top_prod}**."
+                            })
+                    except Exception:
+                        pass
+                # عرض التحليل داخل بطاقات جميلة
+                for ins in insights:
+                    st.markdown(
+                        f"""
+                        <div style='background:linear-gradient(135deg,#003366,#001a33);
+                                    border:1px solid #FFD700; border-radius:12px; 
+                                    padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
+                            <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
+                                🇪🇬 {ins["ar"]}
+                            </p>
+                            <p style='color:white; font-size:16px;'>
+                                🇬🇧 {ins["en"]}
+                            </p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+            except Exception as e:
+                st.warning(f"⚠️ لم يتمكن التحليل الذكي من التنفيذ: {e}")
             # === Summary Tables ===
             rep_col = found_dims.get('rep')
             if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
@@ -1071,7 +1013,6 @@ with tab3:
                 with col2:
                     st.markdown("#### 🥉 Bottom 5 Employees")
                     st.dataframe(rep_summary.tail(5).iloc[::-1].reset_index(drop=True), use_container_width=True)
-
             # === Period Comparison Table ===
             if period_comparison:
                 growth_df = filtered.copy()
@@ -1086,16 +1027,13 @@ with tab3:
                         '__abs_change__': 'الفرق المطلق',
                         '__pct_change__': 'النسبة المئوية'
                     }), use_container_width=True)
-
             # === Auto Charts ===
             st.markdown("### 📊 Auto Charts (built from data)")
             charts_buffers = []
             plotly_figs = []
-
             rep_col = found_dims.get('rep')
             date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
             possible_dims = [c for c in filtered.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
-
             # Top/Bottom 10 Employees
             if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
                 rep_data = filtered.groupby(rep_col)[kpi_measure_col].sum()
@@ -1108,7 +1046,6 @@ with tab3:
                     fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_top, "Top 10 Employees"))
-
                     # Bottom 10
                     bottom10 = rep_data.sort_values(ascending=True).head(10)
                     df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
@@ -1117,7 +1054,6 @@ with tab3:
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
-
                     # Save to buffers
                     for data, title in [(top10, "Top 10 Employees"), (bottom10, "Bottom 10 Employees")]:
                         fig_m, ax = plt.subplots(figsize=(10, 5))
@@ -1141,7 +1077,6 @@ with tab3:
                         plt.close(fig_m)
                 else:
                     st.warning(f"⚠️ Not enough employees ({len(rep_data)}) to show Top/Bottom 10.")
-
             # Period Comparison Chart
             if period_comparison:
                 comp_data = filtered[[period_comparison['col1'], period_comparison['col2']]].sum()
@@ -1153,7 +1088,6 @@ with tab3:
                 fig_comp.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                 fig_comp.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                 plotly_figs.append((fig_comp, f"Comparison: {period_comparison['period1']} vs {period_comparison['period2']}"))
-
                 fig_m, ax = plt.subplots(figsize=(8, 5))
                 bars = ax.bar(comp_df['Period'], comp_df['Value'], color=['#1f77b4', '#ff7f0e'])
                 ax.set_title(f"Comparison: {period_comparison['period1']} vs {period_comparison['period2']}", fontsize=14, fontweight='bold')
@@ -1167,7 +1101,6 @@ with tab3:
                 img_buf.seek(0)
                 charts_buffers.append((img_buf, f"Comparison: {period_comparison['period1']} vs {period_comparison['period2']}"))
                 plt.close(fig_m)
-
             # Top 5 Products
             product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
             if product_col and kpi_measure_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
@@ -1200,11 +1133,9 @@ with tab3:
                     plt.close(fig_m)
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate Top 5 Products chart: {e}")
-
             # Other charts (Area, Branch, etc.)
             pie_prefer_order = ["area", "region", "territory", "branch", "location", "city"]
             bar_prefer_order = ["item", "product", "sku", "category", "brand"]
-
             pie_dim = None
             bar_dim = None
             for p in pie_prefer_order:
@@ -1221,7 +1152,6 @@ with tab3:
                         break
                 if bar_dim:
                     break
-
             if not pie_dim and not bar_dim and len(possible_dims) > 0:
                 lens = [(c, filtered[c].nunique(dropna=True)) for c in possible_dims]
                 lens = sorted([x for x in lens if x[1] > 1], key=lambda x: x[1])
@@ -1232,7 +1162,6 @@ with tab3:
                 bar_dim = pie_dim
             elif bar_dim and not pie_dim:
                 pie_dim = bar_dim
-
             chosen_dim = bar_dim
             dims_for_charts = []
             if chosen_dim:
@@ -1242,7 +1171,6 @@ with tab3:
             for r in rem_sorted[:4]:
                 dims_for_charts.append(r)
             dims_for_charts = dims_for_charts[:5]
-
             # Chart A: Bar
             if chosen_dim and kpi_measure_col and chosen_dim in filtered.columns:
                 try:
@@ -1281,7 +1209,6 @@ with tab3:
                     plt.close(fig_m)
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
-
             # Chart B: Pie
             if len(dims_for_charts) >= 2 and kpi_measure_col:
                 dim2 = dims_for_charts[1]
@@ -1351,7 +1278,6 @@ with tab3:
                         plt.close(fig_m)
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate fallback pie chart: {e}")
-
             # Chart C: Trend (Line) - ONLY if Date/Month exists
             if date_cols and kpi_measure_col and kpi_measure_col in filtered.columns:
                 date_col = date_cols[0]
@@ -1365,7 +1291,6 @@ with tab3:
                     else:
                         trend = ser.groupby(date_col)[kpi_measure_col].sum().reset_index()
                         x_col = date_col
-
                     fig_line = px.line(trend, x=x_col, y=kpi_measure_col, markers=True, title=f"📈 Monthly Sales Trend")
                     fig_line.update_traces(texttemplate='%{y:,.0f}', textposition='top center')
                     fig_line.update_layout(
@@ -1393,7 +1318,6 @@ with tab3:
                     plt.close(fig_m)
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate trend chart: {e}")
-
             # Extra bars
             extra_dims = dims_for_charts[2:] if len(dims_for_charts) > 2 else []
             for ex_dim in extra_dims:
@@ -1425,7 +1349,6 @@ with tab3:
                         plt.close(fig_m)
                     except Exception as e:
                         st.warning(f"⚠️ Could not generate chart for {ex_dim}: {e}")
-
             # === Display Charts in Cards ===
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             plotly_figs = plotly_figs[:6]
@@ -1453,7 +1376,6 @@ with tab3:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.write("")
-
             # === Export Section ===
             st.markdown("### 💾 Export Report / Data")
             excel_buffer = BytesIO()
@@ -1508,7 +1430,6 @@ with tab3:
                         st.error(f"❌ PowerPoint generation failed: {e}")
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
-
 # ------------------ Tab 4: Info ------------------
 with tab4:
     st.markdown("""
@@ -1564,8 +1485,3 @@ with tab4:
         <li>Period comparison works automatically if you have columns like "Sales_2023" and "Sales_2024".</li>
     </ul>
     """, unsafe_allow_html=True)
-
-
-
-
-
