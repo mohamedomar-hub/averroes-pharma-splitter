@@ -6,6 +6,5 @@ reportlab
 plotly
 python-pptx
 Pillow
-opencv-python-headless
+scikit-learn
 numpy
-
