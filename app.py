@@ -326,14 +326,14 @@ def build_pptx(sheet_title, charts_buffers):
     pptx_buffer.seek(0)
     return pptx_buffer
 
-# ------------------ دالة التنبؤ البسيط ------------------
+# ------------------ دالة التنبؤ المحسنة ------------------
 def generate_forecast_plot(df, date_col, value_col, periods_ahead=3):
     """
-    Generates a forecast using linear regression.
+    Generates forecast using both Linear Regression and Moving Average.
     Returns Plotly figure and forecast summary text.
     """
     try:
-        # Ensure date_col is datetime or numeric
+        # Ensure date_col is datetime or categorical
         temp_df = df[[date_col, value_col]].dropna().copy()
         if temp_df.empty:
             return None, None
@@ -349,9 +349,10 @@ def generate_forecast_plot(df, date_col, value_col, periods_ahead=3):
             is_datetime = False
         else:
             temp_df = temp_df.sort_values(date_col).reset_index(drop=True)
-            temp_df['_numeric_date'] = temp_df[date_col].map(pd.Timestamp.timestamp)
-            x_vals = temp_df['_numeric_date'].values.reshape(-1, 1)
-            x_labels = temp_df[date_col].dt.strftime('%Y-%m-%d').values
+            # Use formatted date string for labels
+            temp_df['_date_str'] = temp_df[date_col].dt.strftime('%Y-%m')  # e.g., "2025-01"
+            x_vals = np.arange(len(temp_df)).reshape(-1, 1)  # Use numeric index for regression
+            x_labels = temp_df['_date_str'].values
             is_datetime = True
 
         y_vals = temp_df[value_col].values
@@ -360,50 +361,101 @@ def generate_forecast_plot(df, date_col, value_col, periods_ahead=3):
         model = LinearRegression()
         model.fit(x_vals, y_vals)
 
+        # Generate future dates for labels
+        last_date_str = x_labels[-1]
+        last_year, last_month = map(int, last_date_str.split('-'))
+        future_dates = []
+        for i in range(periods_ahead):
+            next_month = last_month + i + 1
+            next_year = last_year + (next_month - 1) // 12
+            next_month = ((next_month - 1) % 12) + 1
+            future_dates.append(f"{next_year:04d}-{next_month:02d}")
+
         # Forecast next periods
-        last_x = x_vals[-1, 0]
-        step = (last_x - x_vals[0, 0]) / (len(x_vals) - 1) if len(x_vals) > 1 else 1
-        future_x = np.array([last_x + (i+1)*step for i in range(periods_ahead)]).reshape(-1, 1)
-        future_y = model.predict(future_x)
+        future_x = np.array([len(temp_df) + i for i in range(periods_ahead)]).reshape(-1, 1)
+        future_y_lr = model.predict(future_x)
+
+        # Moving Average Forecast (last 3 periods average)
+        if len(y_vals) >= 3:
+            ma_window = 3
+            ma_forecast = np.mean(y_vals[-ma_window:])
+            future_y_ma = np.full(periods_ahead, ma_forecast)
+        else:
+            ma_forecast = None
+            future_y_ma = np.full(periods_ahead, np.nan)
 
         # Combine actual + forecast for plot
-        all_x = np.concatenate([x_vals.flatten(), future_x.flatten()])
-        all_y = np.concatenate([y_vals, future_y])
-        all_labels = np.concatenate([x_labels, [f"Forecast {i+1}" for i in range(periods_ahead)]])
+        all_x = np.concatenate([np.arange(len(temp_df)), np.arange(len(temp_df), len(temp_df) + periods_ahead)])
+        all_y_actual = np.concatenate([y_vals, np.full(periods_ahead, np.nan)])
+        all_y_lr = np.concatenate([np.full(len(temp_df), np.nan), future_y_lr])
+        all_y_ma = np.concatenate([np.full(len(temp_df), np.nan), future_y_ma])
 
-        # Create Plotly figure
+        # Create Plotly figure with two forecast lines
         fig = go.Figure()
+
+        # Actual data
         fig.add_trace(go.Scatter(
             x=x_labels,
             y=y_vals,
             mode='lines+markers',
             name='Actual',
             line=dict(color='#007bff', width=3),
-            marker=dict(size=6)
-        ))
-        fig.add_trace(go.Scatter(
-            x=all_labels[-periods_ahead:],
-            y=future_y,
-            mode='lines+markers',
-            name='Forecast',
-            line=dict(color='#ff6347', dash='dash', width=3),
-            marker=dict(size=8, symbol='diamond')
+            marker=dict(size=6),
+            hovertemplate='<b>Period</b>: %{x}<br><b>Value</b>: %{y:,.0f}<extra></extra>'
         ))
 
+        # Linear Regression Forecast
+        fig.add_trace(go.Scatter(
+            x=future_dates,
+            y=future_y_lr,
+            mode='lines+markers',
+            name='Forecast (Linear)',
+            line=dict(color='#ff6347', dash='dash', width=3),
+            marker=dict(size=8, symbol='diamond'),
+            hovertemplate='<b>Period</b>: %{x}<br><b>Forecast</b>: %{y:,.0f}<extra></extra>'
+        ))
+
+        # Moving Average Forecast (if available)
+        if ma_forecast is not None:
+            fig.add_trace(go.Scatter(
+                x=future_dates,
+                y=future_y_ma,
+                mode='lines+markers',
+                name='Forecast (MA)',
+                line=dict(color='#2ca02c', dash='dot', width=3),
+                marker=dict(size=8, symbol='square'),
+                hovertemplate='<b>Period</b>: %{x}<br><b>Forecast (MA)</b>: %{y:,.0f}<extra></extra>'
+            ))
+
         fig.update_layout(
-            title=f"📈 Forecast: {value_col} (Next {periods_ahead} Periods)",
+            title=f"📈 Sales Forecast for Next {periods_ahead} Periods",
             xaxis_title=date_col,
             yaxis_title=value_col,
             template="plotly_white",
-            margin=dict(t=40, b=20, l=10, r=10)
+            margin=dict(t=40, b=20, l=10, r=10),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
 
         # Forecast summary
         last_actual = y_vals[-1]
-        next_forecast = future_y[0]
-        change = ((next_forecast - last_actual) / last_actual * 100) if last_actual != 0 else 0
-        trend = "increase" if change > 0 else "decrease" if change < 0 else "stable"
-        summary = f"Based on the trend, **{value_col}** is expected to {trend} by **{abs(change):.1f}%** in the next period, reaching **{next_forecast:,.0f}**."
+        next_forecast_lr = future_y_lr[0]
+        change_lr = ((next_forecast_lr - last_actual) / last_actual * 100) if last_actual != 0 else 0
+        trend_lr = "increase" if change_lr > 0 else "decrease" if change_lr < 0 else "stable"
+        summary_lr = f"Based on linear regression, **{value_col}** is expected to {trend_lr} by **{abs(change_lr):.1f}%** in the next period, reaching **{next_forecast_lr:,.0f}**."
+
+        if ma_forecast is not None:
+            change_ma = ((ma_forecast - last_actual) / last_actual * 100) if last_actual != 0 else 0
+            trend_ma = "increase" if change_ma > 0 else "decrease" if change_ma < 0 else "stable"
+            summary_ma = f"Based on moving average (last 3 periods), **{value_col}** is expected to {trend_ma} by **{abs(change_ma):.1f}%**, reaching **{ma_forecast:,.0f}**."
+            summary = f"{summary_lr}\n\n{summary_ma}"
+        else:
+            summary = summary_lr
 
         return fig, summary
 
@@ -966,21 +1018,21 @@ with tab3:
             kpi_cards = []
             if kpi_values.get('total') is not None:
                 kpi_cards.append({
-                    'title': f'إجمالي {kpi_measure_col}',
+                    'title': f'Total {kpi_measure_col}',
                     'value': f"{kpi_values['total']:,.0f}",
                     'color': 'linear-gradient(135deg, #28a745, #85e085)',
                     'icon': '📈'
                 })
             if kpi_values.get('avg') is not None:
                 kpi_cards.append({
-                    'title': f'متوسط {kpi_measure_col}',
+                    'title': f'Average {kpi_measure_col}',
                     'value': f"{kpi_values['avg']:,.0f}",
                     'color': 'linear-gradient(135deg, #00c0ff, #007bff)',
                     'icon': '📊'
                 })
             if kpi_values.get('avg_per_date') is not None:
                 kpi_cards.append({
-                    'title': 'متوسط شهري',
+                    'title': 'Monthly Avg',
                     'value': f"{kpi_values['avg_per_date']:,.0f}",
                     'color': 'linear-gradient(135deg, #17a2b8, #66d9b3)',
                     'icon': '📅'
@@ -988,28 +1040,28 @@ with tab3:
             if kpi_values.get('growth_pct') is not None:
                 growth_color = 'linear-gradient(135deg, #28a745, #85e085)' if kpi_values['growth_pct'] >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)'
                 kpi_cards.append({
-                    'title': f'متوسط النمو',
+                    'title': f'Avg Growth',
                     'value': f"{kpi_values['growth_pct']:.1f}%",
                     'color': growth_color,
                     'icon': '↗️' if kpi_values['growth_pct'] >= 0 else '↘️'
                 })
             if kpi_values.get('unique_area') is not None:
                 kpi_cards.append({
-                    'title': 'عدد المناطق',
+                    'title': 'Number of Areas',
                     'value': f"{kpi_values['unique_area']}",
                     'color': 'linear-gradient(135deg, #6f42c1, #a779e9)',
                     'icon': '🌍'
                 })
             if kpi_values.get('unique_rep') is not None:
                 kpi_cards.append({
-                    'title': 'عدد الموظفين',
+                    'title': 'Number of Reps',
                     'value': f"{kpi_values['unique_rep']}",
                     'color': 'linear-gradient(135deg, #ffc107, #ff8a00)',
                     'icon': '👥'
                 })
             if kpi_values.get('unique_branch') is not None:
                 kpi_cards.append({
-                    'title': 'عدد الفروع',
+                    'title': 'Number of Branches',
                     'value': f"{kpi_values['unique_branch']}",
                     'color': 'linear-gradient(135deg, #20c997, #66d9b3)',
                     'icon': '🏢'
@@ -1025,20 +1077,19 @@ with tab3:
                     </div>
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
-            # ------------------ 🧠 Smart Insights (Arabic + English) ------------------
+            # ------------------ 🧠 Smart Insights (English Only) ------------------
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-            st.markdown("### 🧠 Smart Insights (تحليل ذكي)")
+            st.markdown("### 🧠 Smart Insights")
             try:
                 insights = []
-                # الأساسيات
+                # Basics
                 if kpi_measure_col and kpi_measure_col in filtered.columns:
                     total = filtered[kpi_measure_col].sum()
                     avg = filtered[kpi_measure_col].mean()
                     insights.append({
-                        "ar": f"إجمالي {kpi_measure_col} هو {total:,.0f} بمتوسط {avg:,.0f} لكل سجل.",
                         "en": f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record."
                     })
-                # أعلى وأدنى مندوب
+                # Top & Bottom Rep
                 rep_col = found_dims.get('rep')
                 if rep_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
                     rep_sum = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
@@ -1046,10 +1097,9 @@ with tab3:
                         top_rep = rep_sum.index[0]
                         bottom_rep = rep_sum.index[-1]
                         insights.append({
-                            "ar": f"أعلى مندوب مبيعات هو **{top_rep}** بينما الأقل أداء هو **{bottom_rep}**.",
                             "en": f"The top-performing representative is **{top_rep}**, while the lowest is **{bottom_rep}**."
                         })
-                # الاتجاه العام الزمني (لو فيه عمود تاريخ)
+                # Trend Analysis
                 date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
                 if date_cols and kpi_measure_col in filtered.columns:
                     date_col = date_cols[0]
@@ -1060,23 +1110,19 @@ with tab3:
                             last_sum = df_sorted.iloc[-1][kpi_measure_col]
                             if last_sum > first_sum:
                                 insights.append({
-                                    "ar": "📈 الاتجاه العام تصاعدي عبر الفترة الزمنية.",
                                     "en": "📈 The overall trend is upward over the given period."
                                 })
                             elif last_sum < first_sum:
                                 insights.append({
-                                    "ar": "📉 الاتجاه العام تنازلي عبر الفترة الزمنية.",
                                     "en": "📉 The overall trend is downward over the given period."
                                 })
                             else:
                                 insights.append({
-                                    "ar": "➖ الأداء مستقر تقريبًا على مدار الفترة الزمنية.",
                                     "en": "➖ Performance remains relatively stable over the period."
                                 })
                     except Exception:
-                        # لو فيه مشكلة بتحليل التاريخ، نكمل بدون خطأ
                         pass
-                # أعلى منتج مبيعاتًا (إن وجد)
+                # Top Product
                 product_col = _find_col(filtered, ["product", "item", "sku", "brand"])
                 if product_col and product_col in filtered.columns and kpi_measure_col in filtered.columns:
                     try:
@@ -1084,12 +1130,11 @@ with tab3:
                         if not prod_sum.empty:
                             top_prod = prod_sum.index[0]
                             insights.append({
-                                "ar": f"المنتج الأعلى مبيعات هو **{top_prod}**.",
                                 "en": f"The top-selling product is **{top_prod}**."
                             })
                     except Exception:
                         pass
-                # عرض التحليل داخل بطاقات جميلة
+                # Display insights
                 for ins in insights:
                     st.markdown(
                         f"""
@@ -1097,9 +1142,6 @@ with tab3:
                                     border:1px solid #FFD700; border-radius:12px; 
                                     padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
                             <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
-                                🇪🇬 {ins["ar"]}
-                            </p>
-                            <p style='color:white; font-size:16px;'>
                                 🇬🇧 {ins["en"]}
                             </p>
                         </div>
@@ -1107,11 +1149,11 @@ with tab3:
                         unsafe_allow_html=True
                     )
             except Exception as e:
-                st.warning(f"⚠️ لم يتمكن التحليل الذكي من التنفيذ: {e}")
+                st.warning(f"⚠️ Could not generate smart insights: {e}")
 
             # === Forecast Section ===
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-            st.markdown("### 🔮 Auto Forecast (التنبؤ التلقائي)")
+            st.markdown("### 🔮 Auto Forecast")
             date_cols = [c for c in filtered.columns if any(d in c.lower() for d in ["date", "month", "year", "day", "period"])]
             numeric_cols = filtered.select_dtypes(include='number').columns.tolist()
 
@@ -1130,7 +1172,7 @@ with tab3:
                                     border:1px solid #FFD700; border-radius:12px; 
                                     padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
                             <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>
-                                🇪🇬 التنبؤ التلقائي
+                                🇬🇧 Forecast Summary
                             </p>
                             <p style='color:white; font-size:16px;'>
                                 {forecast_summary}
@@ -1165,9 +1207,9 @@ with tab3:
                     growth_summary['__abs_change__'] = growth_summary['__abs_change__'].apply(lambda x: f"{x:,.0f}")
                     st.markdown(f"### 📈 Top 5 Growth ({period_comparison['period1']} → {period_comparison['period2']})")
                     st.dataframe(growth_summary.rename(columns={
-                        rep_col: 'الموظف',
-                        '__abs_change__': 'الفرق المطلق',
-                        '__pct_change__': 'النسبة المئوية'
+                        rep_col: 'Employee',
+                        '__abs_change__': 'Absolute Change',
+                        '__pct_change__': 'Percentage Change'
                     }), use_container_width=True)
             # === Auto Charts ===
             st.markdown("### 📊 Auto Charts (built from data)")
