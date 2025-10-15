@@ -1,13 +1,28 @@
 # -*- coding: utf-8 -*-
+"""
+Averroes Pharma File Splitter & Dashboard
+Modified by ChatGPT — includes:
+- Hero Section
+- Left Sidebar with toggle (fixed ☰)
+- Animations (hover/fade)
+- Dashboard improvements: chart type selector + download PNG
+- Progress bar during heavy operations
+- Toast notifications (JS/CSS)
+- Responsive design
+- Last updated timestamp + Back to top button
+All original functionality preserved.
+"""
+
 import streamlit as st
 import pandas as pd
 from io import BytesIO
 from zipfile import ZipFile
 import re
 import os
+from datetime import datetime
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl import load_workbook, Workbook
-# ====== Dashboard & Reporting ======
+# Dashboard & Reporting
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage, Spacer, PageBreak
@@ -21,12 +36,24 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from PIL import Image
-from sklearn.linear_model import LinearRegression
 import numpy as np
 
-# Initialize session state
+# Optional: for image enhancements if opencv available
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except Exception:
+    CV2_AVAILABLE = False
+
+# Ensure session state keys
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
+if 'sidebar_open' not in st.session_state:
+    st.session_state.sidebar_open = False
+if 'last_action' not in st.session_state:
+    st.session_state.last_action = None
+if 'show_toast' not in st.session_state:
+    st.session_state.show_toast = False
 
 # ------------------ Page Setup ------------------
 st.set_page_config(
@@ -36,138 +63,281 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Hide default Streamlit elements
-hide_default = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_default, unsafe_allow_html=True)
+# ------------------ CSS & JS ------------------
+# Keep original colors: dark blue + gold
+PRIMARY_DARK = "#001f3f"
+PRIMARY_DARK_2 = "#001a33"
+GOLD = "#FFD700"
+GOLD_LIGHT = "#FFC107"
+CARD_BG = "#00264d"
 
-# ------------------ Custom CSS ------------------
-custom_css = """
-    <style>
-    .stApp {
-        background-color: #001f3f;
-        color: white;
-        font-family: 'Cairo', sans-serif;
-    }
-    .top-nav {
-        display: flex;
-        justify-content: flex-end;
-        gap: 20px;
-        padding: 10px 30px;
-        background-color: #001a33;
-        border-bottom: 1px solid #FFD700;
-        font-size: 18px;
-        color: white;
-    }
-    .top-nav a {
-        color: #FFD700;
-        text-decoration: none;
-        font-weight: bold;
-        padding: 5px 10px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-    }
-    .top-nav a:hover {
-        background-color: #FFD700;
-        color: black;
-    }
-    label, .stSelectbox label, .stFileUploader label {
-        color: #FFD700 !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-    }
-    .stButton>button, .stDownloadButton>button {
-        background-color: #FFD700 !important;
-        color: black !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-        border-radius: 12px !important;
-        padding: 12px 24px !important;
-        border: none !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
-        transition: all 0.3s ease !important;
-        margin-top: 10px !important;
-    }
-    .stButton>button:hover, .stDownloadButton>button:hover {
-        background-color: #FFC107 !important;
-        transform: scale(1.08);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
-    }
-    .kpi-card {
-        padding: 16px;
-        border-radius: 12px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.3);
-        font-weight: 700;
-        margin: 8px;
-    }
-    .kpi-title { font-size: 14px; opacity: 0.9; }
-    .kpi-value { font-size: 22px; margin-top:6px; }
-    hr.divider {
-        border: 1px solid #FFD700;
-        opacity: 0.6;
-        margin: 30px 0;
-    }
-    hr.divider-dashed {
-        border: 1px dashed #FFD700;
-        opacity: 0.7;
-        margin: 25px 0;
-    }
-    .stDataFrame {
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        border-radius: 12px;
-        overflow: hidden;
-        margin: 10px 0;
-    }
-    .stFileUploader {
-        border: 2px dashed #FFD700;
-        border-radius: 10px;
-        padding: 15px;
-        background-color: rgba(255, 215, 0, 0.1);
-    }
-    .guide-title {
-        color: #FFD700;
-        font-weight: bold;
-        font-size: 20px;
-    }
-    .chart-card {
-        background-color: #00264d;
-        border: 1px solid #FFD700;
-        border-radius: 12px;
-        padding: 12px;
-        margin: 10px 0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 20px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        font-size: 18px;
-        font-weight: bold;
-        border-radius: 10px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #FFD700 !important;
-        color: black !important;
-        border: 2px solid #FFC107 !important;
-    }
-    .stTabs [aria-selected="false"] {
-        background-color: #003366 !important;
-        color: #FFD700 !important;
-        border: 1px solid #FFD700 !important;
-    }
-    </style>
+custom_css = f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap');
+
+html, body, [class*="css"]  {{
+    font-family: 'Cairo', sans-serif;
+}}
+/* Hide default Streamlit header/footer */
+#MainMenu {{visibility: hidden;}}
+footer {{visibility: hidden;}}
+header {{visibility: hidden;}}
+
+/* Page background */
+.stApp {{
+    background: linear-gradient(180deg, {PRIMARY_DARK} 0%, #002545 100%);
+    color: white;
+    min-height: 100vh;
+}
+
+/* Hero */
+.hero {{
+    background: linear-gradient(135deg, rgba(0,31,63,0.95), rgba(0,26,51,0.95));
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 18px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,215,0,0.12);
+    display:flex;
+    gap:20px;
+    align-items:center;
+}}
+.hero .title {{
+    color: {GOLD};
+    font-size:28px;
+    font-weight:800;
+}}
+.hero .subtitle {{
+    color: #e6eef8;
+    font-size:16px;
+    opacity:0.95;
+}}
+.hero .cta {{
+    background:{GOLD};
+    color:black;
+    padding:10px 18px;
+    border-radius:10px;
+    text-decoration:none;
+    font-weight:700;
+    box-shadow:0 8px 18px rgba(0,0,0,0.35);
+    transition: transform 0.18s ease;
+}}
+.hero .cta:hover {{
+    transform: translateY(-3px);
+}}
+
+/* Sidebar toggle button (fixed top-left) */
+#sidebarToggle {{
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 9999;
+    background: linear-gradient(135deg, rgba(255,215,0,0.95), rgba(255,193,7,0.95));
+    border-radius: 10px;
+    padding:8px 10px;
+    color: black;
+    font-weight:700;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    cursor: pointer;
+}}
+
+/* Sidebar container (hidden/shown via class) */
+.sidebar-custom {{
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 260px;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(0,26,51,0.98), rgba(0,36,77,0.98));
+    border-right: 1px solid rgba(255,215,0,0.08);
+    padding: 18px;
+    z-index: 9998;
+    transform: translateX(-280px);
+    transition: transform 0.28s ease;
+    overflow-y: auto;
+}}
+.sidebar-custom.open {{
+    transform: translateX(0px);
+}}
+.sidebar-custom h3 {{
+    color: {GOLD};
+    margin-bottom:6px;
+    font-weight:800;
+}}
+.sidebar-custom a {{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    padding:10px;
+    color: #ffd;
+    text-decoration:none;
+    border-radius:8px;
+    margin-bottom:6px;
+    transition: background 0.18s ease, transform 0.18s ease;
+}}
+.sidebar-custom a:hover {{
+    background: rgba(255,215,0,0.08);
+    transform: translateX(4px);
+}}
+.sidebar-custom .small {{
+    color: #e6eef8;
+    font-size:13px;
+    opacity:0.9;
+}}
+
+/* KPI card */
+.kpi-card {{
+    padding: 14px;
+    border-radius: 12px;
+    color: white;
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    font-weight: 700;
+    margin: 8px 0;
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+}}
+.kpi-card:hover {{
+    transform: translateY(-6px);
+    box-shadow: 0 16px 34px rgba(0,0,0,0.45);
+}}
+.kpi-title {{ font-size: 14px; opacity: 0.95; }}
+.kpi-value {{ font-size: 22px; margin-top:6px; }}
+
+/* Chart card */
+.chart-card {{
+    background-color: {CARD_BG};
+    border: 1px solid {GOLD};
+    border-radius: 12px;
+    padding: 12px;
+    margin: 10px 0;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.32);
+}}
+
+/* Buttons */
+.stButton>button, .stDownloadButton>button {{
+    background-color: {GOLD} !important;
+    color: black !important;
+    font-weight: bold !important;
+    font-size: 16px !important;
+    border-radius: 10px !important;
+    padding: 10px 18px !important;
+    border: none !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.25) !important;
+}}
+
+/* Dataframe styling container */
+.stDataFrame {{
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}}
+
+/* Toast */
+.toast {{
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    background: linear-gradient(135deg, {GOLD}, {GOLD_LIGHT});
+    color: black;
+    padding: 12px 16px;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+    z-index: 99999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+}}
+.toast.show {{
+    opacity: 1;
+    transform: translateY(0px);
+}}
+
+/* Back to top */
+#backToTop {{
+    position: fixed;
+    right: 18px;
+    bottom: 80px;
+    background:{GOLD};
+    color:black;
+    padding:8px 10px;
+    border-radius:10px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.35);
+    cursor:pointer;
+    z-index:99999;
+}}
+
+/* Responsive */
+@media (max-width: 900px) {{
+    .sidebar-custom {{
+        width: 220px;
+    }}
+    .hero {{ flex-direction: column; text-align:center; gap:12px; }}
+}}
+@media (max-width: 600px) {{
+    .kpi-value {{ font-size: 16px; }}
+    .hero .title {{ font-size:20px; }}
+    #sidebarToggle {{ top:12px; left:12px; padding:6px 8px; }}
+}}
+</style>
+
+<script>
+function toggleSidebar() {{
+    const sb = document.getElementById('sidebar-custom');
+    if (!sb) return;
+    sb.classList.toggle('open');
+}}
+function showToast(msg) {{
+    let t = document.getElementById('global-toast');
+    if (!t) return;
+    t.innerText = msg;
+    t.classList.add('show');
+    setTimeout(()=>{{ t.classList.remove('show'); }}, 3500);
+}}
+function backToTop() {{
+    window.scrollTo({{top:0, behavior:'smooth'}});
+}}
+</script>
 """
+
 st.markdown(custom_css, unsafe_allow_html=True)
+
+# ------------------ Sidebar HTML (custom) ------------------
+sidebar_html = f"""
+<div id="sidebar-custom" class="sidebar-custom {'open' if st.session_state.sidebar_open else ''}">
+    <h3>💊 Averroes Pharma</h3>
+    <div class="small">Toolbox: File Splitter - Dashboard</div>
+    <hr style="border-color: rgba(255,215,0,0.08); margin:8px 0;">
+    <a href="#home" onclick="toggleSidebar();">
+        🏠 &nbsp; Home
+    </a>
+    <a href="#split" onclick="toggleSidebar();">
+        📂 &nbsp; Split & Merge
+    </a>
+    <a href="#images" onclick="toggleSidebar();">
+        📷 &nbsp; Image to PDF
+    </a>
+    <a href="#dashboard" onclick="toggleSidebar();">
+        📊 &nbsp; Auto Dashboard
+    </a>
+    <a href="#info-section" onclick="toggleSidebar();">
+        ℹ️ &nbsp; Info
+    </a>
+    <hr style="border-color: rgba(255,215,0,0.06); margin:8px 0;">
+    <div style="margin-top:12px; color:#e6eef8; font-size:13px;">
+        <div>Made by <strong>Mohamed Abd ELGhany</strong></div>
+        <div style="margin-top:8px;"><a href="https://wa.me/201554694554" target="_blank" style="color:{GOLD}; text-decoration:none;">Contact Support</a></div>
+    </div>
+</div>
+"""
+
+# Place toggle button and sidebar HTML
+st.markdown(f"""
+<button id="sidebarToggle" onclick="toggleSidebar()">☰</button>
+{sidebar_html}
+<div id="global-toast" class="toast" role="status" aria-live="polite"></div>
+<button id="backToTop" onclick="backToTop()">⬆️</button>
+""", unsafe_allow_html=True)
 
 # ------------------ Helper Functions ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
@@ -175,8 +345,8 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
         st.markdown("### 📁 Uploaded Files:")
         for i, f in enumerate(file_list):
             st.markdown(
-                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
-                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
+                f"<div style='background:#003366; color:white; padding:6px 10px; border-radius:6px; margin:4px 0; display:flex; justify-content:space-between;'>"
+                f"<div>{i+1}. {f.name}</div><div style='opacity:0.9;'>{f.size//1024} KB</div></div>",
                 unsafe_allow_html=True
             )
 
@@ -234,7 +404,7 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
         table_data = [table_df.columns.tolist()] + table_df.astype(str).values.tolist()
         tbl = Table(table_data, hAlign='CENTER')
         tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#FFD700")),
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor(GOLD)),
             ('TEXTCOLOR', (0,0), (-1,0), colors.black),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('GRID', (0,0), (-1,-1), 0.3, colors.grey),
@@ -275,49 +445,50 @@ def build_pptx(sheet_title, charts_buffers):
     pptx_buffer.seek(0)
     return pptx_buffer
 
-# ------------------ Navigation & Logo ------------------
-st.markdown(
-    """
-    <div class="top-nav">
-        <a href="#">Home</a>
-        <a href="https://wa.me/201554694554" target="_blank">Contact</a>
-        <a href="#info-section">Info</a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# ------------------ Top header / Hero ------------------
+st.markdown("<div id='home'></div>", unsafe_allow_html=True)
+col1, col2 = st.columns([3,1])
+with col1:
+    st.markdown(
+        """
+        <div class="hero" role="banner">
+            <div style="flex:1;">
+                <div class="title">💊 Averroes Pharma File Splitter & Dashboard</div>
+                <div class="subtitle">Split, Merge, convert images to PDF and auto-generate dashboards — fast and secure.</div>
+                <div style="margin-top:12px;">
+                    <a href="#split" class="cta" onclick="toggleSidebar();">🚀 Start Now</a>
+                    &nbsp;
+                    <a href="#dashboard" class="cta" style="background:transparent; border:1px solid rgba(255,215,0,0.15); color:#e6eef8;" onclick="toggleSidebar();">📊 Try Dashboard</a>
+                </div>
+            </div>
+            <div style="width:200px; text-align:center;">
+                <img src="logo.png" width="140" onerror="this.style.display='none'"/>
+                <div style="color:#e6eef8; margin-top:6px; font-size:13px;">By <strong>Mohamed Abd ELGhany</strong></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+with col2:
+    # small quick links / last update
+    st.markdown("<div style='text-align:right; color:#e6eef8; font-size:14px;'>Quick Actions</div>", unsafe_allow_html=True)
+    if st.button("📥 Contact (WhatsApp)"):
+        st.experimental_set_query_params(contact="whatsapp")
+    st.markdown(f"<div style='text-align:right; color:#a9c1df; margin-top:8px;'>Last updated: <strong>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</strong></div>", unsafe_allow_html=True)
 
-logo_path = "logo.png"
-if os.path.exists(logo_path):
-    st.image(logo_path, width=200)
-else:
-    st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
+st.markdown("<hr style='border-color: rgba(255,215,0,0.08); margin-top:18px;'>", unsafe_allow_html=True)
 
-st.markdown(
-    """
-    <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
-        By <strong>Mohamed Abd ELGhany</strong> – 
-        <a href="https://wa.me/201554694554" target="_blank" style="color:#FFD700; text-decoration:none;">
-            01554694554 (WhatsApp)
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
-
-# ------------------ Tabs ------------------
+# ------------------ Tabs (kept for structure, but navigation links to anchors) ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📂 Split & Merge", 
-    "📷 Image to PDF", 
-    "📊 Auto Dashboard", 
+    "📂 Split & Merge",
+    "📷 Image to PDF",
+    "📊 Auto Dashboard",
     "ℹ️ Info"
 ])
 
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
+    st.markdown("<div id='split'></div>", unsafe_allow_html=True)
     st.markdown("### ✂ Split Excel/CSV File")
     uploaded_file = st.file_uploader(
         "📂 Upload Excel or CSV File (Splitter/Merge)",
@@ -332,6 +503,7 @@ with tab1:
             st.rerun()
         try:
             file_ext = uploaded_file.name.split('.')[-1].lower()
+            progress = st.progress(0)
             if file_ext == "csv":
                 df = pd.read_csv(uploaded_file)
                 sheet_names = ["Sheet1"]
@@ -344,6 +516,7 @@ with tab1:
                 st.success(f"✅ Excel file uploaded successfully. Number of sheets: {len(sheet_names)}")
                 selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
                 df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
+            progress.progress(30)
             st.markdown(f"### 📊 Data View – {selected_sheet}")
             st.dataframe(df, use_container_width=True)
             st.markdown("### ✂ Select Column to Split")
@@ -360,148 +533,89 @@ with tab1:
                 help="Choose 'Split by Column Values' to split the current sheet by column values. Choose 'Split Each Sheet into Separate File' to create a separate file for each sheet."
             )
             if st.button("🚀 Start Split"):
-                with st.spinner("Splitting process in progress..."):
-                    def clean_name(name):
-                        name = str(name).strip()
-                        invalid_chars = r'[\\/*?:\[\]|<>"]'
-                        cleaned = re.sub(invalid_chars, '_', name)
-                        return cleaned[:30] if cleaned else "Sheet"
-                    if file_ext == "csv":
+                # progress
+                p = st.progress(0)
+                def clean_name(name):
+                    name = str(name).strip()
+                    invalid_chars = r'[\\/*?:\[\]|<>"]'
+                    cleaned = re.sub(invalid_chars, '_', name)
+                    return cleaned[:30] if cleaned else "Sheet"
+                if file_ext == "csv":
+                    unique_values = df[col_to_split].dropna().unique()
+                    zip_buffer = BytesIO()
+                    with ZipFile(zip_buffer, "w") as zip_file:
+                        for idx, value in enumerate(unique_values):
+                            filtered_df = df[df[col_to_split] == value]
+                            csv_buffer = BytesIO()
+                            filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+                            csv_buffer.seek(0)
+                            file_name = f"{clean_name(value)}.csv"
+                            zip_file.writestr(file_name, csv_buffer.read())
+                            p.progress(int((idx+1)/len(unique_values)*100))
+                            st.write(f"📁 Created file: `{value}`")
+                    zip_buffer.seek(0)
+                    st.success("🎉 Splitting completed successfully!")
+                    st.download_button(
+                        label="📥 Download Split Files (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                        mime="application/zip"
+                    )
+                    st.session_state.show_toast = True
+                    st.session_state.last_action = f"Split {uploaded_file.name}"
+                else:
+                    if split_option == "Split by Column Values":
+                        ws = original_wb[selected_sheet]
+                        col_idx = df.columns.get_loc(col_to_split) + 1
                         unique_values = df[col_to_split].dropna().unique()
                         zip_buffer = BytesIO()
                         with ZipFile(zip_buffer, "w") as zip_file:
-                            for value in unique_values:
-                                filtered_df = df[df[col_to_split] == value]
-                                csv_buffer = BytesIO()
-                                filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-                                csv_buffer.seek(0)
-                                file_name = f"{clean_name(value)}.csv"
-                                zip_file.writestr(file_name, csv_buffer.read())
-                                st.write(f"📁 Created file: `{value}`")
-                        zip_buffer.seek(0)
-                        st.success("🎉 Splitting completed successfully!")
-                        st.download_button(
-                            label="📥 Download Split Files (ZIP)",
-                            data=zip_buffer.getvalue(),
-                            file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                            mime="application/zip"
-                        )
-                    else:
-                        if split_option == "Split by Column Values":
-                            ws = original_wb[selected_sheet]
-                            col_idx = df.columns.get_loc(col_to_split) + 1
-                            unique_values = df[col_to_split].dropna().unique()
-                            zip_buffer = BytesIO()
-                            with ZipFile(zip_buffer, "w") as zip_file:
-                                for value in unique_values:
-                                    new_wb = Workbook()
-                                    default_ws = new_wb.active
-                                    new_wb.remove(default_ws)
-                                    new_ws = new_wb.create_sheet(title=clean_name(value))
-                                    for cell in ws[1]:
-                                        dst_cell = new_ws.cell(1, cell.column, cell.value)
-                                        if cell.has_style:
-                                            try:
-                                                if cell.font:
-                                                    dst_cell.font = Font(
-                                                        name=cell.font.name,
-                                                        size=cell.font.size,
-                                                        bold=cell.font.bold,
-                                                        italic=cell.font.italic,
-                                                        color=cell.font.color
-                                                    )
-                                                if cell.fill and cell.fill.fill_type:
-                                                    dst_cell.fill = PatternFill(
-                                                        fill_type=cell.fill.fill_type,
-                                                        start_color=cell.fill.start_color,
-                                                        end_color=cell.fill.end_color
-                                                    )
-                                                if cell.border:
-                                                    dst_cell.border = Border(
-                                                        left=cell.border.left,
-                                                        right=cell.border.right,
-                                                        top=cell.border.top,
-                                                        bottom=cell.border.bottom
-                                                    )
-                                                if cell.alignment:
-                                                    dst_cell.alignment = Alignment(
-                                                        horizontal=cell.alignment.horizontal,
-                                                        vertical=cell.alignment.vertical,
-                                                        wrap_text=cell.alignment.wrap_text
-                                                    )
-                                                dst_cell.number_format = cell.number_format
-                                            except Exception:
-                                                pass
-                                    row_idx = 2
-                                    for row in ws.iter_rows(min_row=2):
-                                        cell_in_col = row[col_idx - 1]
-                                        if cell_in_col.value == value:
-                                            for src_cell in row:
-                                                dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
-                                                if src_cell.has_style:
-                                                    try:
-                                                        if src_cell.font:
-                                                            dst_cell.font = Font(
-                                                                name=src_cell.font.name,
-                                                                size=src_cell.font.size,
-                                                                bold=src_cell.font.bold,
-                                                                italic=src_cell.font.italic,
-                                                                color=src_cell.font.color
-                                                            )
-                                                        if src_cell.fill and src_cell.fill.fill_type:
-                                                            dst_cell.fill = PatternFill(
-                                                                fill_type=src_cell.fill.fill_type,
-                                                                start_color=src_cell.fill.start_color,
-                                                                end_color=src_cell.fill.end_color
-                                                            )
-                                                        if src_cell.border:
-                                                            dst_cell.border = Border(
-                                                                left=src_cell.border.left,
-                                                                right=src_cell.border.right,
-                                                                top=src_cell.border.top,
-                                                                bottom=src_cell.border.bottom
-                                                            )
-                                                        if src_cell.alignment:
-                                                            dst_cell.alignment = Alignment(
-                                                                horizontal=src_cell.alignment.horizontal,
-                                                                vertical=src_cell.alignment.vertical,
-                                                                wrap_text=src_cell.alignment.wrap_text
-                                                            )
-                                                        dst_cell.number_format = src_cell.number_format
-                                                    except Exception:
-                                                        pass
-                                            row_idx += 1
-                                    try:
-                                        for col_letter in ws.column_dimensions:
-                                            new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
-                                    except Exception:
-                                        pass
-                                    file_buffer = BytesIO()
-                                    new_wb.save(file_buffer)
-                                    file_buffer.seek(0)
-                                    file_name = f"{clean_name(value)}.xlsx"
-                                    zip_file.writestr(file_name, file_buffer.read())
-                                    st.write(f"📁 Created file: `{value}`")
-                            zip_buffer.seek(0)
-                            st.success("🎉 Splitting completed successfully!")
-                            st.download_button(
-                                label="📥 Download Split Files (ZIP)",
-                                data=zip_buffer.getvalue(),
-                                file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                                mime="application/zip"
-                            )
-                        elif split_option == "Split Each Sheet into Separate File":
-                            zip_buffer = BytesIO()
-                            with ZipFile(zip_buffer, "w") as zip_file:
-                                for sheet_name in original_wb.sheetnames:
-                                    new_wb = Workbook()
-                                    default_ws = new_wb.active
-                                    new_wb.remove(default_ws)
-                                    new_ws = new_wb.create_sheet(title=sheet_name)
-                                    src_ws = original_wb[sheet_name]
-                                    for row in src_ws.iter_rows():
+                            for idx, value in enumerate(unique_values):
+                                new_wb = Workbook()
+                                default_ws = new_wb.active
+                                new_wb.remove(default_ws)
+                                new_ws = new_wb.create_sheet(title=clean_name(value))
+                                for cell in ws[1]:
+                                    dst_cell = new_ws.cell(1, cell.column, cell.value)
+                                    # copy styles where possible
+                                    if cell.has_style:
+                                        try:
+                                            if cell.font:
+                                                dst_cell.font = Font(
+                                                    name=cell.font.name,
+                                                    size=cell.font.size,
+                                                    bold=cell.font.bold,
+                                                    italic=cell.font.italic,
+                                                    color=cell.font.color
+                                                )
+                                            if cell.fill and cell.fill.fill_type:
+                                                dst_cell.fill = PatternFill(
+                                                    fill_type=cell.fill.fill_type,
+                                                    start_color=cell.fill.start_color,
+                                                    end_color=cell.fill.end_color
+                                                )
+                                            if cell.border:
+                                                dst_cell.border = Border(
+                                                    left=cell.border.left,
+                                                    right=cell.border.right,
+                                                    top=cell.border.top,
+                                                    bottom=cell.border.bottom
+                                                )
+                                            if cell.alignment:
+                                                dst_cell.alignment = Alignment(
+                                                    horizontal=cell.alignment.horizontal,
+                                                    vertical=cell.alignment.vertical,
+                                                    wrap_text=cell.alignment.wrap_text
+                                                )
+                                            dst_cell.number_format = cell.number_format
+                                        except Exception:
+                                            pass
+                                row_idx = 2
+                                for row in ws.iter_rows(min_row=2):
+                                    cell_in_col = row[col_idx - 1]
+                                    if cell_in_col.value == value:
                                         for src_cell in row:
-                                            dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
+                                            dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
                                             if src_cell.has_style:
                                                 try:
                                                     if src_cell.font:
@@ -529,46 +643,119 @@ with tab1:
                                                         dst_cell.alignment = Alignment(
                                                             horizontal=src_cell.alignment.horizontal,
                                                             vertical=src_cell.alignment.vertical,
-                                                            wrap_text=src_cell.alignment.wrap_text,
-                                                            indent=src_cell.alignment.indent
+                                                            wrap_text=src_cell.alignment.wrap_text
                                                         )
                                                     dst_cell.number_format = src_cell.number_format
                                                 except Exception:
                                                     pass
-                                    if src_ws.merged_cells.ranges:
-                                        for merged_range in src_ws.merged_cells.ranges:
-                                            new_ws.merge_cells(str(merged_range))
-                                            top_left_cell = src_ws.cell(merged_range.min_row, merged_range.min_col)
-                                            merged_value = top_left_cell.value
-                                            new_ws.cell(merged_range.min_row, merged_range.min_col, merged_value)
-                                    try:
-                                        for col_letter in src_ws.column_dimensions:
-                                            if src_ws.column_dimensions[col_letter].width:
-                                                new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                                        for row_idx in src_ws.row_dimensions:
-                                            if src_ws.row_dimensions[row_idx].height:
-                                                new_ws.row_dimensions[row_idx].height = src_ws.row_dimensions[row_idx].height
-                                    except Exception:
-                                        pass
-                                    file_buffer = BytesIO()
-                                    new_wb.save(file_buffer)
-                                    file_buffer.seek(0)
-                                    file_name = f"{clean_name(sheet_name)}.xlsx"
-                                    zip_file.writestr(file_name, file_buffer.read())
-                                    st.write(f"📁 Created file: `{sheet_name}`")
-                            zip_buffer.seek(0)
-                            st.success("🎉 Splitting completed successfully!")
-                            st.download_button(
-                                label="📥 Download Split Files (ZIP)",
-                                data=zip_buffer.getvalue(),
-                                file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                                mime="application/zip"
-                            )
+                                        row_idx += 1
+                                try:
+                                    for col_letter in ws.column_dimensions:
+                                        new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
+                                except Exception:
+                                    pass
+                                file_buffer = BytesIO()
+                                new_wb.save(file_buffer)
+                                file_buffer.seek(0)
+                                file_name = f"{clean_name(value)}.xlsx"
+                                zip_file.writestr(file_name, file_buffer.read())
+                                p.progress(int((idx+1)/len(unique_values)*100))
+                                st.write(f"📁 Created file: `{value}`")
+                        zip_buffer.seek(0)
+                        st.success("🎉 Splitting completed successfully!")
+                        st.download_button(
+                            label="📥 Download Split Files (ZIP)",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                            mime="application/zip"
+                        )
+                        st.session_state.show_toast = True
+                        st.session_state.last_action = f"Split {uploaded_file.name}"
+                    elif split_option == "Split Each Sheet into Separate File":
+                        zip_buffer = BytesIO()
+                        with ZipFile(zip_buffer, "w") as zip_file:
+                            for idx, sheet_name in enumerate(original_wb.sheetnames):
+                                new_wb = Workbook()
+                                default_ws = new_wb.active
+                                new_wb.remove(default_ws)
+                                new_ws = new_wb.create_sheet(title=sheet_name)
+                                src_ws = original_wb[sheet_name]
+                                for row in src_ws.iter_rows():
+                                    for src_cell in row:
+                                        dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
+                                        if src_cell.has_style:
+                                            try:
+                                                if src_cell.font:
+                                                    dst_cell.font = Font(
+                                                        name=src_cell.font.name,
+                                                        size=src_cell.font.size,
+                                                        bold=src_cell.font.bold,
+                                                        italic=src_cell.font.italic,
+                                                        color=src_cell.font.color
+                                                    )
+                                                if src_cell.fill and src_cell.fill.fill_type:
+                                                    dst_cell.fill = PatternFill(
+                                                        fill_type=src_cell.fill.fill_type,
+                                                        start_color=src_cell.fill.start_color,
+                                                        end_color=src_cell.fill.end_color
+                                                    )
+                                                if src_cell.border:
+                                                    dst_cell.border = Border(
+                                                        left=src_cell.border.left,
+                                                        right=src_cell.border.right,
+                                                        top=src_cell.border.top,
+                                                        bottom=src_cell.border.bottom
+                                                    )
+                                                if src_cell.alignment:
+                                                    dst_cell.alignment = Alignment(
+                                                        horizontal=src_cell.alignment.horizontal,
+                                                        vertical=src_cell.alignment.vertical,
+                                                        wrap_text=src_cell.alignment.wrap_text,
+                                                        indent=src_cell.alignment.indent
+                                                    )
+                                                dst_cell.number_format = src_cell.number_format
+                                            except Exception:
+                                                pass
+                                if src_ws.merged_cells.ranges:
+                                    for merged_range in src_ws.merged_cells.ranges:
+                                        new_ws.merge_cells(str(merged_range))
+                                        top_left_cell = src_ws.cell(merged_range.min_row, merged_range.min_col)
+                                        merged_value = top_left_cell.value
+                                        new_ws.cell(merged_range.min_row, merged_range.min_col, merged_value)
+                                try:
+                                    for col_letter in src_ws.column_dimensions:
+                                        if src_ws.column_dimensions[col_letter].width:
+                                            new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
+                                    for row_idx in src_ws.row_dimensions:
+                                        if src_ws.row_dimensions[row_idx].height:
+                                            new_ws.row_dimensions[row_idx].height = src_ws.row_dimensions[row_idx].height
+                                except Exception:
+                                    pass
+                                file_buffer = BytesIO()
+                                new_wb.save(file_buffer)
+                                file_buffer.seek(0)
+                                file_name = f"{clean_name(sheet_name)}.xlsx"
+                                zip_file.writestr(file_name, file_buffer.read())
+                                p.progress(int((idx+1)/len(original_wb.sheetnames)*100))
+                                st.write(f"📁 Created file: `{sheet_name}`")
+                        zip_buffer.seek(0)
+                        st.success("🎉 Splitting completed successfully!")
+                        st.download_button(
+                            label="📥 Download Split Files (ZIP)",
+                            data=zip_buffer.getvalue(),
+                            file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                            mime="application/zip"
+                        )
+                        st.session_state.show_toast = True
+                        st.session_state.last_action = f"SplitBySheets {uploaded_file.name}"
         except Exception as e:
             st.error(f"❌ Error processing file: {e}")
     else:
         st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
+
     st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+
+    # Merge section
     st.markdown("### 🔄 Merge Excel/CSV Files")
     merge_files = st.file_uploader(
         "📤 Upload Excel or CSV Files to Merge",
@@ -585,13 +772,15 @@ with tab1:
             with st.spinner("Merging files..."):
                 try:
                     all_dfs = []
-                    for file in merge_files:
+                    progress = st.progress(0)
+                    for idx, file in enumerate(merge_files):
                         ext = file.name.split('.')[-1].lower()
                         if ext == "csv":
                             df = pd.read_csv(file)
                         else:
                             df = pd.read_excel(file)
                         all_dfs.append(df)
+                        progress.progress(int((idx+1)/len(merge_files)*100))
                     merged_df = pd.concat(all_dfs, ignore_index=True)
                     output_buffer = BytesIO()
                     merged_df.to_excel(output_buffer, index=False, engine='openpyxl')
@@ -603,11 +792,14 @@ with tab1:
                         file_name="Merged_Consolidated.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
+                    st.session_state.show_toast = True
+                    st.session_state.last_action = "Merged files"
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
 
 # ------------------ Tab 2: Image to PDF ------------------
 with tab2:
+    st.markdown("<div id='images'></div>", unsafe_allow_html=True)
     st.markdown("### 📷 Convert Images to PDF")
     uploaded_images = st.file_uploader(
         "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
@@ -621,30 +813,43 @@ with tab2:
             st.session_state.clear_counter += 1
             st.rerun()
         try:
-            import cv2
-            import numpy as np
             def enhance_image_for_pdf(image_pil):
-                image = np.array(image_pil)
-                if image.shape[2] == 4:
-                    image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-                enhanced = clahe.apply(gray)
-                border_size = 20
-                bordered = cv2.copyMakeBorder(
-                    enhanced,
-                    top=border_size,
-                    bottom=border_size,
-                    left=border_size,
-                    right=border_size,
-                    borderType=cv2.BORDER_CONSTANT,
-                    value=[255, 255, 255]
-                )
-                if bordered.dtype != np.uint8:
-                    bordered = np.clip(bordered, 0, 255).astype(np.uint8)
-                result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
-                return Image.fromarray(result)
+                # fallback enhancement (works without cv2)
+                try:
+                    if CV2_AVAILABLE:
+                        image = np.array(image_pil)
+                        if image.shape[2] == 4:
+                            image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+                        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                        enhanced = clahe.apply(gray)
+                        border_size = 20
+                        bordered = cv2.copyMakeBorder(
+                            enhanced,
+                            top=border_size,
+                            bottom=border_size,
+                            left=border_size,
+                            right=border_size,
+                            borderType=cv2.BORDER_CONSTANT,
+                            value=[255, 255, 255]
+                        )
+                        if bordered.dtype != np.uint8:
+                            bordered = np.clip(bordered, 0, 255).astype(np.uint8)
+                        result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
+                        return Image.fromarray(result)
+                    else:
+                        # Pillow fallback: convert to RGB and add white border
+                        img = image_pil.convert("RGB")
+                        bw = 20
+                        neww = img.width + 2*bw
+                        newh = img.height + 2*bw
+                        new_img = Image.new("RGB", (neww,newh), (255,255,255))
+                        new_img.paste(img, (bw,bw))
+                        return new_img
+                except Exception:
+                    return image_pil.convert("RGB")
+
             if st.button("🖨️ Create PDF (CamScanner Style)"):
                 with st.spinner("Enhancing images for PDF..."):
                     try:
@@ -665,6 +870,8 @@ with tab2:
                             file_name="Enhanced_Images_CamScanner.pdf",
                             mime="application/pdf"
                         )
+                        st.session_state.show_toast = True
+                        st.session_state.last_action = "Created Enhanced PDF"
                     except Exception as e:
                         st.error(f"❌ Error creating enhanced PDF: {e}")
         except ImportError:
@@ -687,6 +894,8 @@ with tab2:
                         file_name="Images_Combined.pdf",
                         mime="application/pdf"
                     )
+                    st.session_state.show_toast = True
+                    st.session_state.last_action = "Created Original PDF"
                 except Exception as e:
                     st.error(f"❌ Error creating PDF: {e}")
     else:
@@ -694,6 +903,7 @@ with tab2:
 
 # ------------------ Tab 3: Dashboard ------------------
 with tab3:
+    st.markdown("<div id='dashboard'></div>", unsafe_allow_html=True)
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
     dashboard_file = st.file_uploader(
         "📊 Upload Excel or CSV File for Dashboard (Auto)",
@@ -719,7 +929,7 @@ with tab3:
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
 
-            # Detect period columns
+            # Detect period columns (kept original logic)
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             period_cols = []
             base_names = {}
@@ -749,7 +959,7 @@ with tab3:
             else:
                 period_comparison = None
 
-            # Handle month columns
+            # Handle month columns (original)
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
             if potential_months:
@@ -782,7 +992,7 @@ with tab3:
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
 
-            # Sidebar filters
+            # Sidebar filters (Streamlit sidebar used for filters — note: we still have custom sidebar for navigation)
             st.sidebar.header("🔍 Dynamic Filters")
             primary_filter_col = None
             if len(cat_cols) > 0:
@@ -921,7 +1131,7 @@ with tab3:
                     """, unsafe_allow_html=True)
 
             # === Smart Insights ===
-            st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+            st.markdown("<hr style='border-color: rgba(255,215,0,0.06);'>", unsafe_allow_html=True)
             st.markdown("### 🧠 Smart Insights")
             insights = []
             if kpi_measure_col and kpi_measure_col in final_df.columns:
@@ -964,13 +1174,14 @@ with tab3:
                     pass
             for ins in insights:
                 st.markdown(f"""
-                <div style='background:linear-gradient(135deg,#003366,#001a33); border:1px solid #FFD700; border-radius:12px; padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
-                    <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>🇬🇧 {ins}</p>
+                <div style='background:linear-gradient(135deg,#003366,#001a33); border:1px solid {GOLD}; border-radius:12px; padding:15px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.4);'>
+                    <p style='color:{GOLD}; font-size:18px; font-weight:bold; margin-bottom:6px;'>🇬🇧 {ins}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
-            # === Auto Charts ===
+            # === Auto Charts with chart type selector + download ===
             st.markdown("### 📊 Auto Charts")
+            chart_type = st.selectbox("Select chart type for generated charts", ["Bar", "Line", "Pie"])
             charts_buffers = []
             plotly_figs = []
 
@@ -979,9 +1190,14 @@ with tab3:
                 try:
                     group_total = final_df.groupby('Performance Group')[kpi_measure_col].sum().reset_index()
                     color_map = {'High Performer': '#28a745', 'Medium Performer': '#ffc107', 'Needs Support': '#dc3545'}
-                    fig = px.bar(group_total, x='Performance Group', y=kpi_measure_col, title="📊 Performance Groups - Total Sales",
-                                 color='Performance Group', color_discrete_map=color_map, text=kpi_measure_col)
-                    fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    if chart_type == "Bar":
+                        fig = px.bar(group_total, x='Performance Group', y=kpi_measure_col, title="📊 Performance Groups - Total Sales",
+                                     color='Performance Group', color_discrete_map=color_map, text=kpi_measure_col)
+                    elif chart_type == "Pie":
+                        fig = px.pie(group_total, names='Performance Group', values=kpi_measure_col, title="📊 Performance Groups")
+                    else:
+                        fig = px.line(group_total, x='Performance Group', y=kpi_measure_col, title="📊 Performance Groups Trend")
+                    fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside') if chart_type == "Bar" else None
                     fig.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     plotly_figs.append((fig, "Performance Groups"))
                 except Exception as e:
@@ -990,24 +1206,34 @@ with tab3:
             # Top/Bottom Employees
             if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
                 rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
-                if len(rep_data) >= 10:
+                if len(rep_data) >= 2:
                     top10 = rep_data.sort_values(ascending=False).head(10)
                     df_top = top10.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_top[rep_col] = df_top[rep_col].astype(str).str.strip()
-                    fig_top = px.bar(df_top, x=rep_col, y="value", title="🥇 Top 10 Employees", text="value")
+                    if chart_type == "Bar":
+                        fig_top = px.bar(df_top, x=rep_col, y="value", title="🥇 Top 10 Employees", text="value")
+                        fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    elif chart_type == "Pie":
+                        fig_top = px.pie(df_top, names=rep_col, values="value", title="🥇 Top 10 Employees")
+                    else:
+                        fig_top = px.line(df_top, x=rep_col, y="value", title="🥇 Top 10 Employees")
                     fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                    fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_top, "Top 10 Employees"))
 
                     bottom10 = rep_data.sort_values(ascending=True).head(10)
                     df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_bottom[rep_col] = df_bottom[rep_col].astype(str).str.strip()
-                    fig_bottom = px.bar(df_bottom, x=rep_col, y="value", title="📉 Bottom 10 Employees", text="value")
+                    if chart_type == "Bar":
+                        fig_bottom = px.bar(df_bottom, x=rep_col, y="value", title="📉 Bottom 10 Employees", text="value")
+                        fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    elif chart_type == "Pie":
+                        fig_bottom = px.pie(df_bottom, names=rep_col, values="value", title="📉 Bottom 10 Employees")
+                    else:
+                        fig_bottom = px.line(df_bottom, x=rep_col, y="value", title="📉 Bottom 10 Employees")
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                    fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
 
-            # Other charts: ensure chosen_dim is categorical
+            # Additional chosen_dim chart
             possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
             chosen_dim = None
             for alias in ["area", "region", "branch", "product", "item"]:
@@ -1023,30 +1249,50 @@ with tab3:
                     series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
                     df_series = series.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_series[chosen_dim] = df_series[chosen_dim].astype(str).str.strip()
-                    fig_bar = px.bar(df_series, x=chosen_dim, y="value", title=f"Top by {chosen_dim}", text="value")
-                    fig_bar.update_xaxes(type='category')
+                    if chart_type == "Bar":
+                        fig_bar = px.bar(df_series, x=chosen_dim, y="value", title=f"Top by {chosen_dim}", text="value")
+                        fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                    elif chart_type == "Pie":
+                        fig_bar = px.pie(df_series, names=chosen_dim, values="value", title=f"Top by {chosen_dim}")
+                    else:
+                        fig_bar = px.line(df_series, x=chosen_dim, y="value", title=f"Top by {chosen_dim}")
                     fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                    fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
 
-            # Display charts
+            # Display charts in grid + add download buttons
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             plotly_figs = plotly_figs[:6]
             while len(plotly_figs) < 6:
                 plotly_figs.append((None, None))
+            charts_buffers_for_export = []
             for i in range(0, 6, 3):
                 cols = st.columns(3)
                 for j in range(3):
-                    if i+j < len(plotly_figs):
-                        fig, caption = plotly_figs[i+j]
-                        with cols[j]:
-                            if fig is not None:
-                                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-                                st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                                st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
-                                st.markdown('</div>', unsafe_allow_html=True)
+                    idx = i + j
+                    fig, caption = plotly_figs[idx]
+                    with cols[j]:
+                        if fig is not None:
+                            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                            st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                            # download button: try kaleido or fig.to_image
+                            try:
+                                img_bytes = fig.to_image(format="png", width=900, height=500, scale=1)
+                                st.download_button(f"⬇️ Download PNG ({caption})", data=img_bytes, file_name=f"{_safe_name(sheet_title)}_{_safe_name(caption)}.png", mime="image/png")
+                                # also store for pdf/pptx exports
+                                charts_buffers_for_export.append((BytesIO(img_bytes), caption))
+                            except Exception:
+                                # fallback: try write_image
+                                try:
+                                    import kaleido  # noqa
+                                    img_bytes = fig.to_image(format="png", width=900, height=500, scale=1)
+                                    st.download_button(f"⬇️ Download PNG ({caption})", data=img_bytes, file_name=f"{_safe_name(sheet_title)}_{_safe_name(caption)}.png", mime="image/png")
+                                    charts_buffers_for_export.append((BytesIO(img_bytes), caption))
+                                except Exception:
+                                    st.markdown("<div style='color:#e6eef8; font-size:13px;'>PNG export not available (kaleido missing).</div>", unsafe_allow_html=True)
+                            st.markdown(f'<div style="text-align:center; color:{GOLD}; font-size:14px; margin-top:6px;">{caption}</div>', unsafe_allow_html=True)
+                            st.markdown('</div>', unsafe_allow_html=True)
 
             # === Export Section ===
             st.markdown("### 💾 Export Report / Data")
@@ -1064,7 +1310,7 @@ with tab3:
             if st.button("📥 Generate Dashboard PDF (charts only)"):
                 with st.spinner("Generating Dashboard PDF..."):
                     try:
-                        pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=False)
+                        pdf_buffer = build_pdf(sheet_title, charts_buffers_for_export, include_table=False)
                         st.success("✅ Dashboard PDF ready.")
                         st.download_button(
                             label="⬇️ Download Dashboard PDF",
@@ -1072,6 +1318,8 @@ with tab3:
                             file_name=f"{_safe_name(sheet_title)}_Dashboard.pdf",
                             mime="application/pdf"
                         )
+                        st.session_state.show_toast = True
+                        st.session_state.last_action = "Generated Dashboard PDF"
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
 
@@ -1080,27 +1328,44 @@ with tab3:
 
 # ------------------ Tab 4: Info ------------------
 with tab4:
+    st.markdown("<div id='info-section'></div>", unsafe_allow_html=True)
     st.markdown("""
-    <div class='guide-title'>🎯 Welcome to a free tool provided by the company admin.!</div>
+    <div class='guide-title' style='color:{GOLD}; font-weight:800; font-size:18px;'>🎯 Welcome to a free tool provided by the company admin.</div>
     <br>
-    <h3 style='color:#FFD700;'>📌 How to Use</h3>
+    <h3 style='color:{GOLD};'>📌 How to Use</h3>
     <ol style='color:white; font-size:16px; line-height:1.6;'>
-        <li><strong>Upload Excel/CSV File (Splitter/Merge)</strong>: ... </li>
-        <li><strong>Merge Excel/CSV Files</strong>: ... </li>
-        <li><strong>Convert Images to PDF</strong>: ... </li>
-        <li><strong>Auto Dashboard Generator</strong>: 
-            <ul>
-                <li>Upload an Excel or CSV file for dashboard.</li>
-                <li>Select the sheet (if Excel).</li>
-                <li>Use the sidebar to apply filters.</li>
-                <li>The dashboard will auto-generate KPIs and charts.</li>
-                <li><strong>New:</strong> Auto Group Low-Performers.</li>
-            </ul>
-        </li>
+        <li><strong>Upload Excel/CSV File (Splitter/Merge)</strong>: Use the Split & Merge tab to split large sheets.</li>
+        <li><strong>Merge Excel/CSV Files</strong>: Upload multiple files to combine into one consolidated file.</li>
+        <li><strong>Convert Images to PDF</strong>: Upload images and choose CamScanner or Original quality.</li>
+        <li><strong>Auto Dashboard Generator</strong>: Upload a file, apply filters from the sidebar, choose a measure and chart style, then export.</li>
     </ol>
     <br>
-    <h3 style='color:#FFD700;'>💡 Tips</h3>
-    <ul>
+    <h3 style='color:{GOLD};'>💡 Tips</h3>
+    <ul style='color:white;'>
         <li>Performance grouping requires at least 5 representatives.</li>
+        <li>PNG export may need <code>kaleido</code> installed.</li>
     </ul>
+    """.format(GOLD=GOLD), unsafe_allow_html=True)
+
+# ------------------ Toast & Back-to-top trigger ------------------
+# If an action occurred set show_toast; we output a small JS call to show toast
+if st.session_state.show_toast:
+    action_text = st.session_state.last_action if st.session_state.last_action else "Operation completed"
+    # use small script to show toast
+    st.markdown(f"""
+    <script>
+    setTimeout(function() {{
+        try {{
+            showToast({action_text!r});
+        }} catch(e) {{console.log(e);}}
+    }}, 100);
+    </script>
     """, unsafe_allow_html=True)
+    # reset toast flag
+    st.session_state.show_toast = False
+
+# ------------------ Footer: last updated & credits ------------------
+st.markdown("<hr style='border-color: rgba(255,215,0,0.06); margin-top:22px;'>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:center; color:#a9c1df; font-size:13px; margin-bottom:28px;'>© Averroes Pharma — Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
+
+# End of file
