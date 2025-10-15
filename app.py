@@ -88,8 +88,6 @@ header {{visibility: hidden;}}
     background: linear-gradient(180deg, {PRIMARY_DARK} 0%, #002545 100%);
     color: white;
     min-height: 100vh;
-}
-
 /* Hero */
 .hero {{
     background: linear-gradient(135deg, rgba(0,31,63,0.95), rgba(0,26,51,0.95));
@@ -1369,3 +1367,4 @@ st.markdown("<hr style='border-color: rgba(255,215,0,0.06); margin-top:22px;'>",
 st.markdown(f"<div style='text-align:center; color:#a9c1df; font-size:13px; margin-bottom:28px;'>© Averroes Pharma — Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
 
 # End of file
+
