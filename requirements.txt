@@ -8,3 +8,4 @@ pillow
 scikit-learn
 opencv-python
 streamlit-toast
+kaleido
