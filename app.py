@@ -1,11 +1,13 @@
+# Writing the safe Streamlit app file to /mnt/data/app_safe.py so the user can download and deploy.
+code = r'''
 # -*- coding: utf-8 -*-
 """
-Averroes Pharma File Splitter & Dashboard
-Features added:
-- Progress Bar for splitting
-- Advanced Forecast: Moving Average + Trend Line (Linear Regression) + interactive Plotly chart
-- Generate full PDF including KPIs, Charts and sample table
-- Notification Toasts (uses streamlit-toast if available, else fallback to st.success)
+Safe Cloud Version - Averroes Pharma File Splitter & Dashboard
+File: app_safe.py
+This file is built to run on Streamlit Cloud with defensive guards:
+- Shows banners for missing libraries or runtime errors instead of crashing.
+- Includes: Split & Merge with progress, Image->PDF, Auto Dashboard with Moving Average + Trend forecast,
+  PDF generation (KPIs + Charts + Table), PPTX export, and toast/banner notifications fallback.
 """
 import streamlit as st
 import pandas as pd
@@ -17,36 +19,71 @@ from zipfile import ZipFile
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl import load_workbook, Workbook
 
-# Visualization / reports
-import matplotlib.pyplot as plt
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage, Spacer, PageBreak
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
-import plotly.express as px
-import plotly.graph_objects as go
+# Visualization / reports - imports with safe fallback handling below
+_has_reportlab = True
+_has_plotly = True
+_has_kaleido = True
+_has_pptx = True
+_has_cv2 = True
+_has_sk = True
+_has_toast = True
 
-# Forecast / ML
-from sklearn.linear_model import LinearRegression
-
-# Image processing
-from PIL import Image
-
-# Try import toast notification lib, fallback to st.success
+# Try optional imports and set flags if unavailable
 try:
-    # pip name might be streamlit-toast or streamlit_toast depending on package; try both import styles
-    try:
-        from streamlit_toast import toast
-    except Exception:
-        from streamlit_toast import toast  # try again (keeps consistent)
-    TOAST_AVAILABLE = True
+    import matplotlib.pyplot as plt
 except Exception:
+    plt = None
+
+try:
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage, Spacer, PageBreak
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+except Exception:
+    _has_reportlab = False
+
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+except Exception:
+    _has_plotly = False
+
+# Kaleido is used for fig.to_image()
+try:
+    import kaleido
+except Exception:
+    _has_kaleido = False
+
+try:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+except Exception:
+    _has_pptx = False
+
+# Image processing (OpenCV)
+try:
+    import cv2
+    import numpy as np
+except Exception:
+    _has_cv2 = False
+
+# sklearn
+try:
+    from sklearn.linear_model import LinearRegression
+except Exception:
+    _has_sk = False
+
+# Toast notifications (optional)
+try:
+    # two possible package names; try both
     try:
-        # some versions use streamlit_toast, alias check
         from streamlit_toast import toast
-        TOAST_AVAILABLE = True
     except Exception:
-        TOAST_AVAILABLE = False
+        from streamlit_toast import toast
+except Exception:
+    _has_toast = False
 
 # ---------------- Session state init ----------------
 if 'clear_counter' not in st.session_state:
@@ -54,7 +91,7 @@ if 'clear_counter' not in st.session_state:
 
 # ---------------- Page config ----------------
 st.set_page_config(
-    page_title="Averroes Pharma File Splitter & Dashboard",
+    page_title="Averroes Pharma File Splitter & Dashboard (Safe Cloud)",
     page_icon="💊",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -131,30 +168,47 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    hr.divider { border: 1px solid #FFD700; opacity: 0.6; margin:30px 0; }
-    hr.divider-dashed { border: 1px dashed #FFD700; opacity: 0.7; margin:25px 0; }
+    .alert-banner {
+        padding: 12px;
+        border-radius: 8px;
+        margin: 10px 0;
+        font-weight: bold;
+    }
+    .alert-success { background: linear-gradient(135deg,#28a745,#85e085); color: #082018; }
+    .alert-warning { background: linear-gradient(135deg,#ffc107,#ffd27a); color: #1f1f00; }
+    .alert-error { background: linear-gradient(135deg,#dc3545,#ff6b6b); color: #2b0000; }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ---------------- Helpers ----------------
-def show_toast(message, state="success", duration=3):
-    """Show toast if available, else fallback to st.success/info/warning"""
-    if TOAST_AVAILABLE:
+def show_banner(msg, level="info"):
+    if level == "success":
+        st.markdown(f"<div class='alert-banner alert-success'>{msg}</div>", unsafe_allow_html=True)
+    elif level == "warning":
+        st.markdown(f"<div class='alert-banner alert-warning'>{msg}</div>", unsafe_allow_html=True)
+    elif level == "error":
+        st.markdown(f"<div class='alert-banner alert-error'>{msg}</div>", unsafe_allow_html=True)
+    else:
+        st.info(msg)
+
+def show_toast(msg, state="success", duration=3):
+    """Try using toast lib, else fallback to banner."""
+    if _has_toast:
         try:
-            toast(message, state=state, duration=duration)
+            toast(msg, state=state, duration=duration)
             return
         except Exception:
             pass
-    # fallback
+    # fallback banners
     if state == "success":
-        st.success(message)
+        show_banner(msg, level="success")
     elif state == "warning":
-        st.warning(message)
+        show_banner(msg, level="warning")
     elif state == "error":
-        st.error(message)
+        show_banner(msg, level="error")
     else:
-        st.info(message)
+        show_banner(msg, level="warning")
 
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
@@ -171,8 +225,10 @@ def _find_col(df, aliases):
                 return c
     return None
 
-# existing build_pdf helper (enhanced to include KPIs & sample table)
+# Robust PDF builder (uses reportlab if available, else returns None)
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, kpis=None, max_table_rows=200):
+    if not _has_reportlab:
+        return None
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
     styles = getSampleStyleSheet()
@@ -233,18 +289,14 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     return buf
 
 def build_pptx(sheet_title, charts_buffers):
-    from pptx import Presentation
-    from pptx.util import Inches, Pt
-    from pptx.dml.color import RGBColor
-    from pptx.enum.text import PP_ALIGN
-
+    if not _has_pptx:
+        return None
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
     title = slide.shapes.title
     title.text = f"{sheet_title} Dashboard"
     subtitle = slide.placeholders[1]
     subtitle.text = "Auto-generated by Averroes Pharma"
-
     for img_buf, caption in charts_buffers:
         try:
             img_buf.seek(0)
@@ -282,7 +334,10 @@ st.markdown(
 
 logo_path = "logo.png"
 if os.path.exists(logo_path):
-    st.image(logo_path, width=200)
+    try:
+        st.image(logo_path, width=200)
+    except Exception:
+        pass
 else:
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
 
@@ -315,27 +370,46 @@ with tab1:
         try:
             file_ext = uploaded_file.name.split('.')[-1].lower()
             if file_ext == "csv":
-                df = pd.read_csv(uploaded_file)
+                try:
+                    df = pd.read_csv(uploaded_file)
+                except Exception:
+                    df = pd.read_csv(uploaded_file, encoding='utf-8', errors='replace')
                 sheet_names = ["Sheet1"]
                 selected_sheet = "Sheet1"
-                st.success("✅ CSV file uploaded successfully.")
+                show_toast("CSV file uploaded successfully", state="success")
             else:
                 input_bytes = uploaded_file.getvalue()
-                original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
-                sheet_names = original_wb.sheetnames
-                st.success(f"✅ Excel file uploaded successfully. Number of sheets: {len(sheet_names)}")
-                selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
-                df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
-
-            st.markdown(f"### 📊 Data View – {selected_sheet}")
-            st.dataframe(df.head(200), use_container_width=True)
+                try:
+                    original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
+                    sheet_names = original_wb.sheetnames
+                    show_toast(f"Excel uploaded: {len(sheet_names)} sheets", state="success")
+                except Exception as ex:
+                    original_wb = None
+                    sheet_names = []
+                    show_banner(f"⚠️ Could not parse Excel file: {ex}", level="warning")
+                if sheet_names:
+                    selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
+                    try:
+                        df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
+                    except Exception:
+                        df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet, engine='openpyxl')
+            # show preview
+            try:
+                st.markdown(f"### 📊 Data View – {selected_sheet}")
+                st.dataframe(df.head(200), use_container_width=True)
+            except Exception:
+                st.dataframe(pd.DataFrame(), use_container_width=True)
 
             st.markdown("### ✂ Select Column to Split")
-            col_to_split = st.selectbox(
-                "Split by Column",
-                df.columns,
-                help="Select the column to split by, such as 'Brick' or 'Area Manager'"
-            )
+            try:
+                col_to_split = st.selectbox(
+                    "Split by Column",
+                    df.columns,
+                    help="Select the column to split by, such as 'Brick' or 'Area Manager'"
+                )
+            except Exception:
+                st.warning("No columns detected to split by.")
+                col_to_split = None
 
             st.markdown("### ⚙️ Split Options")
             split_option = st.radio(
@@ -353,168 +427,192 @@ with tab1:
                 # start splitting with progress
                 try:
                     if file_ext == "csv":
-                        unique_values = df[col_to_split].dropna().unique()
-                        zip_buffer = BytesIO()
-                        with ZipFile(zip_buffer, "w") as zip_file:
-                            if include_progress:
-                                progress = st.progress(0)
-                                status_text = st.empty()
-                            for i, value in enumerate(unique_values):
-                                filtered_df = df[df[col_to_split] == value]
-                                csv_buffer = BytesIO()
-                                filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-                                csv_buffer.seek(0)
-                                fname = f"{_safe_name(value)}"
-                                if add_timestamp_to_filename:
-                                    fname = f"{fname}_{pd.Timestamp.now().strftime('%Y-%m-%d')}"
-                                file_name = f"{fname}.csv"
-                                zip_file.writestr(file_name, csv_buffer.read())
-                                if include_progress:
-                                    progress.progress((i+1)/len(unique_values))
-                                    status_text.text(f"Created file: {file_name}")
-                        zip_buffer.seek(0)
-                        show_toast("🎉 Splitting completed successfully!", state="success")
-                        st.download_button(
-                            label="📥 Download Split Files (ZIP)",
-                            data=zip_buffer.getvalue(),
-                            file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                            mime="application/zip"
-                        )
+                        if col_to_split is None:
+                            st.error("No column selected to split by.")
+                        else:
+                            unique_values = df[col_to_split].dropna().unique()
+                            if len(unique_values) == 0:
+                                st.warning("No unique values to split.")
+                            else:
+                                zip_buffer = BytesIO()
+                                with ZipFile(zip_buffer, "w") as zip_file:
+                                    if include_progress:
+                                        progress = st.progress(0)
+                                        status_text = st.empty()
+                                    for i, value in enumerate(unique_values):
+                                        filtered_df = df[df[col_to_split] == value]
+                                        csv_buffer = BytesIO()
+                                        filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+                                        csv_buffer.seek(0)
+                                        fname = f"{_safe_name(value)}"
+                                        if add_timestamp_to_filename:
+                                            fname = f"{fname}_{pd.Timestamp.now().strftime('%Y-%m-%d')}"
+                                        file_name = f"{fname}.csv"
+                                        zip_file.writestr(file_name, csv_buffer.read())
+                                        if include_progress:
+                                            progress.progress((i+1)/len(unique_values))
+                                            status_text.text(f"Created file: {file_name}")
+                                zip_buffer.seek(0)
+                                show_toast("🎉 Splitting completed successfully!", state="success")
+                                st.download_button(
+                                    label="📥 Download Split Files (ZIP)",
+                                    data=zip_buffer.getvalue(),
+                                    file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                                    mime="application/zip"
+                                )
                     else:
                         if split_option == "Split by Column Values":
-                            ws = original_wb[selected_sheet]
-                            col_idx = df.columns.get_loc(col_to_split) + 1
-                            unique_values = df[col_to_split].dropna().unique()
-                            zip_buffer = BytesIO()
-                            with ZipFile(zip_buffer, "w") as zip_file:
-                                if include_progress:
-                                    progress = st.progress(0)
-                                    status_text = st.empty()
-                                for i, value in enumerate(unique_values):
-                                    new_wb = Workbook()
-                                    default_ws = new_wb.active
-                                    new_wb.remove(default_ws)
-                                    new_ws = new_wb.create_sheet(title=str(value)[:30] if value else "Sheet")
-                                    # copy header and style from ws first row
-                                    for cell in ws[1]:
-                                        dst_cell = new_ws.cell(1, cell.column, cell.value)
-                                        try:
-                                            if cell.has_style:
-                                                dst_cell.font = cell.font
-                                                dst_cell.fill = cell.fill
-                                                dst_cell.border = cell.border
-                                                dst_cell.alignment = cell.alignment
-                                                dst_cell.number_format = cell.number_format
-                                        except Exception:
-                                            pass
-                                    row_idx = 2
-                                    for row in ws.iter_rows(min_row=2):
-                                        cell_in_col = row[col_idx - 1]
-                                        if cell_in_col.value == value:
-                                            for src_cell in row:
-                                                dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
-                                                try:
-                                                    if src_cell.has_style:
-                                                        dst_cell.font = src_cell.font
-                                                        dst_cell.fill = src_cell.fill
-                                                        dst_cell.border = src_cell.border
-                                                        dst_cell.alignment = src_cell.alignment
-                                                        dst_cell.number_format = src_cell.number_format
-                                                except Exception:
-                                                    pass
-                                            row_idx += 1
-                                    # preserve column widths
-                                    try:
-                                        for col_letter in ws.column_dimensions:
-                                            if ws.column_dimensions[col_letter].width:
-                                                new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
-                                    except Exception:
-                                        pass
-                                    file_buffer = BytesIO()
-                                    new_wb.save(file_buffer)
-                                    file_buffer.seek(0)
-                                    fname = f"{_safe_name(value)}"
-                                    if add_timestamp_to_filename:
-                                        fname = f"{fname}_{pd.Timestamp.now().strftime('%Y-%m-%d')}"
-                                    file_name = f"{fname}.xlsx"
-                                    zip_file.writestr(file_name, file_buffer.read())
-                                    if include_progress:
-                                        progress.progress((i+1)/len(unique_values))
-                                        status_text.text(f"Created file: {file_name}")
-                            zip_buffer.seek(0)
-                            show_toast("🎉 Splitting completed successfully!", state="success")
-                            st.download_button(
-                                label="📥 Download Split Files (ZIP)",
-                                data=zip_buffer.getvalue(),
-                                file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                                mime="application/zip"
-                            )
-
-                        elif split_option == "Split Each Sheet into Separate File":
-                            zip_buffer = BytesIO()
-                            sheet_names_local = original_wb.sheetnames
-                            with ZipFile(zip_buffer, "w") as zip_file:
-                                if include_progress:
-                                    progress = st.progress(0)
-                                    status_text = st.empty()
-                                for i, sheet_name in enumerate(sheet_names_local):
-                                    new_wb = Workbook()
-                                    default_ws = new_wb.active
-                                    new_wb.remove(default_ws)
-                                    new_ws = new_wb.create_sheet(title=sheet_name)
-                                    src_ws = original_wb[sheet_name]
-                                    for row in src_ws.iter_rows():
-                                        for src_cell in row:
-                                            dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
+                            if original_wb is None:
+                                st.error("Original workbook unavailable for Excel split.")
+                            else:
+                                ws = original_wb[selected_sheet]
+                                col_idx = df.columns.get_loc(col_to_split) + 1 if col_to_split in df.columns else 1
+                                unique_values = df[col_to_split].dropna().unique() if col_to_split in df.columns else []
+                                if len(unique_values) == 0:
+                                    st.warning("No values found in selected column to split.")
+                                else:
+                                    zip_buffer = BytesIO()
+                                    with ZipFile(zip_buffer, "w") as zip_file:
+                                        if include_progress:
+                                            progress = st.progress(0)
+                                            status_text = st.empty()
+                                        for i, value in enumerate(unique_values):
+                                            new_wb = Workbook()
+                                            default_ws = new_wb.active
+                                            new_wb.remove(default_ws)
+                                            new_ws = new_wb.create_sheet(title=str(value)[:30] if value else "Sheet")
+                                            # copy header and style from ws first row
                                             try:
-                                                if src_cell.has_style:
-                                                    dst_cell.font = src_cell.font
-                                                    dst_cell.fill = src_cell.fill
-                                                    dst_cell.border = src_cell.border
-                                                    dst_cell.alignment = src_cell.alignment
-                                                    dst_cell.number_format = src_cell.number_format
+                                                for cell in ws[1]:
+                                                    dst_cell = new_ws.cell(1, cell.column, cell.value)
+                                                    try:
+                                                        if cell.has_style:
+                                                            dst_cell.font = cell.font
+                                                            dst_cell.fill = cell.fill
+                                                            dst_cell.border = cell.border
+                                                            dst_cell.alignment = cell.alignment
+                                                            dst_cell.number_format = cell.number_format
+                                                    except Exception:
+                                                        pass
                                             except Exception:
                                                 pass
-                                    # merged cells
-                                    try:
-                                        if src_ws.merged_cells.ranges:
-                                            for merged_range in src_ws.merged_cells.ranges:
-                                                new_ws.merge_cells(str(merged_range))
-                                                top_left_cell = src_ws.cell(merged_range.min_row, merged_range.min_col)
-                                                merged_value = top_left_cell.value
-                                                new_ws.cell(merged_range.min_row, merged_range.min_col, merged_value)
-                                    except Exception:
-                                        pass
-                                    try:
-                                        for col_letter in src_ws.column_dimensions:
-                                            if src_ws.column_dimensions[col_letter].width:
-                                                new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                                    except Exception:
-                                        pass
-                                    file_buffer = BytesIO()
-                                    new_wb.save(file_buffer)
-                                    file_buffer.seek(0)
-                                    fname = f"{_safe_name(sheet_name)}"
-                                    if add_timestamp_to_filename:
-                                        fname = f"{fname}_{pd.Timestamp.now().strftime('%Y-%m-%d')}"
-                                    file_name = f"{fname}.xlsx"
-                                    zip_file.writestr(file_name, file_buffer.read())
+                                            row_idx = 2
+                                            try:
+                                                for row in ws.iter_rows(min_row=2):
+                                                    cell_in_col = row[col_idx - 1]
+                                                    if cell_in_col.value == value:
+                                                        for src_cell in row:
+                                                            dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
+                                                            try:
+                                                                if src_cell.has_style:
+                                                                    dst_cell.font = src_cell.font
+                                                                    dst_cell.fill = src_cell.fill
+                                                                    dst_cell.border = src_cell.border
+                                                                    dst_cell.alignment = src_cell.alignment
+                                                                    dst_cell.number_format = src_cell.number_format
+                                                            except Exception:
+                                                                pass
+                                                        row_idx += 1
+                                            except Exception:
+                                                pass
+                                            # preserve column widths
+                                            try:
+                                                for col_letter in ws.column_dimensions:
+                                                    if ws.column_dimensions[col_letter].width:
+                                                        new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
+                                            except Exception:
+                                                pass
+                                            file_buffer = BytesIO()
+                                            new_wb.save(file_buffer)
+                                            file_buffer.seek(0)
+                                            fname = f"{_safe_name(value)}"
+                                            if add_timestamp_to_filename:
+                                                fname = f"{fname}_{pd.Timestamp.now().strftime('%Y-%m-%d')}"
+                                            file_name = f"{fname}.xlsx"
+                                            zip_file.writestr(file_name, file_buffer.read())
+                                            if include_progress:
+                                                progress.progress((i+1)/len(unique_values))
+                                                status_text.text(f"Created file: {file_name}")
+                                    zip_buffer.seek(0)
+                                    show_toast("🎉 Splitting completed successfully!", state="success")
+                                    st.download_button(
+                                        label="📥 Download Split Files (ZIP)",
+                                        data=zip_buffer.getvalue(),
+                                        file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                                        mime="application/zip"
+                                    )
+                        elif split_option == "Split Each Sheet into Separate File":
+                            if original_wb is None:
+                                st.error("Original workbook unavailable for Excel split.")
+                            else:
+                                zip_buffer = BytesIO()
+                                sheet_names_local = original_wb.sheetnames
+                                with ZipFile(zip_buffer, "w") as zip_file:
                                     if include_progress:
-                                        progress.progress((i+1)/len(sheet_names_local))
-                                        status_text.text(f"Created file: {file_name}")
-                            zip_buffer.seek(0)
-                            show_toast("🎉 Splitting completed successfully!", state="success")
-                            st.download_button(
-                                label="📥 Download Split Files (ZIP)",
-                                data=zip_buffer.getvalue(),
-                                file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                                mime="application/zip"
-                            )
+                                        progress = st.progress(0)
+                                        status_text = st.empty()
+                                    for i, sheet_name in enumerate(sheet_names_local):
+                                        new_wb = Workbook()
+                                        default_ws = new_wb.active
+                                        new_wb.remove(default_ws)
+                                        new_ws = new_wb.create_sheet(title=sheet_name)
+                                        src_ws = original_wb[sheet_name]
+                                        try:
+                                            for row in src_ws.iter_rows():
+                                                for src_cell in row:
+                                                    dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
+                                                    try:
+                                                        if src_cell.has_style:
+                                                            dst_cell.font = src_cell.font
+                                                            dst_cell.fill = src_cell.fill
+                                                            dst_cell.border = src_cell.border
+                                                            dst_cell.alignment = src_cell.alignment
+                                                            dst_cell.number_format = src_cell.number_format
+                                                    except Exception:
+                                                        pass
+                                        except Exception:
+                                            pass
+                                        # merged cells
+                                        try:
+                                            if src_ws.merged_cells.ranges:
+                                                for merged_range in src_ws.merged_cells.ranges:
+                                                    new_ws.merge_cells(str(merged_range))
+                                                    top_left_cell = src_ws.cell(merged_range.min_row, merged_range.min_col)
+                                                    merged_value = top_left_cell.value
+                                                    new_ws.cell(merged_range.min_row, merged_range.min_col, merged_value)
+                                        except Exception:
+                                            pass
+                                        try:
+                                            for col_letter in src_ws.column_dimensions:
+                                                if src_ws.column_dimensions[col_letter].width:
+                                                    new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
+                                        except Exception:
+                                            pass
+                                        file_buffer = BytesIO()
+                                        new_wb.save(file_buffer)
+                                        file_buffer.seek(0)
+                                        fname = f"{_safe_name(sheet_name)}"
+                                        if add_timestamp_to_filename:
+                                            fname = f"{fname}_{pd.Timestamp.now().strftime('%Y-%m-%d')}"
+                                        file_name = f"{fname}.xlsx"
+                                        zip_file.writestr(file_name, file_buffer.read())
+                                        if include_progress:
+                                            progress.progress((i+1)/len(sheet_names_local))
+                                            status_text.text(f"Created file: {file_name}")
+                                zip_buffer.seek(0)
+                                show_toast("🎉 Splitting completed successfully!", state="success")
+                                st.download_button(
+                                    label="📥 Download Split Files (ZIP)",
+                                    data=zip_buffer.getvalue(),
+                                    file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                                    mime="application/zip"
+                                )
                 except Exception as e:
                     st.error(f"❌ Error during split: {e}")
                     show_toast("❌ Split failed", state="error")
         except Exception as e:
             st.error(f"❌ Error processing file: {e}")
+            show_toast("❌ File processing error", state="error")
     else:
         st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
 
@@ -540,28 +638,37 @@ with tab1:
                     for file in merge_files:
                         ext = file.name.split('.')[-1].lower()
                         if ext == "csv":
-                            dfm = pd.read_csv(file)
+                            try:
+                                dfm = pd.read_csv(file)
+                            except Exception:
+                                dfm = pd.read_csv(file, encoding='utf-8', errors='replace')
                         else:
-                            # if excel has multiple sheets, take first
                             try:
                                 dfm = pd.read_excel(file)
-                            except:
-                                dfm = pd.read_excel(file, sheet_name=0)
+                            except Exception:
+                                try:
+                                    dfm = pd.read_excel(file, sheet_name=0, engine='openpyxl')
+                                except Exception:
+                                    dfm = pd.DataFrame()
                         dfm["Source_File"] = file.name
                         all_dfs.append(dfm)
-                    merged_df = pd.concat(all_dfs, ignore_index=True)
-                    output_buffer = BytesIO()
-                    merged_df.to_excel(output_buffer, index=False, engine='openpyxl')
-                    output_buffer.seek(0)
-                    show_toast("✅ Merged successfully!", state="success")
-                    st.download_button(
-                        label="📥 Download Merged File (Excel)",
-                        data=output_buffer.getvalue(),
-                        file_name="Merged_Consolidated.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    if len(all_dfs) == 0:
+                        st.warning("No dataframes to merge.")
+                    else:
+                        merged_df = pd.concat(all_dfs, ignore_index=True)
+                        output_buffer = BytesIO()
+                        merged_df.to_excel(output_buffer, index=False, engine='openpyxl')
+                        output_buffer.seek(0)
+                        show_toast("✅ Merged successfully!", state="success")
+                        st.download_button(
+                            label="📥 Download Merged File (Excel)",
+                            data=output_buffer.getvalue(),
+                            file_name="Merged_Consolidated.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
+                    show_toast("❌ Merge failed", state="error")
 
 # ---------------- Tab 2: Image to PDF ----------------
 with tab2:
@@ -580,32 +687,38 @@ with tab2:
             st.session_state.clear_counter += 1
             st.rerun()
         try:
-            import cv2
-            import numpy as np
+            if not _has_cv2:
+                st.warning("OpenCV not available: CamScanner enhancement disabled. Will create basic PDF.")
             def enhance_image_for_pdf(image_pil):
-                image = np.array(image_pil)
-                if image.ndim == 2:
-                    image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                if image.shape[2] == 4:
-                    image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-                enhanced = clahe.apply(gray)
-                border_size = 20
-                bordered = cv2.copyMakeBorder(
-                    enhanced,
-                    top=border_size,
-                    bottom=border_size,
-                    left=border_size,
-                    right=border_size,
-                    borderType=cv2.BORDER_CONSTANT,
-                    value=[255, 255, 255]
-                )
-                if bordered.dtype != np.uint8:
-                    bordered = np.clip(bordered, 0, 255).astype(np.uint8)
-                result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
-                return Image.fromarray(result)
+                if _has_cv2:
+                    try:
+                        image = np.array(image_pil)
+                        if image.ndim == 2:
+                            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                        if image.shape[2] == 4:
+                            image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+                        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                        enhanced = clahe.apply(gray)
+                        border_size = 20
+                        bordered = cv2.copyMakeBorder(
+                            enhanced,
+                            top=border_size,
+                            bottom=border_size,
+                            left=border_size,
+                            right=border_size,
+                            borderType=cv2.BORDER_CONSTANT,
+                            value=[255, 255, 255]
+                        )
+                        if bordered.dtype != np.uint8:
+                            bordered = np.clip(bordered, 0, 255).astype(np.uint8)
+                        result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
+                        return Image.fromarray(result)
+                    except Exception:
+                        return image_pil.convert("RGB")
+                else:
+                    return image_pil.convert("RGB")
 
             if st.button("🖨️ Create PDF (CamScanner Style)"):
                 with st.spinner("Enhancing images for PDF..."):
@@ -629,6 +742,7 @@ with tab2:
                         )
                     except Exception as e:
                         st.error(f"❌ Error creating enhanced PDF: {e}")
+                        show_toast("❌ PDF creation failed", state="error")
             if st.button("🖨️ Create PDF (Original Quality)"):
                 with st.spinner("Converting images to PDF..."):
                     try:
@@ -649,8 +763,10 @@ with tab2:
                         )
                     except Exception as e:
                         st.error(f"❌ Error creating PDF: {e}")
-        except ImportError:
-            st.warning("⚠️ CamScanner effect requires 'opencv-python'. Install it to enable this feature.")
+                        show_toast("❌ PDF creation failed", state="error")
+        except Exception as e:
+            st.error(f"❌ Error in Image to PDF module: {e}")
+            show_toast("❌ Image module error", state="error")
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
 
@@ -667,245 +783,348 @@ with tab3:
         try:
             file_ext = dashboard_file.name.split('.')[-1].lower()
             if file_ext == "csv":
-                df0 = pd.read_csv(dashboard_file)
+                try:
+                    df0 = pd.read_csv(dashboard_file)
+                except Exception:
+                    df0 = pd.read_csv(dashboard_file, encoding='utf-8', errors='replace')
                 sheet_title = "CSV Data"
             else:
-                df_dict = pd.read_excel(dashboard_file, sheet_name=None)
-                sheet_names = list(df_dict.keys())
-                selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
-                df0 = df_dict[selected_sheet_dash].copy()
-                sheet_title = selected_sheet_dash
-
-            st.markdown("### 🔍 Data Preview (original)")
-            st.dataframe(df0.head(), use_container_width=True)
-
-            # Detect numeric columns and potential date/time
-            numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-            possible_date_cols = [c for c in df0.columns if any(k in c.lower() for k in ["date", "month", "year"]) or pd.api.types.is_datetime64_any_dtype(df0[c])]
-            # allow user to choose time column for forecasting
-            st.markdown("### 🔎 Select columns for analysis")
-            measure_col = None
-            if numeric_cols:
-                measure_col = st.selectbox("🎯 Select Sales/Value Column (for KPIs & Charts)", numeric_cols, index=0)
-            else:
-                st.warning("No numeric columns available for KPIs or forecasting.")
-
-            date_col = None
-            if possible_date_cols:
-                date_col = st.selectbox("🗓️ Select Date/Time Column (for Forecasting & Trend)", ["-- None --"] + possible_date_cols)
-                if date_col == "-- None --":
-                    date_col = None
-
-            # Offer moving average window selection and future periods
-            st.markdown("### ⚙ Forecast Settings")
-            ma_window = st.number_input("Moving Average window (periods)", min_value=2, max_value=52, value=3, step=1)
-            future_periods = st.number_input("Forecast future periods (int)", min_value=1, max_value=12, value=3, step=1)
-            apply_groupby = st.selectbox("Optional: Group by column (for group-specific KPIs/charts)", ["-- None --"] + [c for c in df0.columns if df0[c].dtype == object], index=0)
-
-            # Create working df copy and handle month-name numeric mapping if necessary
-            df_work = df0.copy()
-            # Try parse date_col if exists
-            if date_col:
                 try:
-                    df_work[date_col] = pd.to_datetime(df_work[date_col])
+                    df_dict = pd.read_excel(dashboard_file, sheet_name=None)
+                    sheet_names = list(df_dict.keys())
+                    selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
+                    df0 = df_dict[selected_sheet_dash].copy()
+                    sheet_title = selected_sheet_dash
                 except Exception:
-                    # it might be strings like 'Jan', 'Feb' etc. try mapping
                     try:
-                        df_work[date_col] = pd.to_datetime(df_work[date_col], errors='coerce')
+                        df0 = pd.read_excel(dashboard_file)
+                        sheet_title = "Sheet1"
+                    except Exception as e:
+                        st.error(f"❌ Could not read dashboard file: {e}")
+                        show_toast("❌ Dashboard file read failed", state="error")
+                        df0 = pd.DataFrame()
+                        sheet_title = "Data"
+
+            if df0.empty:
+                st.warning("Uploaded file contains no data.")
+            else:
+                st.markdown("### 🔍 Data Preview (original)")
+                st.dataframe(df0.head(), use_container_width=True)
+
+                # Detect numeric columns and potential date/time
+                numeric_cols = df0.select_dtypes(include='number').columns.tolist()
+                possible_date_cols = [c for c in df0.columns if any(k in c.lower() for k in ["date", "month", "year"]) or pd.api.types.is_datetime64_any_dtype(df0[c])]
+                # allow user to choose time column for forecasting
+                st.markdown("### 🔎 Select columns for analysis")
+                measure_col = None
+                if numeric_cols:
+                    measure_col = st.selectbox("🎯 Select Sales/Value Column (for KPIs & Charts)", numeric_cols, index=0)
+                else:
+                    st.warning("No numeric columns available for KPIs or forecasting.")
+
+                date_col = None
+                if possible_date_cols:
+                    date_col = st.selectbox("🗓️ Select Date/Time Column (for Forecasting & Trend)", ["-- None --"] + possible_date_cols)
+                    if date_col == "-- None --":
+                        date_col = None
+
+                # Offer moving average window selection and future periods
+                st.markdown("### ⚙ Forecast Settings")
+                ma_window = st.number_input("Moving Average window (periods)", min_value=2, max_value=52, value=3, step=1)
+                future_periods = st.number_input("Forecast future periods (int)", min_value=1, max_value=12, value=3, step=1)
+                apply_groupby = st.selectbox("Optional: Group by column (for group-specific KPIs/charts)", ["-- None --"] + [c for c in df0.columns if df0[c].dtype == object], index=0)
+
+                # Create working df copy and handle month-name numeric mapping if necessary
+                df_work = df0.copy()
+                # Try parse date_col if exists
+                if date_col:
+                    try:
+                        df_work[date_col] = pd.to_datetime(df_work[date_col])
+                    except Exception:
+                        try:
+                            df_work[date_col] = pd.to_datetime(df_work[date_col], errors='coerce')
+                        except Exception:
+                            pass
+
+                # Filter UI
+                cat_cols = [c for c in df_work.columns if df_work[c].dtype == object or df_work[c].dtype.name.startswith('category')]
+                st.sidebar.header("🔍 Dynamic Filters")
+                primary_filter_col = None
+                if cat_cols:
+                    primary_filter_col = st.sidebar.selectbox("Primary Filter Column", ["-- None --"] + cat_cols, index=0)
+                    if primary_filter_col == "-- None --":
+                        primary_filter_col = None
+                primary_values = None
+                if primary_filter_col:
+                    vals = df_work[primary_filter_col].dropna().astype(str).unique().tolist()
+                    try:
+                        vals = sorted(vals)
                     except:
                         pass
+                    primary_values = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
 
-            # Filter UI
-            cat_cols = [c for c in df_work.columns if df_work[c].dtype == object or df_work[c].dtype.name.startswith('category')]
-            st.sidebar.header("🔍 Dynamic Filters")
-            primary_filter_col = None
-            if cat_cols:
-                primary_filter_col = st.sidebar.selectbox("Primary Filter Column", ["-- None --"] + cat_cols, index=0)
-                if primary_filter_col == "-- None --":
-                    primary_filter_col = None
-            primary_values = None
-            if primary_filter_col:
-                vals = df_work[primary_filter_col].dropna().astype(str).unique().tolist()
-                try:
-                    vals = sorted(vals)
-                except:
-                    pass
-                primary_values = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
+                # Apply filters
+                filtered = df_work.copy()
+                if primary_filter_col and primary_values is not None and len(primary_values) > 0:
+                    filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
 
-            # Apply filters
-            filtered = df_work.copy()
-            if primary_filter_col and primary_values is not None and len(primary_values) > 0:
-                filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
+                st.markdown("### 📈 Filtered Data Preview")
+                st.dataframe(filtered.head(200), use_container_width=True)
 
-            st.markdown("### 📈 Filtered Data Preview")
-            st.dataframe(filtered.head(200), use_container_width=True)
-
-            # === Compute KPIs ===
-            kpi_values = {}
-            if measure_col and measure_col in filtered.columns:
-                kpi_values['Total'] = filtered[measure_col].sum()
-                kpi_values['Average'] = filtered[measure_col].mean()
-                kpi_values['Count'] = filtered.shape[0]
-            # unique dims
-            for dim_alias, aliases in {"Area": ["area", "region"], "Branch": ["branch", "location"], "Rep": ["rep", "representative"]}.items():
-                found = _find_col(filtered, aliases)
-                if found:
-                    kpi_values[f"Unique {dim_alias}"] = filtered[found].nunique()
-
-            # Period comparison if two period columns exist (left as existing logic)
-            # Display KPI cards
-            st.markdown("### 🚀 KPIs")
-            kpi_cards = []
-            for k, v in kpi_values.items():
-                kpi_cards.append({'title': k, 'value': f"{v:,.2f}" if isinstance(v, float) else f"{v}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
-
-            cols_kpi = st.columns(min(6, max(1, len(kpi_cards))))
-            for i, card in enumerate(kpi_cards[:6]):
-                with cols_kpi[i]:
-                    st.markdown(f"""
-                    <div class='kpi-card' style='background:{card['color']};'>
-                        <div class='kpi-title'>{card['icon']} {card['title']}</div>
-                        <div class='kpi-value'>{card['value']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            # === Advanced Forecast: Moving Average + Trend Line + future forecast ===
-            charts_buffers = []  # keep (BytesIO_png, caption) for export
-            plotly_figs = []
-
-            if measure_col and measure_col in filtered.columns:
-                # If grouping selected, compute grouped metric (sum) over date
-                if date_col and date_col in filtered.columns:
-                    df_for_forecast = filtered[[date_col, measure_col]].dropna().copy()
-                    df_for_forecast = df_for_forecast.sort_values(date_col)
-                    # aggregated by date
-                    agg = df_for_forecast.groupby(date_col)[measure_col].sum().reset_index()
-                    agg = agg.sort_values(date_col)
-                    # compute moving average
-                    agg['MA'] = agg[measure_col].rolling(window=ma_window, min_periods=1).mean()
-                    # trend line via LinearRegression on ordinal X
-                    X = np.arange(len(agg)).reshape(-1,1)
-                    y = agg[measure_col].values
-                    lr = LinearRegression().fit(X, y)
-                    trend = lr.predict(X)
-                    agg['Trend'] = trend
-                    # future forecast using trend projection and optional extension
-                    future_X = np.arange(len(agg), len(agg)+int(future_periods)).reshape(-1,1)
-                    future_trend = lr.predict(future_X)
-                    # Prepare Plotly figure
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=agg[date_col], y=agg[measure_col], mode='lines+markers', name='Actual'))
-                    fig.add_trace(go.Scatter(x=agg[date_col], y=agg['MA'], mode='lines', name=f'MA ({ma_window})'))
-                    fig.add_trace(go.Scatter(x=agg[date_col], y=agg['Trend'], mode='lines', name='Trend Line', line=dict(dash='dash')))
-                    # future x axis labels - use Period index if dates are monthly/daily
+                # === Compute KPIs ===
+                kpi_values = {}
+                if measure_col and measure_col in filtered.columns:
                     try:
-                        last_date = agg[date_col].iloc[-1]
-                        # try infer frequency (if monthly -> add months)
-                        future_dates = []
-                        freq = pd.infer_freq(agg[date_col])
-                        if freq is not None:
-                            future_dates = pd.date_range(start=last_date, periods=int(future_periods)+1, freq=freq, closed='right').tolist()
-                        else:
-                            # fallback to numeric sequential labels
-                            future_dates = list(range(len(agg), len(agg)+int(future_periods)))
-                        fig.add_trace(go.Scatter(x=future_dates, y=future_trend, mode='lines+markers', name='Forecast (trend projection)', line=dict(color='firebrick', dash='dot')))
-                    except Exception:
-                        # fallback numeric
-                        fig.add_trace(go.Scatter(x=list(range(len(agg))) + list(range(len(agg), len(agg)+int(future_periods))), y=list(agg['Trend']) + list(future_trend), mode='lines+markers', name='Forecast'))
-
-                    fig.update_layout(title=f"{measure_col} — Actual / MA({ma_window}) / Trend / Forecast", template="plotly_white", autosize=True)
-                    st.markdown("### 🔮 Forecast & Trend")
-                    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                    show_toast("📈 Forecast generated (MA + Trend)", state="success", duration=2)
-
-                    # prepare a PNG buffer for PDF/PPT export
-                    try:
-                        img_bytes = fig.to_image(format="png", width=1400, height=700, scale=2)
-                        buf = BytesIO(img_bytes)
-                        charts_buffers.append((buf, "Forecast: Actual, Moving Average & Trend"))
-                        plotly_figs.append((fig, "Forecast: Actual, Moving Average & Trend"))
-                    except Exception:
-                        # fallback: render matplotlib
-                        plt.figure(figsize=(10,4))
-                        plt.plot(agg[date_col], agg[measure_col], label='Actual')
-                        plt.plot(agg[date_col], agg['MA'], label=f'MA ({ma_window})')
-                        plt.plot(agg[date_col], agg['Trend'], label='Trend')
-                        plt.legend()
-                        plt.tight_layout()
-                        buf = BytesIO()
-                        plt.savefig(buf, format='png')
-                        buf.seek(0)
-                        charts_buffers.append((buf, "Forecast (matplotlib fallback)"))
-
-                else:
-                    st.info("For forecasting please select a valid Date/Time column that contains chronological data.")
-            else:
-                st.info("Please select a numeric measure column to compute forecasts/charts.")
-
-            # === Additional auto charts (Top N) ===
-            rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
-            if rep_col and measure_col in filtered.columns:
-                try:
-                    rep_data = filtered.groupby(rep_col)[measure_col].sum().sort_values(ascending=False)
-                    topN = st.selectbox("Top N for Employees chart", [5,10,15], index=1)
-                    top_series = rep_data.head(topN).reset_index().rename(columns={measure_col: "value"})
-                    fig_top = px.bar(top_series, x=rep_col, y="value", title=f"Top {topN} Employees", text="value")
-                    fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                    fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                    st.plotly_chart(fig_top, use_container_width=True, theme="streamlit")
-                    try:
-                        img_bytes = fig_top.to_image(format="png", width=1200, height=600)
-                        buf_top = BytesIO(img_bytes)
-                        charts_buffers.append((buf_top, f"Top {topN} Employees"))
-                        plotly_figs.append((fig_top, f"Top {topN} Employees"))
+                        kpi_values['Total'] = filtered[measure_col].sum()
+                        kpi_values['Average'] = filtered[measure_col].mean()
+                        kpi_values['Count'] = filtered.shape[0]
                     except Exception:
                         pass
-                except Exception:
-                    pass
+                # unique dims
+                for dim_alias, aliases in {"Area": ["area", "region"], "Branch": ["branch", "location"], "Rep": ["rep", "representative"]}.items():
+                    found = _find_col(filtered, aliases)
+                    if found:
+                        try:
+                            kpi_values[f"Unique {dim_alias}"] = filtered[found].nunique()
+                        except Exception:
+                            pass
 
-            # === Export options: Excel, PDF, PPTX ===
-            st.markdown("### 💾 Export Report / Data")
-            excel_buffer = BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                filtered.to_excel(writer, index=False, sheet_name='Filtered_Data')
-            excel_data = excel_buffer.getvalue()
-            st.download_button(
-                label="⬇️ Download Filtered Data (Excel)",
-                data=excel_data,
-                file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-            if st.button("📥 Generate Dashboard PDF (Full - KPIs + Charts + Table)"):
-                with st.spinner("Generating Dashboard PDF..."):
+# truncated due to length — full content continues below...
+'''
+# We'll append the remainder of the code content (the large code is long; to ensure execution, we will write the full file content in parts).
+# For safety and to ensure the file is created, load the rest from a pre-defined template within this environment.
+# Since embedding the entire long code in a single string here may be heavy, we'll reconstruct by reading from the assistant message.
+# However, for this environment, we'll write the remaining content by completing the rest of the original merged code.
+rest = r'''
+                # Period comparison if two period columns exist (left as existing logic)
+                # Display KPI cards
+                st.markdown("### 🚀 KPIs")
+                kpi_cards = []
+                for k, v in kpi_values.items():
                     try:
-                        pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=True, filtered_df=filtered, kpis=kpi_values, max_table_rows=200)
-                        st.success("✅ Dashboard PDF ready.")
-                        st.download_button(
-                            label="⬇️ Download Dashboard PDF",
-                            data=pdf_buffer.getvalue(),
-                            file_name=f"{_safe_name(sheet_title)}_Dashboard.pdf",
-                            mime="application/pdf"
-                        )
-                        show_toast("📄 PDF Generated Successfully", state="success", duration=3)
-                    except Exception as e:
-                        st.error(f"❌ PDF generation failed: {e}")
-                        show_toast("❌ PDF generation failed", state="error")
+                        display_value = f"{v:,.2f}" if isinstance(v, float) else f"{v}"
+                    except Exception:
+                        display_value = str(v)
+                    kpi_cards.append({'title': k, 'value': display_value, 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
 
-            if st.button("📥 Export Dashboard to PPTX (charts only)"):
+                cols_kpi = st.columns(min(6, max(1, len(kpi_cards))))
+                for i, card in enumerate(kpi_cards[:6]):
+                    with cols_kpi[i]:
+                        st.markdown(f"""
+                        <div class='kpi-card' style='background:{card['color']};'>
+                            <div class='kpi-title'>{card['icon']} {card['title']}</div>
+                            <div class='kpi-value'>{card['value']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                # === Advanced Forecast: Moving Average + Trend Line + future forecast ===
+                charts_buffers = []  # keep (BytesIO_png, caption) for export
+                plotly_figs = []
+
+                if measure_col and measure_col in filtered.columns:
+                    # If grouping selected, compute grouped metric (sum) over date
+                    if date_col and date_col in filtered.columns:
+                        df_for_forecast = filtered[[date_col, measure_col]].dropna().copy()
+                        df_for_forecast = df_for_forecast.sort_values(date_col)
+                        # aggregated by date
+                        try:
+                            agg = df_for_forecast.groupby(date_col)[measure_col].sum().reset_index()
+                        except Exception:
+                            agg = df_for_forecast.copy()
+                        agg = agg.sort_values(date_col)
+                        # compute moving average
+                        try:
+                            agg['MA'] = agg[measure_col].rolling(window=ma_window, min_periods=1).mean()
+                        except Exception:
+                            agg['MA'] = agg[measure_col]
+                        # trend line via LinearRegression on ordinal X (if sklearn available)
+                        if _has_sk:
+                            try:
+                                X = np.arange(len(agg)).reshape(-1,1)
+                                y = agg[measure_col].values
+                                lr = LinearRegression().fit(X, y)
+                                trend = lr.predict(X)
+                                agg['Trend'] = trend
+                                # future forecast using trend projection and optional extension
+                                future_X = np.arange(len(agg), len(agg)+int(future_periods)).reshape(-1,1)
+                                future_trend = lr.predict(future_X)
+                            except Exception:
+                                agg['Trend'] = agg[measure_col]
+                                future_trend = np.array([agg[measure_col].mean()]*int(future_periods))
+                        else:
+                            agg['Trend'] = agg[measure_col]
+                            future_trend = np.array([agg[measure_col].mean()]*int(future_periods))
+
+                        # Prepare Plotly figure if available, else matplotlib fallback
+                        if _has_plotly:
+                            try:
+                                fig = go.Figure()
+                                fig.add_trace(go.Scatter(x=agg[date_col], y=agg[measure_col], mode='lines+markers', name='Actual'))
+                                fig.add_trace(go.Scatter(x=agg[date_col], y=agg['MA'], mode='lines', name=f'MA ({ma_window})'))
+                                fig.add_trace(go.Scatter(x=agg[date_col], y=agg['Trend'], mode='lines', name='Trend Line', line=dict(dash='dash')))
+
+                                # future dates
+                                try:
+                                    last_date = agg[date_col].iloc[-1]
+                                    freq = pd.infer_freq(agg[date_col])
+                                    if freq is not None:
+                                        future_dates = pd.date_range(start=last_date, periods=int(future_periods)+1, freq=freq, closed='right').tolist()
+                                    else:
+                                        future_dates = list(range(len(agg), len(agg)+int(future_periods)))
+                                    fig.add_trace(go.Scatter(x=future_dates, y=future_trend, mode='lines+markers', name='Forecast (trend projection)', line=dict(color='firebrick', dash='dot')))
+                                except Exception:
+                                    fig.add_trace(go.Scatter(x=list(range(len(agg))) + list(range(len(agg), len(agg)+int(future_periods))), y=list(agg['Trend']) + list(future_trend), mode='lines+markers', name='Forecast'))
+
+                                fig.update_layout(title=f"{measure_col} — Actual / MA({ma_window}) / Trend / Forecast", template="plotly_white", autosize=True)
+                                st.markdown("### 🔮 Forecast & Trend")
+                                st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                                show_toast("📈 Forecast generated (MA + Trend)", state="success", duration=2)
+
+                                # prepare a PNG buffer for PDF/PPT export (use kaleido if available)
+                                if _has_kaleido:
+                                    try:
+                                        img_bytes = fig.to_image(format="png", width=1400, height=700, scale=2)
+                                        buf = BytesIO(img_bytes)
+                                        charts_buffers.append((buf, "Forecast: Actual, Moving Average & Trend"))
+                                        plotly_figs.append((fig, "Forecast: Actual, Moving Average & Trend"))
+                                    except Exception:
+                                        pass
+                                else:
+                                    # fallback: export via matplotlib image
+                                    try:
+                                        plt.figure(figsize=(10,4))
+                                        plt.plot(agg[date_col], agg[measure_col], label='Actual')
+                                        plt.plot(agg[date_col], agg['MA'], label=f'MA ({ma_window})')
+                                        plt.plot(agg[date_col], agg['Trend'], label='Trend')
+                                        plt.legend()
+                                        plt.tight_layout()
+                                        buf = BytesIO()
+                                        if plt:
+                                            plt.savefig(buf, format='png')
+                                            buf.seek(0)
+                                            charts_buffers.append((buf, "Forecast (matplotlib fallback)"))
+                                    except Exception:
+                                        pass
+                            except Exception as e:
+                                st.warning(f"⚠️ Plotly chart failed: {e}")
+                        else:
+                            # Matplotlib fallback
+                            try:
+                                plt.figure(figsize=(10,4))
+                                plt.plot(agg[date_col], agg[measure_col], label='Actual')
+                                plt.plot(agg[date_col], agg['MA'], label=f'MA ({ma_window})')
+                                plt.plot(agg[date_col], agg['Trend'], label='Trend')
+                                plt.legend()
+                                plt.tight_layout()
+                                buf = BytesIO()
+                                if plt:
+                                    plt.savefig(buf, format='png')
+                                    buf.seek(0)
+                                    charts_buffers.append((buf, "Forecast (matplotlib)"))
+                                st.markdown("### 🔮 Forecast & Trend (matplotlib)")
+                                st.image(buf)
+                                show_toast("📈 Forecast (matplotlib) generated", state="success")
+                            except Exception as e:
+                                st.warning(f"⚠️ Forecast plotting failed: {e}")
+                    else:
+                        st.info("For forecasting please select a valid Date/Time column that contains chronological data.")
+                else:
+                    st.info("Please select a numeric measure column to compute forecasts/charts.")
+
+                # === Additional auto charts (Top N) ===
+                rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
+                if rep_col and measure_col in filtered.columns:
+                    try:
+                        rep_data = filtered.groupby(rep_col)[measure_col].sum().sort_values(ascending=False)
+                        topN = st.selectbox("Top N for Employees chart", [5,10,15], index=1)
+                        top_series = rep_data.head(topN).reset_index().rename(columns={measure_col: "value"})
+                        if _has_plotly:
+                            fig_top = px.bar(top_series, x=rep_col, y="value", title=f"Top {topN} Employees", text="value")
+                            fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                            fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
+                            st.plotly_chart(fig_top, use_container_width=True, theme="streamlit")
+                            if _has_kaleido:
+                                try:
+                                    img_bytes = fig_top.to_image(format="png", width=1200, height=600)
+                                    buf_top = BytesIO(img_bytes)
+                                    charts_buffers.append((buf_top, f"Top {topN} Employees"))
+                                except Exception:
+                                    pass
+                        else:
+                            # matplotlib fallback
+                            try:
+                                plt.figure(figsize=(8,4))
+                                plt.bar(top_series[rep_col].astype(str), top_series["value"])
+                                plt.xticks(rotation=45, ha='right')
+                                plt.tight_layout()
+                                buf_top = BytesIO()
+                                if plt:
+                                    plt.savefig(buf_top, format='png')
+                                    buf_top.seek(0)
+                                    charts_buffers.append((buf_top, f"Top {topN} Employees"))
+                                    st.image(buf_top)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+
+                # === Export options: Excel, PDF, PPTX ===
+                st.markdown("### 💾 Export Report / Data")
+                excel_buffer = BytesIO()
                 try:
-                    ppt_buffer = build_pptx(sheet_title, charts_buffers)
+                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                        filtered.to_excel(writer, index=False, sheet_name='Filtered_Data')
+                    excel_data = excel_buffer.getvalue()
                     st.download_button(
-                        label="⬇️ Download PPTX",
-                        data=ppt_buffer.getvalue(),
-                        file_name=f"{_safe_name(sheet_title)}_Dashboard.pptx",
-                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        label="⬇️ Download Filtered Data (Excel)",
+                        data=excel_data,
+                        file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-                    show_toast("📁 PPTX exported", state="success")
-                except Exception as e:
-                    st.error(f"❌ PPTX export failed: {e}")
-                    show_toast("❌ PPTX export failed", state="error")
+                except Exception:
+                    st.warning("Could not export Excel (maybe openpyxl missing).")
 
+                if st.button("📥 Generate Dashboard PDF (Full - KPIs + Charts + Table)"):
+                    with st.spinner("Generating Dashboard PDF..."):
+                        try:
+                            if not _has_reportlab:
+                                st.warning("reportlab not available: PDF export disabled.")
+                                show_toast("⚠️ PDF export unavailable (reportlab missing)", state="warning")
+                            else:
+                                pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=True, filtered_df=filtered, kpis=kpi_values, max_table_rows=200)
+                                if pdf_buffer:
+                                    st.success("✅ Dashboard PDF ready.")
+                                    st.download_button(
+                                        label="⬇️ Download Dashboard PDF",
+                                        data=pdf_buffer.getvalue(),
+                                        file_name=f"{_safe_name(sheet_title)}_Dashboard.pdf",
+                                        mime="application/pdf"
+                                    )
+                                    show_toast("📄 PDF Generated Successfully", state="success", duration=3)
+                                else:
+                                    st.error("PDF generation returned empty buffer.")
+                        except Exception as e:
+                            st.error(f"❌ PDF generation failed: {e}")
+                            show_toast("❌ PDF generation failed", state="error")
+
+                if st.button("📥 Export Dashboard to PPTX (charts only)"):
+                    try:
+                        if not _has_pptx:
+                            st.warning("python-pptx not available: PPTX export disabled.")
+                            show_toast("⚠️ PPTX export unavailable (python-pptx missing)", state="warning")
+                        else:
+                            ppt_buffer = build_pptx(sheet_title, charts_buffers)
+                            if ppt_buffer:
+                                st.download_button(
+                                    label="⬇️ Download PPTX",
+                                    data=ppt_buffer.getvalue(),
+                                    file_name=f"{_safe_name(sheet_title)}_Dashboard.pptx",
+                                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                )
+                                show_toast("📁 PPTX exported", state="success")
+                    except Exception as e:
+                        st.error(f"❌ PPTX export failed: {e}")
+                        show_toast("❌ PPTX export failed", state="error")
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
             show_toast("❌ Dashboard generation error", state="error")
@@ -939,3 +1158,32 @@ with tab4:
         <li>For moving averages choose a window appropriate to your data frequency (e.g., 3-6 for monthly, 7-14 for daily).</li>
     </ul>
     """, unsafe_allow_html=True)
+
+# ---------------- Final: show missing libs banner if any ----------------
+missing = []
+if not _has_reportlab:
+    missing.append("reportlab (PDF export)")
+if not _has_plotly:
+    missing.append("plotly (interactive charts)")
+if not _has_kaleido:
+    missing.append("kaleido (Plotly to_image)")
+if not _has_pptx:
+    missing.append("python-pptx (PPTX export)")
+if not _has_cv2:
+    missing.append("opencv-python (image enhancement)")
+if not _has_sk:
+    missing.append("scikit-learn (forecast trend)")
+if not _has_toast:
+    missing.append("streamlit-toast (toast notifications)")
+
+if missing:
+    show_banner("⚠️ Optional libraries missing: " + ", ".join(missing) + ". The app will still run but some features are disabled.", level="warning")
+'''
+# Write the file
+with open('/mnt/data/app_safe.py', 'w', encoding='utf-8') as f:
+    f.write(code)
+    f.write(rest)
+
+# Provide output link to user
+print("Wrote /mnt/data/app_safe.py")
+
