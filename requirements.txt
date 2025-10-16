@@ -1,12 +1,12 @@
 streamlit
 pandas
 openpyxl
+xlsxwriter
+python-pptx
+Pillow
 plotly
-kaleido
 matplotlib
 reportlab
-pillow
 scikit-learn
+numpy
 opencv-python-headless
-python-pptx
-streamlit-toast
