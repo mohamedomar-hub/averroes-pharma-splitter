@@ -35,7 +35,7 @@ st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
-    initial_sidebar_state="expanded"  # Changed to expanded for better UX
+    initial_sidebar_state="expanded"
 )
 
 # Hide default Streamlit elements
@@ -289,13 +289,17 @@ st.markdown(
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
 
-# ------------------ Sidebar Navigation ------------------
-st.sidebar.markdown('<div style="text-align:center; font-weight:bold; color:#FFD700; font-size:20px; margin-bottom:20px;">🧭 Navigation</div>', unsafe_allow_html=True)
+# ------------------ Sidebar Navigation (FIXED & SAFE) ------------------
+NAV_OPTIONS = ["Split Files", "Merge Files", "Convert Images to PDF", "Dashboard"]
+
+# Ensure active_section is always valid
+if 'active_section' not in st.session_state or st.session_state.active_section not in NAV_OPTIONS:
+    st.session_state.active_section = "Split Files"
 
 section = st.sidebar.selectbox(
-    "Choose Section",
-    ["Split Files", "Merge Files", "Convert Images to PDF", "Dashboard"],
-    index=["Split Files", "Merge Files", "Convert Images to PDF", "Dashboard"].index(st.session_state.active_section),
+    "🧭 Choose Section",
+    NAV_OPTIONS,
+    index=NAV_OPTIONS.index(st.session_state.active_section),
     key="main_nav"
 )
 st.session_state.active_section = section
@@ -553,9 +557,9 @@ if st.session_state.active_section == "Split Files":
                                 mime="application/zip"
                             )
                 progress_placeholder.progress(100)
+                progress_placeholder.empty()
         except Exception as e:
             st.error(f"❌ Error processing file: {e}")
-        finally:
             progress_placeholder.empty()
     else:
         st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
