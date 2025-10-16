@@ -9,3 +9,4 @@ Pillow
 numpy
 opencv-python-headless  # for image enhancement (optional)
 kaleido                 # for PNG export from Plotly
+scikit-learn
