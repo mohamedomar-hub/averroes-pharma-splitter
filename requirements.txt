@@ -1,12 +1,10 @@
 streamlit
 pandas
 openpyxl
-matplotlib
 plotly
+matplotlib
 reportlab
-python-pptx
-Pillow
-numpy
-opencv-python-headless  # for image enhancement (optional)
-kaleido                 # for PNG export from Plotly
+pillow
 scikit-learn
+opencv-python
+streamlit-toast
