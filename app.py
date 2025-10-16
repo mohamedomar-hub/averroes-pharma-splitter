@@ -21,6 +21,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from PIL import Image
+from sklearn.linear_model import LinearRegression
 import numpy as np
 
 # Initialize session state
@@ -32,7 +33,7 @@ st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
-    initial_sidebar_state="expanded"  # ← مهم جدًا
+    initial_sidebar_state="collapsed"
 )
 
 # Hide default Streamlit elements
@@ -143,61 +144,136 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    /* Customize Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #001a33 !important;
-        color: #FFD700 !important;
-        border-right: 2px solid #FFD700 !important;
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 20px;
     }
-    [data-testid="stSidebar"] .css-1d391kg {
-        color: #FFD700 !important;
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 10px;
     }
-    [data-testid="stSidebar"] .css-1v0mbdj {
-        color: #FFD700 !important;
-    }
-    [data-testid="stSidebar"] .css-1l02zno {
-        color: #FFD700 !important;
-    }
-    [data-testid="stSidebar"] .css-1v0mbdj p {
-        font-size: 18px !important;
-        font-weight: bold !important;
-        color: #FFD700 !important;
-    }
-    [data-testid="stSidebar"] .css-1v0mbdj h2 {
-        font-size: 20px !important;
-        color: #FFD700 !important;
-        font-weight: bold !important;
-    }
-    [data-testid="stSidebar"] .css-1v0mbdj div {
-        font-size: 18px !important;
-        color: #FFD700 !important;
-        font-weight: bold !important;
-    }
-    [data-testid="stSidebar"] .css-1v0mbdj button {
+    .stTabs [aria-selected="true"] {
         background-color: #FFD700 !important;
         color: black !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-        border-radius: 8px !important;
-        padding: 8px 16px !important;
-        border: none !important;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
-        transition: all 0.3s ease !important;
-        margin: 5px 0 !important;
+        border: 2px solid #FFC107 !important;
     }
-    [data-testid="stSidebar"] .css-1v0mbdj button:hover {
-        background-color: #FFC107 !important;
-        transform: scale(1.05);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.4) !important;
-    }
-    /* Make sidebar always expanded */
-    [data-testid="stSidebar"] {
-        min-width: 250px !important;
-        max-width: 250px !important;
+    .stTabs [aria-selected="false"] {
+        background-color: #003366 !important;
+        color: #FFD700 !important;
+        border: 1px solid #FFD700 !important;
     }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
+# ------------------ Helper Functions ------------------
+def display_uploaded_files(file_list, file_type="Excel/CSV"):
+    if file_list:
+        st.markdown("### 📁 Uploaded Files:")
+        for i, f in enumerate(file_list):
+            st.markdown(
+                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
+                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
+                unsafe_allow_html=True
+            )
+
+def _safe_name(s):
+    return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
+def _find_col(df, aliases):
+    lowered = {c.lower(): c for c in df.columns}
+    for a in aliases:
+        if a.lower() in lowered:
+            return lowered[a.lower()]
+    for c in df.columns:
+        name = c.strip().lower()
+        for a in aliases:
+            if a.lower() in name:
+                return c
+    return None
+
+def _format_millions(x, pos=None):
+    try:
+        x = float(x)
+    except:
+        return str(x)
+    if abs(x) >= 1_000_000:
+        return f"{x/1_000_000:.1f}M"
+    if abs(x) >= 1_000:
+        return f"{x/1_000:.0f}K"
+    return f"{x:.0f}"
+
+def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
+    styles = getSampleStyleSheet()
+    elements = []
+    elements.append(Paragraph(f"<para align='center'><b>{sheet_title} Report</b></para>", styles['Title']))
+    elements.append(Spacer(1,12))
+    elements.append(Paragraph("<para align='center'>Averroes Pharma - Auto Generated Dashboard</para>", styles['Heading3']))
+    elements.append(Spacer(1,18))
+    for img_buf, caption in charts_buffers:
+        try:
+            img_buf.seek(0)
+            img = RLImage(img_buf, width=760, height=360)
+            elements.append(img)
+            elements.append(Spacer(1,6))
+            elements.append(Paragraph(f"<para align='center'>{caption}</para>", styles['Normal']))
+            elements.append(Spacer(1,12))
+        except Exception:
+            pass
+    if include_table and (filtered_df is not None):
+        table_df = filtered_df.copy().fillna("")
+        if len(table_df) > max_table_rows:
+            table_df = table_df.head(max_table_rows)
+            elements.append(Paragraph(f"Showing first {max_table_rows} rows of filtered data", styles['Normal']))
+            elements.append(Spacer(1,6))
+        table_data = [table_df.columns.tolist()] + table_df.astype(str).values.tolist()
+        tbl = Table(table_data, hAlign='CENTER')
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#FFD700")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.black),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.3, colors.grey),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ]))
+        elements.append(tbl)
+    doc.build(elements)
+    buf.seek(0)
+    return buf
+
+def build_pptx(sheet_title, charts_buffers):
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[0])
+    title = slide.shapes.title
+    title.text = f"{sheet_title} Dashboard"
+    subtitle = slide.placeholders[1]
+    subtitle.text = "Auto-generated by Averroes Pharma"
+    for img_buf, caption in charts_buffers:
+        try:
+            img_buf.seek(0)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            left = Inches(0.5)
+            top = Inches(0.8)
+            width = Inches(9)
+            height = Inches(5)
+            slide.shapes.add_picture(img_buf, left, top, width=width, height=height)
+            txBox = slide.shapes.add_textbox(left, top + height + Inches(0.1), width, Inches(0.5))
+            tf = txBox.text_frame
+            p = tf.paragraphs[0]
+            p.text = caption
+            p.font.size = Pt(14)
+            p.font.color.rgb = RGBColor(0, 0, 0)
+            p.alignment = PP_ALIGN.CENTER
+        except Exception:
+            pass
+    pptx_buffer = BytesIO()
+    prs.save(pptx_buffer)
+    pptx_buffer.seek(0)
+    return pptx_buffer
 
 # ------------------ Navigation & Logo ------------------
 st.markdown(
@@ -232,23 +308,16 @@ st.markdown(
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
 
-# ------------------ Sidebar Navigation ------------------
-st.sidebar.title("🧭 Navigation")
-page = st.sidebar.radio(
-    "Choose a section:",
-    [
-        "📂 Split & Merge",
-        "📷 Image to PDF",
-        "📊 Auto Dashboard",
-        "ℹ️ Info"
-    ],
-    index=0,
-    key="main_navigation",
-    format_func=lambda x: x  # Optional: customize display if needed
-)
+# ------------------ Tabs ------------------
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📂 Split & Merge", 
+    "📷 Image to PDF", 
+    "📊 Auto Dashboard", 
+    "ℹ️ Info"
+])
 
-# ------------------ Section: Split & Merge ------------------
-if page == "📂 Split & Merge":
+# ------------------ Tab 1: Split & Merge ------------------
+with tab1:
     st.markdown("### ✂ Split Excel/CSV File")
     uploaded_file = st.file_uploader(
         "📂 Upload Excel or CSV File (Splitter/Merge)",
@@ -537,8 +606,8 @@ if page == "📂 Split & Merge":
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
 
-# ------------------ Section: Image to PDF ------------------
-elif page == "📷 Image to PDF":
+# ------------------ Tab 2: Image to PDF ------------------
+with tab2:
     st.markdown("### 📷 Convert Images to PDF")
     uploaded_images = st.file_uploader(
         "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
@@ -623,8 +692,8 @@ elif page == "📷 Image to PDF":
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
 
-# ------------------ Section: Auto Dashboard ------------------
-elif page == "📊 Auto Dashboard":
+# ------------------ Tab 3: Dashboard ------------------
+with tab3:
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
     dashboard_file = st.file_uploader(
         "📊 Upload Excel or CSV File for Dashboard (Auto)",
@@ -649,6 +718,7 @@ elif page == "📊 Auto Dashboard":
                 sheet_title = selected_sheet_dash
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
+
             # Detect period columns
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             period_cols = []
@@ -678,6 +748,7 @@ elif page == "📊 Auto Dashboard":
                 st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
             else:
                 period_comparison = None
+
             # Handle month columns
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
@@ -691,6 +762,7 @@ elif page == "📊 Auto Dashboard":
                 numeric_cols = df0.select_dtypes(include='number').columns.tolist()
                 measure_col = numeric_cols[0] if numeric_cols else None
                 df_long = df0.copy()
+
             # Select measure column
             numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
             if numeric_cols_in_long:
@@ -702,12 +774,14 @@ elif page == "📊 Auto Dashboard":
                 kpi_measure_col = user_measure_col
             else:
                 kpi_measure_col = measure_col
+
             # Identify categorical columns
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
                 if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
+
             # Sidebar filters
             st.sidebar.header("🔍 Dynamic Filters")
             primary_filter_col = None
@@ -733,6 +807,7 @@ elif page == "📊 Auto Dashboard":
                     pass
                 sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
                 active_filters[fc] = sel
+
             # Apply filters
             filtered = df_long.copy()
             if primary_filter_col and primary_values is not None and len(primary_values) > 0:
@@ -740,8 +815,10 @@ elif page == "📊 Auto Dashboard":
             for fc, sel in active_filters.items():
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
+
             st.markdown("### 📈 Filtered Data Preview")
             st.dataframe(filtered.head(200), use_container_width=True)
+
             # === Auto Group Low-Performers ===
             rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
             performance_group_col = None
@@ -763,6 +840,7 @@ elif page == "📊 Auto Dashboard":
                             return "Medium Performer"
                     filtered_with_group['Performance Group'] = filtered_with_group[rep_col].apply(assign_group)
                     performance_group_col = 'Performance Group'
+
                     # Show colored table
                     st.markdown("### 👥 Performance Groups")
                     group_summary = filtered_with_group.groupby([rep_col, 'Performance Group'])[kpi_measure_col].sum().reset_index()
@@ -780,13 +858,16 @@ elif page == "📊 Auto Dashboard":
                     st.info("ℹ️ Not enough representatives to group (min 5 required).")
             else:
                 st.info("ℹ️ Rep column not found for performance grouping.")
+
             final_df = filtered_with_group
+
             # === KPIs ===
             found_dims = {}
             for dim_key, aliases in {"area": ["area", "region"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
                 col = _find_col(final_df, aliases)
                 if col:
                     found_dims[dim_key] = col
+
             kpi_values = {}
             if kpi_measure_col and kpi_measure_col in final_df.columns:
                 kpi_values['total'] = final_df[kpi_measure_col].sum()
@@ -801,10 +882,13 @@ elif page == "📊 Auto Dashboard":
                 kpi_values['total'] = None
                 kpi_values['avg'] = None
                 kpi_values['avg_per_date'] = None
+
             for dim_key, col_name in found_dims.items():
                 kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
+
             if period_comparison and '__pct_change__' in final_df.columns:
                 kpi_values['growth_pct'] = final_df['__pct_change__'].mean() * 100
+
             kpi_cards = []
             if kpi_values.get('total') is not None:
                 kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
@@ -824,6 +908,7 @@ elif page == "📊 Auto Dashboard":
             if performance_group_col:
                 num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
                 kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
+
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:6]):
@@ -834,6 +919,7 @@ elif page == "📊 Auto Dashboard":
                         <div class='kpi-value'>{card['value']}</div>
                     </div>
                     """, unsafe_allow_html=True)
+
             # === Smart Insights ===
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
             st.markdown("### 🧠 Smart Insights")
@@ -882,10 +968,12 @@ elif page == "📊 Auto Dashboard":
                     <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>🇬🇧 {ins}</p>
                 </div>
                 """, unsafe_allow_html=True)
+
             # === Auto Charts ===
             st.markdown("### 📊 Auto Charts")
             charts_buffers = []
             plotly_figs = []
+
             # Performance Group Chart
             if performance_group_col:
                 try:
@@ -898,6 +986,7 @@ elif page == "📊 Auto Dashboard":
                     plotly_figs.append((fig, "Performance Groups"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
+
             # Top/Bottom Employees
             if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
                 rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
@@ -909,6 +998,7 @@ elif page == "📊 Auto Dashboard":
                     fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_top, "Top 10 Employees"))
+
                     bottom10 = rep_data.sort_values(ascending=True).head(10)
                     df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_bottom[rep_col] = df_bottom[rep_col].astype(str).str.strip()
@@ -916,6 +1006,7 @@ elif page == "📊 Auto Dashboard":
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
+
             # Other charts: ensure chosen_dim is categorical
             possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
             chosen_dim = None
@@ -926,6 +1017,7 @@ elif page == "📊 Auto Dashboard":
                     break
             if not chosen_dim and possible_dims:
                 chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
+
             if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
                 try:
                     series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
@@ -938,6 +1030,7 @@ elif page == "📊 Auto Dashboard":
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
+
             # Display charts
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             plotly_figs = plotly_figs[:6]
@@ -954,6 +1047,7 @@ elif page == "📊 Auto Dashboard":
                                 st.plotly_chart(fig, use_container_width=True, theme="streamlit")
                                 st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                                 st.markdown('</div>', unsafe_allow_html=True)
+
             # === Export Section ===
             st.markdown("### 💾 Export Report / Data")
             excel_buffer = BytesIO()
@@ -966,6 +1060,7 @@ elif page == "📊 Auto Dashboard":
                 file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
             if st.button("📥 Generate Dashboard PDF (charts only)"):
                 with st.spinner("Generating Dashboard PDF..."):
                     try:
@@ -979,11 +1074,12 @@ elif page == "📊 Auto Dashboard":
                         )
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
+
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
 
-# ------------------ Section: Info ------------------
-elif page == "ℹ️ Info":
+# ------------------ Tab 4: Info ------------------
+with tab4:
     st.markdown("""
     <div class='guide-title'>🎯 Welcome to a free tool provided by the company admin.!</div>
     <br>
@@ -1008,3 +1104,5 @@ elif page == "ℹ️ Info":
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
+
+
