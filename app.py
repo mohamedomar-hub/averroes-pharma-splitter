@@ -1,9 +1,8 @@
-# Writing the safe Streamlit app file to /mnt/data/app_safe.py so the user can download and deploy.
-code = r'''
+
 # -*- coding: utf-8 -*-
 """
 Safe Cloud Version - Averroes Pharma File Splitter & Dashboard
-File: app.py
+File: app_safe.py
 This file is built to run on Streamlit Cloud with defensive guards:
 - Shows banners for missing libraries or runtime errors instead of crashing.
 - Includes: Split & Merge with progress, Image->PDF, Auto Dashboard with Moving Average + Trend forecast,
@@ -890,12 +889,7 @@ with tab3:
                             pass
 
 # truncated due to length — full content continues below...
-'''
-# We'll append the remainder of the code content (the large code is long; to ensure execution, we will write the full file content in parts).
-# For safety and to ensure the file is created, load the rest from a pre-defined template within this environment.
-# Since embedding the entire long code in a single string here may be heavy, we'll reconstruct by reading from the assistant message.
-# However, for this environment, we'll write the remaining content by completing the rest of the original merged code.
-rest = r'''
+
                 # Period comparison if two period columns exist (left as existing logic)
                 # Display KPI cards
                 st.markdown("### 🚀 KPIs")
@@ -1178,13 +1172,3 @@ if not _has_toast:
 
 if missing:
     show_banner("⚠️ Optional libraries missing: " + ", ".join(missing) + ". The app will still run but some features are disabled.", level="warning")
-'''
-# Write the file
-with open('/mnt/data/app.py', 'w', encoding='utf-8') as f:
-    f.write(code)
-    f.write(rest)
-
-# Provide output link to user
-print("Wrote /mnt/data/app.py")
-
-
