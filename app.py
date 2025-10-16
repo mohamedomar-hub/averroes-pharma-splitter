@@ -21,7 +21,6 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from PIL import Image
-from sklearn.linear_model import LinearRegression
 import numpy as np
 
 # Initialize session state
@@ -33,7 +32,7 @@ st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
-    initial_sidebar_state="expanded"  # ← تم تغييره إلى "expanded"
+    initial_sidebar_state="expanded"  # ← مهم جدًا
 )
 
 # Hide default Streamlit elements
@@ -144,115 +143,61 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
+    /* Customize Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #001a33 !important;
+        color: #FFD700 !important;
+        border-right: 2px solid #FFD700 !important;
+    }
+    [data-testid="stSidebar"] .css-1d391kg {
+        color: #FFD700 !important;
+    }
+    [data-testid="stSidebar"] .css-1v0mbdj {
+        color: #FFD700 !important;
+    }
+    [data-testid="stSidebar"] .css-1l02zno {
+        color: #FFD700 !important;
+    }
+    [data-testid="stSidebar"] .css-1v0mbdj p {
+        font-size: 18px !important;
+        font-weight: bold !important;
+        color: #FFD700 !important;
+    }
+    [data-testid="stSidebar"] .css-1v0mbdj h2 {
+        font-size: 20px !important;
+        color: #FFD700 !important;
+        font-weight: bold !important;
+    }
+    [data-testid="stSidebar"] .css-1v0mbdj div {
+        font-size: 18px !important;
+        color: #FFD700 !important;
+        font-weight: bold !important;
+    }
+    [data-testid="stSidebar"] .css-1v0mbdj button {
+        background-color: #FFD700 !important;
+        color: black !important;
+        font-weight: bold !important;
+        font-size: 18px !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        border: none !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+        transition: all 0.3s ease !important;
+        margin: 5px 0 !important;
+    }
+    [data-testid="stSidebar"] .css-1v0mbdj button:hover {
+        background-color: #FFC107 !important;
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.4) !important;
+    }
+    /* Make sidebar always expanded */
+    [data-testid="stSidebar"] {
+        min-width: 250px !important;
+        max-width: 250px !important;
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
-# ------------------ Helper Functions ------------------
-def display_uploaded_files(file_list, file_type="Excel/CSV"):
-    if file_list:
-        st.markdown("### 📁 Uploaded Files:")
-        for i, f in enumerate(file_list):
-            st.markdown(
-                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
-                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
-                unsafe_allow_html=True
-            )
-
-def _safe_name(s):
-    return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
-
-def _find_col(df, aliases):
-    lowered = {c.lower(): c for c in df.columns}
-    for a in aliases:
-        if a.lower() in lowered:
-            return lowered[a.lower()]
-    for c in df.columns:
-        name = c.strip().lower()
-        for a in aliases:
-            if a.lower() in name:
-                return c
-    return None
-
-def _format_millions(x, pos=None):
-    try:
-        x = float(x)
-    except:
-        return str(x)
-    if abs(x) >= 1_000_000:
-        return f"{x/1_000_000:.1f}M"
-    if abs(x) >= 1_000:
-        return f"{x/1_000:.0f}K"
-    return f"{x:.0f}"
-
-def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
-    buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
-    styles = getSampleStyleSheet()
-    elements = []
-    elements.append(Paragraph(f"<para align='center'><b>{sheet_title} Report</b></para>", styles['Title']))
-    elements.append(Spacer(1,12))
-    elements.append(Paragraph("<para align='center'>Averroes Pharma - Auto Generated Dashboard</para>", styles['Heading3']))
-    elements.append(Spacer(1,18))
-    for img_buf, caption in charts_buffers:
-        try:
-            img_buf.seek(0)
-            img = RLImage(img_buf, width=760, height=360)
-            elements.append(img)
-            elements.append(Spacer(1,6))
-            elements.append(Paragraph(f"<para align='center'>{caption}</para>", styles['Normal']))
-            elements.append(Spacer(1,12))
-        except Exception:
-            pass
-    if include_table and (filtered_df is not None):
-        table_df = filtered_df.copy().fillna("")
-        if len(table_df) > max_table_rows:
-            table_df = table_df.head(max_table_rows)
-            elements.append(Paragraph(f"Showing first {max_table_rows} rows of filtered data", styles['Normal']))
-            elements.append(Spacer(1,6))
-        table_data = [table_df.columns.tolist()] + table_df.astype(str).values.tolist()
-        tbl = Table(table_data, hAlign='CENTER')
-        tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#FFD700")),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.black),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('GRID', (0,0), (-1,-1), 0.3, colors.grey),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ]))
-        elements.append(tbl)
-    doc.build(elements)
-    buf.seek(0)
-    return buf
-
-def build_pptx(sheet_title, charts_buffers):
-    prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[0])
-    title = slide.shapes.title
-    title.text = f"{sheet_title} Dashboard"
-    subtitle = slide.placeholders[1]
-    subtitle.text = "Auto-generated by Averroes Pharma"
-    for img_buf, caption in charts_buffers:
-        try:
-            img_buf.seek(0)
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
-            left = Inches(0.5)
-            top = Inches(0.8)
-            width = Inches(9)
-            height = Inches(5)
-            slide.shapes.add_picture(img_buf, left, top, width=width, height=height)
-            txBox = slide.shapes.add_textbox(left, top + height + Inches(0.1), width, Inches(0.5))
-            tf = txBox.text_frame
-            p = tf.paragraphs[0]
-            p.text = caption
-            p.font.size = Pt(14)
-            p.font.color.rgb = RGBColor(0, 0, 0)
-            p.alignment = PP_ALIGN.CENTER
-        except Exception:
-            pass
-    pptx_buffer = BytesIO()
-    prs.save(pptx_buffer)
-    pptx_buffer.seek(0)
-    return pptx_buffer
 
 # ------------------ Navigation & Logo ------------------
 st.markdown(
@@ -298,7 +243,8 @@ page = st.sidebar.radio(
         "ℹ️ Info"
     ],
     index=0,
-    key="main_navigation"
+    key="main_navigation",
+    format_func=lambda x: x  # Optional: customize display if needed
 )
 
 # ------------------ Section: Split & Merge ------------------
@@ -1043,9 +989,9 @@ elif page == "ℹ️ Info":
     <br>
     <h3 style='color:#FFD700;'>📌 How to Use</h3>
     <ol style='color:white; font-size:16px; line-height:1.6;'>
-        <li><strong>Upload Excel/CSV File (Splitter/Merge)</strong>: Upload a file to split by a column or merge multiple files.</li>
-        <li><strong>Merge Excel/CSV Files</strong>: Upload multiple files to combine them into one Excel file.</li>
-        <li><strong>Convert Images to PDF</strong>: Upload images to create a single PDF (original or enhanced).</li>
+        <li><strong>Upload Excel/CSV File (Splitter/Merge)</strong>: ... </li>
+        <li><strong>Merge Excel/CSV Files</strong>: ... </li>
+        <li><strong>Convert Images to PDF</strong>: ... </li>
         <li><strong>Auto Dashboard Generator</strong>: 
             <ul>
                 <li>Upload an Excel or CSV file for dashboard.</li>
@@ -1060,7 +1006,5 @@ elif page == "ℹ️ Info":
     <h3 style='color:#FFD700;'>💡 Tips</h3>
     <ul>
         <li>Performance grouping requires at least 5 representatives.</li>
-        <li>For best results in PDF, use high-quality images.</li>
-        <li>Split by column works best with categorical data (e.g., Area, Rep).</li>
     </ul>
     """, unsafe_allow_html=True)
