@@ -568,7 +568,6 @@ with tab1:
             st.error(f"❌ Error processing file: {e}")
     else:
         st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
-
     st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
     st.markdown("### 🔄 Merge Excel/CSV Files")
     merge_files = st.file_uploader(
@@ -582,76 +581,26 @@ with tab1:
         if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
             st.session_state.clear_counter += 1
             st.rerun()
-
         if st.button("✨ Merge Files"):
-            with st.spinner("Merging all sheets into a single sheet with formatting..."):
+            with st.spinner("Merging files..."):
                 try:
-                    output_wb = Workbook()
-                    ws = output_wb.active
-                    ws.title = "Merged_Data"
-                    current_row = 1
-
+                    all_dfs = []
                     for file in merge_files:
                         ext = file.name.split('.')[-1].lower()
                         if ext == "csv":
                             df = pd.read_csv(file)
-                            # Write header
-                            for col_idx, col_name in enumerate(df.columns, 1):
-                                ws.cell(row=current_row, column=col_idx, value=col_name)
-                            current_row += 1
-                            # Write data
-                            for row in df.itertuples(index=False, name=None):
-                                for col_idx, value in enumerate(row, 1):
-                                    ws.cell(row=current_row, column=col_idx, value=value)
-                                current_row += 1
                         else:
-                            input_wb = load_workbook(filename=BytesIO(file.getvalue()), data_only=True)
-                            for sheet_name in input_wb.sheetnames:
-                                src_ws = input_wb[sheet_name]
-                                # Copy rows one by one with styles
-                                for row in src_ws.iter_rows():
-                                    for cell in row:
-                                        dst_cell = ws.cell(row=current_row, column=cell.column, value=cell.value)
-                                        if cell.has_style:
-                                            try:
-                                                dst_cell.font = Font(
-                                                    name=cell.font.name,
-                                                    size=cell.font.size,
-                                                    bold=cell.font.bold,
-                                                    italic=cell.font.italic,
-                                                    color=cell.font.color
-                                                )
-                                                dst_cell.fill = PatternFill(
-                                                    fill_type=cell.fill.fill_type,
-                                                    start_color=cell.fill.start_color,
-                                                    end_color=cell.fill.end_color
-                                                ) if cell.fill and cell.fill.fill_type else PatternFill()
-                                                dst_cell.border = Border(
-                                                    left=cell.border.left,
-                                                    right=cell.border.right,
-                                                    top=cell.border.top,
-                                                    bottom=cell.border.bottom
-                                                )
-                                                dst_cell.alignment = Alignment(
-                                                    horizontal=cell.alignment.horizontal,
-                                                    vertical=cell.alignment.vertical,
-                                                    wrap_text=cell.alignment.wrap_text
-                                                )
-                                                dst_cell.number_format = cell.number_format
-                                            except Exception:
-                                                pass
-                                    current_row += 1
-
-                    # Save to buffer
+                            df = pd.read_excel(file)
+                        all_dfs.append(df)
+                    merged_df = pd.concat(all_dfs, ignore_index=True)
                     output_buffer = BytesIO()
-                    output_wb.save(output_buffer)
+                    merged_df.to_excel(output_buffer, index=False, engine='openpyxl')
                     output_buffer.seek(0)
-
-                    st.success("✅ All files merged into a single sheet with formatting preserved!")
+                    st.success("✅ Merged successfully!")
                     st.download_button(
-                        label="📥 Download Merged File (Single Sheet)",
+                        label="📥 Download Merged File (Excel)",
                         data=output_buffer.getvalue(),
-                        file_name="Merged_SingleSheet.xlsx",
+                        file_name="Merged_Consolidated.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                 except Exception as e:
@@ -769,6 +718,7 @@ with tab3:
                 sheet_title = selected_sheet_dash
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
+
             # Detect period columns
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             period_cols = []
@@ -798,6 +748,7 @@ with tab3:
                 st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
             else:
                 period_comparison = None
+
             # Handle month columns
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
@@ -811,6 +762,7 @@ with tab3:
                 numeric_cols = df0.select_dtypes(include='number').columns.tolist()
                 measure_col = numeric_cols[0] if numeric_cols else None
                 df_long = df0.copy()
+
             # Select measure column
             numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
             if numeric_cols_in_long:
@@ -822,12 +774,14 @@ with tab3:
                 kpi_measure_col = user_measure_col
             else:
                 kpi_measure_col = measure_col
+
             # Identify categorical columns
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
                 if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
+
             # Sidebar filters
             st.sidebar.header("🔍 Dynamic Filters")
             primary_filter_col = None
@@ -853,6 +807,7 @@ with tab3:
                     pass
                 sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
                 active_filters[fc] = sel
+
             # Apply filters
             filtered = df_long.copy()
             if primary_filter_col and primary_values is not None and len(primary_values) > 0:
@@ -860,8 +815,10 @@ with tab3:
             for fc, sel in active_filters.items():
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
+
             st.markdown("### 📈 Filtered Data Preview")
             st.dataframe(filtered.head(200), use_container_width=True)
+
             # === Auto Group Low-Performers ===
             rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
             performance_group_col = None
@@ -883,6 +840,7 @@ with tab3:
                             return "Medium Performer"
                     filtered_with_group['Performance Group'] = filtered_with_group[rep_col].apply(assign_group)
                     performance_group_col = 'Performance Group'
+
                     # Show colored table
                     st.markdown("### 👥 Performance Groups")
                     group_summary = filtered_with_group.groupby([rep_col, 'Performance Group'])[kpi_measure_col].sum().reset_index()
@@ -900,13 +858,16 @@ with tab3:
                     st.info("ℹ️ Not enough representatives to group (min 5 required).")
             else:
                 st.info("ℹ️ Rep column not found for performance grouping.")
+
             final_df = filtered_with_group
+
             # === KPIs ===
             found_dims = {}
             for dim_key, aliases in {"area": ["area", "region"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
                 col = _find_col(final_df, aliases)
                 if col:
                     found_dims[dim_key] = col
+
             kpi_values = {}
             if kpi_measure_col and kpi_measure_col in final_df.columns:
                 kpi_values['total'] = final_df[kpi_measure_col].sum()
@@ -921,10 +882,13 @@ with tab3:
                 kpi_values['total'] = None
                 kpi_values['avg'] = None
                 kpi_values['avg_per_date'] = None
+
             for dim_key, col_name in found_dims.items():
                 kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
+
             if period_comparison and '__pct_change__' in final_df.columns:
                 kpi_values['growth_pct'] = final_df['__pct_change__'].mean() * 100
+
             kpi_cards = []
             if kpi_values.get('total') is not None:
                 kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
@@ -944,6 +908,7 @@ with tab3:
             if performance_group_col:
                 num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
                 kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
+
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:6]):
@@ -954,6 +919,7 @@ with tab3:
                         <div class='kpi-value'>{card['value']}</div>
                     </div>
                     """, unsafe_allow_html=True)
+
             # === Smart Insights ===
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
             st.markdown("### 🧠 Smart Insights")
@@ -1002,10 +968,12 @@ with tab3:
                     <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>🇬🇧 {ins}</p>
                 </div>
                 """, unsafe_allow_html=True)
+
             # === Auto Charts ===
             st.markdown("### 📊 Auto Charts")
             charts_buffers = []
             plotly_figs = []
+
             # Performance Group Chart
             if performance_group_col:
                 try:
@@ -1018,6 +986,7 @@ with tab3:
                     plotly_figs.append((fig, "Performance Groups"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
+
             # Top/Bottom Employees
             if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
                 rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
@@ -1029,6 +998,7 @@ with tab3:
                     fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_top, "Top 10 Employees"))
+
                     bottom10 = rep_data.sort_values(ascending=True).head(10)
                     df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_bottom[rep_col] = df_bottom[rep_col].astype(str).str.strip()
@@ -1036,6 +1006,7 @@ with tab3:
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
+
             # Other charts: ensure chosen_dim is categorical
             possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
             chosen_dim = None
@@ -1046,6 +1017,7 @@ with tab3:
                     break
             if not chosen_dim and possible_dims:
                 chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
+
             if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
                 try:
                     series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
@@ -1058,6 +1030,7 @@ with tab3:
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
+
             # Display charts
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             plotly_figs = plotly_figs[:6]
@@ -1074,6 +1047,7 @@ with tab3:
                                 st.plotly_chart(fig, use_container_width=True, theme="streamlit")
                                 st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                                 st.markdown('</div>', unsafe_allow_html=True)
+
             # === Export Section ===
             st.markdown("### 💾 Export Report / Data")
             excel_buffer = BytesIO()
@@ -1086,6 +1060,7 @@ with tab3:
                 file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
             if st.button("📥 Generate Dashboard PDF (charts only)"):
                 with st.spinner("Generating Dashboard PDF..."):
                     try:
@@ -1099,6 +1074,7 @@ with tab3:
                         )
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
+
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
 
@@ -1128,3 +1104,5 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
+
+
