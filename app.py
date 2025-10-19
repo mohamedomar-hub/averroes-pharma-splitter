@@ -23,9 +23,11 @@ from pptx.enum.text import PP_ALIGN
 from PIL import Image
 from sklearn.linear_model import LinearRegression
 import numpy as np
+
 # Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
+
 # ------------------ Page Setup ------------------
 st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
@@ -33,6 +35,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
 # Hide default Streamlit elements
 hide_default = """
     <style>
@@ -42,6 +45,7 @@ hide_default = """
     </style>
 """
 st.markdown(hide_default, unsafe_allow_html=True)
+
 # ------------------ Custom CSS ------------------
 custom_css = """
     <style>
@@ -164,6 +168,7 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
 # ------------------ Helper Functions ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
@@ -174,8 +179,10 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
                 f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
                 unsafe_allow_html=True
             )
+
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -187,6 +194,7 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
+
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -197,6 +205,7 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
+
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -235,6 +244,7 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
+
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -264,6 +274,7 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
+
 # ------------------ Navigation & Logo ------------------
 st.markdown(
     """
@@ -275,11 +286,13 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 logo_path = "logo.png"
 if os.path.exists(logo_path):
     st.image(logo_path, width=200)
 else:
     st.markdown('<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Averroes Pharma</div>', unsafe_allow_html=True)
+
 st.markdown(
     """
     <div style="text-align:center; font-size:18px; color:#FFD700; margin-top:10px;">
@@ -291,8 +304,10 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
+
 # ------------------ Tabs ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📂 Split & Merge", 
@@ -300,6 +315,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Auto Dashboard", 
     "ℹ️ Info"
 ])
+
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
     st.markdown("### ✂ Split Excel/CSV File")
@@ -552,6 +568,7 @@ with tab1:
             st.error(f"❌ Error processing file: {e}")
     else:
         st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
+
     st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
     st.markdown("### 🔄 Merge Excel/CSV Files")
     merge_files = st.file_uploader(
@@ -567,94 +584,74 @@ with tab1:
             st.rerun()
 
         if st.button("✨ Merge Files"):
-            with st.spinner("Merging files while preserving sheet structure..."):
+            with st.spinner("Merging all sheets into a single sheet with formatting..."):
                 try:
                     output_wb = Workbook()
-                    default_ws = output_wb.active
-                    output_wb.remove(default_ws)  # سننشئ شيتات جديدة فقط
+                    ws = output_wb.active
+                    ws.title = "Merged_Data"
+                    current_row = 1
 
                     for file in merge_files:
-                        file_name_clean = _safe_name(file.name.rsplit('.', 1)[0])
                         ext = file.name.split('.')[-1].lower()
-
                         if ext == "csv":
                             df = pd.read_csv(file)
-                            sheet_name = file_name_clean[:31]  # Excel limit: 31 char
-                            ws = output_wb.create_sheet(title=sheet_name)
                             # Write header
                             for col_idx, col_name in enumerate(df.columns, 1):
-                                ws.cell(row=1, column=col_idx, value=col_name)
+                                ws.cell(row=current_row, column=col_idx, value=col_name)
+                            current_row += 1
                             # Write data
-                            for row_idx, row in enumerate(df.itertuples(index=False), 2):
+                            for row in df.itertuples(index=False, name=None):
                                 for col_idx, value in enumerate(row, 1):
-                                    ws.cell(row=row_idx, column=col_idx, value=value)
+                                    ws.cell(row=current_row, column=col_idx, value=value)
+                                current_row += 1
                         else:
-                            # Excel file: read all sheets
                             input_wb = load_workbook(filename=BytesIO(file.getvalue()), data_only=True)
                             for sheet_name in input_wb.sheetnames:
                                 src_ws = input_wb[sheet_name]
-                                # Avoid duplicate sheet names
-                                new_sheet_name = f"{sheet_name}_{file_name_clean}"[:31]
-                                if new_sheet_name in output_wb.sheetnames:
-                                    new_sheet_name = f"{sheet_name}_{file_name_clean}_{len(output_wb.sheetnames)}"[:31]
-                                ws = output_wb.create_sheet(title=new_sheet_name)
-
-                                # Copy cells
+                                # Copy rows one by one with styles
                                 for row in src_ws.iter_rows():
                                     for cell in row:
-                                        ws.cell(row=cell.row, column=cell.column, value=cell.value)
+                                        dst_cell = ws.cell(row=current_row, column=cell.column, value=cell.value)
                                         if cell.has_style:
                                             try:
-                                                ws.cell(row=cell.row, column=cell.column).font = Font(
+                                                dst_cell.font = Font(
                                                     name=cell.font.name,
                                                     size=cell.font.size,
                                                     bold=cell.font.bold,
                                                     italic=cell.font.italic,
                                                     color=cell.font.color
                                                 )
-                                                ws.cell(row=cell.row, column=cell.column).fill = PatternFill(
+                                                dst_cell.fill = PatternFill(
                                                     fill_type=cell.fill.fill_type,
                                                     start_color=cell.fill.start_color,
                                                     end_color=cell.fill.end_color
                                                 ) if cell.fill and cell.fill.fill_type else PatternFill()
-                                                ws.cell(row=cell.row, column=cell.column).border = Border(
+                                                dst_cell.border = Border(
                                                     left=cell.border.left,
                                                     right=cell.border.right,
                                                     top=cell.border.top,
                                                     bottom=cell.border.bottom
                                                 )
-                                                ws.cell(row=cell.row, column=cell.column).alignment = Alignment(
+                                                dst_cell.alignment = Alignment(
                                                     horizontal=cell.alignment.horizontal,
                                                     vertical=cell.alignment.vertical,
                                                     wrap_text=cell.alignment.wrap_text
                                                 )
-                                                ws.cell(row=cell.row, column=cell.column).number_format = cell.number_format
+                                                dst_cell.number_format = cell.number_format
                                             except Exception:
                                                 pass
-
-                                # Copy merged cells
-                                if src_ws.merged_cells.ranges:
-                                    for merged_range in src_ws.merged_cells.ranges:
-                                        ws.merge_cells(str(merged_range))
-
-                                # Copy column widths
-                                try:
-                                    for col_letter in src_ws.column_dimensions:
-                                        if src_ws.column_dimensions[col_letter].width:
-                                            ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                                except Exception:
-                                    pass
+                                    current_row += 1
 
                     # Save to buffer
                     output_buffer = BytesIO()
                     output_wb.save(output_buffer)
                     output_buffer.seek(0)
 
-                    st.success("✅ Merged successfully while preserving sheet structure!")
+                    st.success("✅ All files merged into a single sheet with formatting preserved!")
                     st.download_button(
-                        label="📥 Download Merged File (Excel with Sheets)",
+                        label="📥 Download Merged File (Single Sheet)",
                         data=output_buffer.getvalue(),
-                        file_name="Merged_With_Sheets.xlsx",
+                        file_name="Merged_SingleSheet.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                 except Exception as e:
@@ -745,6 +742,7 @@ with tab2:
                     st.error(f"❌ Error creating PDF: {e}")
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
+
 # ------------------ Tab 3: Dashboard ------------------
 with tab3:
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
@@ -1103,6 +1101,7 @@ with tab3:
                         st.error(f"❌ PDF generation failed: {e}")
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
+
 # ------------------ Tab 4: Info ------------------
 with tab4:
     st.markdown("""
