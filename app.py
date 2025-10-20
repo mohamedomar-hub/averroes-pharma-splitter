@@ -669,9 +669,6 @@ with tab1:
                             except Exception:
                                 pass
 
-                            # Copy row heights (optional, may be heavy)
-                            # Skipped for simplicity unless needed
-
                             # Copy merged cells
                             if src_ws.merged_cells.ranges:
                                 for merged_range in src_ws.merged_cells.ranges:
@@ -822,6 +819,13 @@ with tab3:
             st.session_state.clear_counter += 1
             st.rerun()
         try:
+            # =============== Progress Bar ===============
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            status_text.text("🔄 Loading file...")
+            progress_bar.progress(10)
+
             file_ext = dashboard_file.name.split('.')[-1].lower()
             if file_ext == "csv":
                 df0 = pd.read_csv(dashboard_file)
@@ -832,9 +836,14 @@ with tab3:
                 selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
                 df0 = df_dict[selected_sheet_dash].copy()
                 sheet_title = selected_sheet_dash
+
+            progress_bar.progress(20)
+            status_text.text("🔍 Analyzing data structure...")
+
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
-            # Detect period columns
+
+            # =============== Detect Period Columns ===============
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             period_cols = []
             base_names = {}
@@ -848,22 +857,24 @@ with tab3:
                     base_names[base].append((col, period))
             valid_periods = {}
             for base, cols in base_names.items():
-                if len(cols) == 2:
-                    valid_periods[base] = cols
+                if len(cols) >= 2:
+                    valid_periods[base] = sorted(cols, key=lambda x: x[1])  # sort by period
+
+            period_comparison = None
             if valid_periods:
                 base_key = list(valid_periods.keys())[0]
-                col1, period1 = valid_periods[base_key][0]
-                col2, period2 = valid_periods[base_key][1]
-                if period1 > period2:
-                    col1, col2 = col2, col1
-                    period1, period2 = period2, period1
+                cols_info = valid_periods[base_key]
+                # Take last two periods for comparison
+                col1, period1 = cols_info[-2]
+                col2, period2 = cols_info[-1]
                 df0['__abs_change__'] = df0[col2] - df0[col1]
                 df0['__pct_change__'] = df0['__abs_change__'] / df0[col1].replace(0, pd.NA)
                 period_comparison = {'col1': col1, 'col2': col2, 'period1': period1, 'period2': period2, 'base': base_key}
                 st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
-            else:
-                period_comparison = None
-            # Handle month columns
+
+            progress_bar.progress(30)
+
+            # =============== Handle Month Columns ===============
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
             if potential_months:
@@ -876,7 +887,10 @@ with tab3:
                 numeric_cols = df0.select_dtypes(include='number').columns.tolist()
                 measure_col = numeric_cols[0] if numeric_cols else None
                 df_long = df0.copy()
-            # Select measure column
+
+            progress_bar.progress(40)
+
+            # =============== Select Measure Column ===============
             numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
             if numeric_cols_in_long:
                 user_measure_col = st.selectbox(
@@ -887,13 +901,15 @@ with tab3:
                 kpi_measure_col = user_measure_col
             else:
                 kpi_measure_col = measure_col
-            # Identify categorical columns
+
+            # =============== Identify Categorical Columns ===============
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
                 if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
-            # Sidebar filters
+
+            # =============== Sidebar Filters ===============
             st.sidebar.header("🔍 Dynamic Filters")
             primary_filter_col = None
             if len(cat_cols) > 0:
@@ -918,16 +934,19 @@ with tab3:
                     pass
                 sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
                 active_filters[fc] = sel
-            # Apply filters
+
+            # =============== Apply Filters ===============
             filtered = df_long.copy()
             if primary_filter_col and primary_values is not None and len(primary_values) > 0:
                 filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
             for fc, sel in active_filters.items():
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
-            st.markdown("### 📈 Filtered Data Preview")
-            st.dataframe(filtered.head(200), use_container_width=True)
-            # === Auto Group Low-Performers ===
+
+            progress_bar.progress(50)
+            status_text.text("📊 Building performance groups...")
+
+            # =============== Auto Group Low-Performers ===============
             rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
             performance_group_col = None
             filtered_with_group = filtered.copy()
@@ -948,7 +967,6 @@ with tab3:
                             return "Medium Performer"
                     filtered_with_group['Performance Group'] = filtered_with_group[rep_col].apply(assign_group)
                     performance_group_col = 'Performance Group'
-                    # Show colored table
                     st.markdown("### 👥 Performance Groups")
                     group_summary = filtered_with_group.groupby([rep_col, 'Performance Group'])[kpi_measure_col].sum().reset_index()
                     group_summary = group_summary.sort_values(kpi_measure_col, ascending=False)
@@ -965,13 +983,17 @@ with tab3:
                     st.info("ℹ️ Not enough representatives to group (min 5 required).")
             else:
                 st.info("ℹ️ Rep column not found for performance grouping.")
+
             final_df = filtered_with_group
-            # === KPIs ===
+            progress_bar.progress(60)
+
+            # =============== KPIs ===============
             found_dims = {}
-            for dim_key, aliases in {"area": ["area", "region"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
+            for dim_key, aliases in {"area": ["area", "region", "governorate", "محافظة"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
                 col = _find_col(final_df, aliases)
                 if col:
                     found_dims[dim_key] = col
+
             kpi_values = {}
             if kpi_measure_col and kpi_measure_col in final_df.columns:
                 kpi_values['total'] = final_df[kpi_measure_col].sum()
@@ -986,10 +1008,13 @@ with tab3:
                 kpi_values['total'] = None
                 kpi_values['avg'] = None
                 kpi_values['avg_per_date'] = None
+
             for dim_key, col_name in found_dims.items():
                 kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
+
             if period_comparison and '__pct_change__' in final_df.columns:
                 kpi_values['growth_pct'] = final_df['__pct_change__'].mean() * 100
+
             kpi_cards = []
             if kpi_values.get('total') is not None:
                 kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
@@ -1009,6 +1034,7 @@ with tab3:
             if performance_group_col:
                 num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
                 kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
+
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:6]):
@@ -1019,7 +1045,10 @@ with tab3:
                         <div class='kpi-value'>{card['value']}</div>
                     </div>
                     """, unsafe_allow_html=True)
-            # === Smart Insights ===
+
+            progress_bar.progress(70)
+
+            # =============== Smart Insights ===============
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
             st.markdown("### 🧠 Smart Insights")
             insights = []
@@ -1067,10 +1096,98 @@ with tab3:
                     <p style='color:#FFD700; font-size:18px; font-weight:bold; margin-bottom:6px;'>🇬🇧 {ins}</p>
                 </div>
                 """, unsafe_allow_html=True)
-            # === Auto Charts ===
+
+            # =============== Geographic Map (if area/governorate exists) ===============
+            area_col = found_dims.get('area')
+            if area_col and kpi_measure_col:
+                # Try to map Egyptian governorates
+                governorates_en = {
+                    'القاهرة': 'Cairo', 'الجيزة': 'Giza', 'الإسكندرية': 'Alexandria', 'الدقهلية': 'Dakahlia',
+                    'الغربية': 'Gharbia', 'الشرقية': 'Sharqia', 'القليوبية': 'Qalyubia', 'كفر الشيخ': 'Kafr El Sheikh',
+                    'المنوفية': 'Monufia', 'البحيرة': 'Beheira', 'المنيا': 'Minya', 'أسيوط': 'Asyut',
+                    'سوهاج': 'Sohag', 'قنا': 'Qena', 'أسوان': 'Aswan', 'الأقصر': 'Luxor', 'البحر الأحمر': 'Red Sea',
+                    'الوادي الجديد': 'New Valley', 'مرسى مطروح': 'Matrouh', 'شمال سيناء': 'North Sinai',
+                    'جنوب سيناء': 'South Sinai', 'بني سويف': 'Beni Suef', 'الفيوم': 'Faiyum', 'دمياط': 'Damietta',
+                    'بورسعيد': 'Port Said', 'الإسماعيلية': 'Ismailia', 'السويس': 'Suez'
+                }
+                map_df = final_df.groupby(area_col)[kpi_measure_col].sum().reset_index()
+                map_df['Governorate_EN'] = map_df[area_col].map(governorates_en).fillna(map_df[area_col])
+                # Only show if we have valid mappings
+                if map_df['Governorate_EN'].notna().any():
+                    try:
+                        fig_map = px.choropleth(
+                            map_df,
+                            locations='Governorate_EN',
+                            locationmode='country names',
+                            color=kpi_measure_col,
+                            hover_name=area_col,
+                            color_continuous_scale='Blues',
+                            title="🗺️ Performance by Governorate (Egypt)"
+                        )
+                        fig_map.update_geos(
+                            visible=False,
+                            resolution=50,
+                            scope='africa',
+                            showcountries=True,
+                            countrycolor="Black",
+                            showsubunits=True,
+                            subunitcolor="Gray"
+                        )
+                        st.plotly_chart(fig_map, use_container_width=True)
+                    except Exception as e:
+                        st.warning("⚠️ Could not render geographic map.")
+
+            progress_bar.progress(80)
+
+            # =============== Forecasting with Linear Regression ===============
+            if date_cols and kpi_measure_col:
+                date_col = date_cols[0]
+                try:
+                    df_forecast = final_df[[date_col, kpi_measure_col]].dropna()
+                    df_forecast[date_col] = pd.to_datetime(df_forecast[date_col], errors='coerce')
+                    df_forecast = df_forecast.dropna(subset=[date_col])
+                    df_forecast = df_forecast.sort_values(date_col).reset_index(drop=True)
+                    if len(df_forecast) >= 4:
+                        df_forecast['Time_Index'] = range(len(df_forecast))
+                        X = df_forecast[['Time_Index']].values
+                        y = df_forecast[kpi_measure_col].values
+                        model = LinearRegression()
+                        model.fit(X, y)
+                        # Forecast next 3 periods
+                        future_index = np.array([[len(df_forecast) + i] for i in range(1, 4)])
+                        forecast_vals = model.predict(future_index)
+                        # Create future dates (assume monthly)
+                        last_date = df_forecast[date_col].iloc[-1]
+                        freq = 'M'  # monthly
+                        future_dates = pd.date_range(start=last_date, periods=4, freq=freq)[1:]
+                        forecast_df = pd.DataFrame({
+                            date_col: future_dates,
+                            kpi_measure_col: forecast_vals,
+                            'Type': 'Forecast'
+                        })
+                        actual_df = df_forecast[[date_col, kpi_measure_col]].copy()
+                        actual_df['Type'] = 'Actual'
+                        combined_df = pd.concat([actual_df, forecast_df], ignore_index=True)
+                        fig_fc = px.line(
+                            combined_df,
+                            x=date_col,
+                            y=kpi_measure_col,
+                            color='Type',
+                            title="🔮 Forecast (Linear Regression)",
+                            line_dash='Type'
+                        )
+                        fig_fc.update_traces(mode='lines+markers')
+                        st.plotly_chart(fig_fc, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"⚠️ Forecasting skipped: {str(e)[:100]}")
+
+            progress_bar.progress(90)
+
+            # =============== Auto Charts ===============
             st.markdown("### 📊 Auto Charts")
             charts_buffers = []
             plotly_figs = []
+
             # Performance Group Chart
             if performance_group_col:
                 try:
@@ -1083,6 +1200,7 @@ with tab3:
                     plotly_figs.append((fig, "Performance Groups"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
+
             # Top/Bottom Employees
             if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
                 rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
@@ -1101,7 +1219,8 @@ with tab3:
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
-            # Other charts: ensure chosen_dim is categorical
+
+            # Other charts
             possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
             chosen_dim = None
             for alias in ["area", "region", "branch", "product", "item"]:
@@ -1123,6 +1242,7 @@ with tab3:
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
+
             # Display charts
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             plotly_figs = plotly_figs[:6]
@@ -1139,7 +1259,15 @@ with tab3:
                                 st.plotly_chart(fig, use_container_width=True, theme="streamlit")
                                 st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                                 st.markdown('</div>', unsafe_allow_html=True)
-            # === Export Section ===
+
+            progress_bar.progress(100)
+            status_text.text("✅ Dashboard ready!")
+            if hasattr(st, 'toast'):
+                st.toast("🎉 Dashboard generated successfully!", icon="✅")
+            else:
+                st.success("🎉 Dashboard generated successfully!")
+
+            # =============== Export Section ===============
             st.markdown("### 💾 Export Report / Data")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
@@ -1162,10 +1290,19 @@ with tab3:
                             file_name=f"{_safe_name(sheet_title)}_Dashboard.pdf",
                             mime="application/pdf"
                         )
+                        if hasattr(st, 'toast'):
+                            st.toast("📄 PDF report downloaded!", icon="📄")
+                        else:
+                            st.success("📄 PDF report downloaded!")
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
+
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
+        finally:
+            # Clean up progress bar
+            progress_bar.empty()
+            status_text.empty()
 # ------------------ Tab 4: Info ------------------
 with tab4:
     st.markdown("""
