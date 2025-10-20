@@ -10,3 +10,4 @@ reportlab
 scikit-learn
 numpy
 opencv-python-headless
+kaleido
