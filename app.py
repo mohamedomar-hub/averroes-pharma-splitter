@@ -565,13 +565,14 @@ with tab1:
         if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
             st.session_state.clear_counter += 1
             st.rerun()
+
         if st.button("✨ Merge Files"):
             with st.spinner("Merging files..."):
                 try:
-                    # Check if all files are Excel to preserve formatting
+                    # Check if all files are Excel (to preserve formatting)
                     all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                     if all_excel:
-                        # Create new workbook
+                        # Merge with formatting preserved using openpyxl
                         merged_wb = Workbook()
                         merged_ws = merged_wb.active
                         merged_ws.title = "Merged_Data"
@@ -819,12 +820,15 @@ with tab3:
             st.session_state.clear_counter += 1
             st.rerun()
         try:
-            # =============== Progress Bar ===============
+            # =============== Progress Bar with Percentage ===============
             progress_bar = st.progress(0)
             status_text = st.empty()
 
-            status_text.text("🔄 Loading file...")
-            progress_bar.progress(10)
+            def update_progress(pct, msg=""):
+                progress_bar.progress(pct)
+                status_text.text(f"🔄 {msg}... {pct}%")
+
+            update_progress(10, "Loading file")
 
             file_ext = dashboard_file.name.split('.')[-1].lower()
             if file_ext == "csv":
@@ -837,9 +841,7 @@ with tab3:
                 df0 = df_dict[selected_sheet_dash].copy()
                 sheet_title = selected_sheet_dash
 
-            progress_bar.progress(20)
-            status_text.text("🔍 Analyzing data structure...")
-
+            update_progress(20, "Analyzing data structure")
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
 
@@ -858,13 +860,12 @@ with tab3:
             valid_periods = {}
             for base, cols in base_names.items():
                 if len(cols) >= 2:
-                    valid_periods[base] = sorted(cols, key=lambda x: x[1])  # sort by period
+                    valid_periods[base] = sorted(cols, key=lambda x: x[1])
 
             period_comparison = None
             if valid_periods:
                 base_key = list(valid_periods.keys())[0]
                 cols_info = valid_periods[base_key]
-                # Take last two periods for comparison
                 col1, period1 = cols_info[-2]
                 col2, period2 = cols_info[-1]
                 df0['__abs_change__'] = df0[col2] - df0[col1]
@@ -872,7 +873,7 @@ with tab3:
                 period_comparison = {'col1': col1, 'col2': col2, 'period1': period1, 'period2': period2, 'base': base_key}
                 st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
 
-            progress_bar.progress(30)
+            update_progress(30, "Processing time columns")
 
             # =============== Handle Month Columns ===============
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
@@ -888,7 +889,7 @@ with tab3:
                 measure_col = numeric_cols[0] if numeric_cols else None
                 df_long = df0.copy()
 
-            progress_bar.progress(40)
+            update_progress(40, "Identifying key columns")
 
             # =============== Select Measure Column ===============
             numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
@@ -902,12 +903,20 @@ with tab3:
             else:
                 kpi_measure_col = measure_col
 
-            # =============== Identify Categorical Columns ===============
+            # =============== Identify Categorical & Date Columns ===============
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
                 if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
+
+            # 🔍 Detect date columns more broadly (Arabic + English)
+            date_keywords = ["date", "تاريخ", "day", "يوم", "month", "شهر", "year", "سنة", "period", "فترة", "تاريخ"]
+            date_cols = []
+            for col in df_long.columns:
+                col_lower = str(col).lower()
+                if any(kw in col_lower for kw in date_keywords):
+                    date_cols.append(col)
 
             # =============== Sidebar Filters ===============
             st.sidebar.header("🔍 Dynamic Filters")
@@ -943,8 +952,7 @@ with tab3:
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
 
-            progress_bar.progress(50)
-            status_text.text("📊 Building performance groups...")
+            update_progress(50, "Building performance groups")
 
             # =============== Auto Group Low-Performers ===============
             rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
@@ -985,7 +993,7 @@ with tab3:
                 st.info("ℹ️ Rep column not found for performance grouping.")
 
             final_df = filtered_with_group
-            progress_bar.progress(60)
+            update_progress(60, "Calculating KPIs")
 
             # =============== KPIs ===============
             found_dims = {}
@@ -998,7 +1006,6 @@ with tab3:
             if kpi_measure_col and kpi_measure_col in final_df.columns:
                 kpi_values['total'] = final_df[kpi_measure_col].sum()
                 kpi_values['avg'] = final_df[kpi_measure_col].mean()
-                date_cols = [c for c in final_df.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
                 if date_cols:
                     unique_dates = final_df[date_cols[0]].nunique()
                     kpi_values['avg_per_date'] = kpi_values['total'] / unique_dates if unique_dates > 0 else None
@@ -1046,7 +1053,7 @@ with tab3:
                     </div>
                     """, unsafe_allow_html=True)
 
-            progress_bar.progress(70)
+            update_progress(70, "Generating insights")
 
             # =============== Smart Insights ===============
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
@@ -1065,7 +1072,6 @@ with tab3:
                     if performance_group_col:
                         low_count = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
                         insights.append(f"🔴 **{low_count} representatives** are classified as 'Needs Support' (bottom 20%). Consider follow-up actions.")
-            date_cols = [c for c in final_df.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
             if date_cols and kpi_measure_col in final_df.columns:
                 date_col = date_cols[0]
                 try:
@@ -1097,49 +1103,10 @@ with tab3:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # =============== Geographic Map (if area/governorate exists) ===============
-            area_col = found_dims.get('area')
-            if area_col and kpi_measure_col:
-                # Try to map Egyptian governorates
-                governorates_en = {
-                    'القاهرة': 'Cairo', 'الجيزة': 'Giza', 'الإسكندرية': 'Alexandria', 'الدقهلية': 'Dakahlia',
-                    'الغربية': 'Gharbia', 'الشرقية': 'Sharqia', 'القليوبية': 'Qalyubia', 'كفر الشيخ': 'Kafr El Sheikh',
-                    'المنوفية': 'Monufia', 'البحيرة': 'Beheira', 'المنيا': 'Minya', 'أسيوط': 'Asyut',
-                    'سوهاج': 'Sohag', 'قنا': 'Qena', 'أسوان': 'Aswan', 'الأقصر': 'Luxor', 'البحر الأحمر': 'Red Sea',
-                    'الوادي الجديد': 'New Valley', 'مرسى مطروح': 'Matrouh', 'شمال سيناء': 'North Sinai',
-                    'جنوب سيناء': 'South Sinai', 'بني سويف': 'Beni Suef', 'الفيوم': 'Faiyum', 'دمياط': 'Damietta',
-                    'بورسعيد': 'Port Said', 'الإسماعيلية': 'Ismailia', 'السويس': 'Suez'
-                }
-                map_df = final_df.groupby(area_col)[kpi_measure_col].sum().reset_index()
-                map_df['Governorate_EN'] = map_df[area_col].map(governorates_en).fillna(map_df[area_col])
-                # Only show if we have valid mappings
-                if map_df['Governorate_EN'].notna().any():
-                    try:
-                        fig_map = px.choropleth(
-                            map_df,
-                            locations='Governorate_EN',
-                            locationmode='country names',
-                            color=kpi_measure_col,
-                            hover_name=area_col,
-                            color_continuous_scale='Blues',
-                            title="🗺️ Performance by Governorate (Egypt)"
-                        )
-                        fig_map.update_geos(
-                            visible=False,
-                            resolution=50,
-                            scope='africa',
-                            showcountries=True,
-                            countrycolor="Black",
-                            showsubunits=True,
-                            subunitcolor="Gray"
-                        )
-                        st.plotly_chart(fig_map, use_container_width=True)
-                    except Exception as e:
-                        st.warning("⚠️ Could not render geographic map.")
-
-            progress_bar.progress(80)
+            update_progress(80, "Preparing forecast")
 
             # =============== Forecasting with Linear Regression ===============
+            forecasting_done = False
             if date_cols and kpi_measure_col:
                 date_col = date_cols[0]
                 try:
@@ -1153,12 +1120,20 @@ with tab3:
                         y = df_forecast[kpi_measure_col].values
                         model = LinearRegression()
                         model.fit(X, y)
-                        # Forecast next 3 periods
                         future_index = np.array([[len(df_forecast) + i] for i in range(1, 4)])
                         forecast_vals = model.predict(future_index)
-                        # Create future dates (assume monthly)
                         last_date = df_forecast[date_col].iloc[-1]
-                        freq = 'M'  # monthly
+                        diffs = df_forecast[date_col].diff().dropna()
+                        if not diffs.empty:
+                            avg_diff = diffs.mean()
+                            if avg_diff.days <= 35:
+                                freq = 'M'
+                            elif avg_diff.days <= 8:
+                                freq = 'W'
+                            else:
+                                freq = 'M'
+                        else:
+                            freq = 'M'
                         future_dates = pd.date_range(start=last_date, periods=4, freq=freq)[1:]
                         forecast_df = pd.DataFrame({
                             date_col: future_dates,
@@ -1178,10 +1153,14 @@ with tab3:
                         )
                         fig_fc.update_traces(mode='lines+markers')
                         st.plotly_chart(fig_fc, use_container_width=True)
+                        forecasting_done = True
                 except Exception as e:
                     st.warning(f"⚠️ Forecasting skipped: {str(e)[:100]}")
 
-            progress_bar.progress(90)
+            if not forecasting_done:
+                update_progress(85, "Skipping forecast (insufficient data)")
+
+            update_progress(90, "Rendering charts")
 
             # =============== Auto Charts ===============
             st.markdown("### 📊 Auto Charts")
@@ -1260,8 +1239,7 @@ with tab3:
                                 st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                                 st.markdown('</div>', unsafe_allow_html=True)
 
-            progress_bar.progress(100)
-            status_text.text("✅ Dashboard ready!")
+            update_progress(100, "Dashboard ready!")
             if hasattr(st, 'toast'):
                 st.toast("🎉 Dashboard generated successfully!", icon="✅")
             else:
@@ -1300,7 +1278,6 @@ with tab3:
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
         finally:
-            # Clean up progress bar
             progress_bar.empty()
             status_text.empty()
 # ------------------ Tab 4: Info ------------------
