@@ -565,99 +565,143 @@ with tab1:
         if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
             st.session_state.clear_counter += 1
             st.rerun()
-
         if st.button("✨ Merge Files"):
             with st.spinner("Merging files..."):
                 try:
-                    # Check if all files are Excel (to preserve formatting)
+                    # Check if all files are Excel to preserve formatting
                     all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                     if all_excel:
-                        # Merge with formatting preserved using openpyxl
+                        # Create new workbook
                         merged_wb = Workbook()
-                        default_ws = merged_wb.active
-                        merged_wb.remove(default_ws)  # Remove default sheet
+                        merged_ws = merged_wb.active
+                        merged_ws.title = "Merged_Data"
+                        current_row = 1
 
-                        for file in merge_files:
+                        for idx, file in enumerate(merge_files):
                             file_bytes = file.getvalue()
                             src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
-                            for sheet_name in src_wb.sheetnames:
-                                src_ws = src_wb[sheet_name]
-                                # Create new sheet with unique name
-                                new_sheet_name = f"{_safe_name(file.name.rsplit('.',1)[0])}_{sheet_name}"[:31]  # Excel sheet name max 31 chars
-                                new_ws = merged_wb.create_sheet(title=new_sheet_name)
+                            src_ws = src_wb.active  # First sheet only
 
-                                # Copy cells and styles
-                                for row in src_ws.iter_rows():
-                                    for src_cell in row:
-                                        dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
-                                        if src_cell.has_style:
+                            # Copy header only once
+                            if idx == 0:
+                                for row in src_ws.iter_rows(min_row=1, max_row=1):
+                                    for cell in row:
+                                        dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
+                                        if cell.has_style:
                                             try:
-                                                if src_cell.font:
+                                                if cell.font:
                                                     dst_cell.font = Font(
-                                                        name=src_cell.font.name,
-                                                        size=src_cell.font.size,
-                                                        bold=src_cell.font.bold,
-                                                        italic=src_cell.font.italic,
-                                                        color=src_cell.font.color
+                                                        name=cell.font.name,
+                                                        size=cell.font.size,
+                                                        bold=cell.font.bold,
+                                                        italic=cell.font.italic,
+                                                        color=cell.font.color
                                                     )
-                                                if src_cell.fill and src_cell.fill.fill_type:
+                                                if cell.fill and cell.fill.fill_type:
                                                     dst_cell.fill = PatternFill(
-                                                        fill_type=src_cell.fill.fill_type,
-                                                        start_color=src_cell.fill.start_color,
-                                                        end_color=src_cell.fill.end_color
+                                                        fill_type=cell.fill.fill_type,
+                                                        start_color=cell.fill.start_color,
+                                                        end_color=cell.fill.end_color
                                                     )
-                                                if src_cell.border:
+                                                if cell.border:
                                                     dst_cell.border = Border(
-                                                        left=src_cell.border.left,
-                                                        right=src_cell.border.right,
-                                                        top=src_cell.border.top,
-                                                        bottom=src_cell.border.bottom
+                                                        left=cell.border.left,
+                                                        right=cell.border.right,
+                                                        top=cell.border.top,
+                                                        bottom=cell.border.bottom
                                                     )
-                                                if src_cell.alignment:
+                                                if cell.alignment:
                                                     dst_cell.alignment = Alignment(
-                                                        horizontal=src_cell.alignment.horizontal,
-                                                        vertical=src_cell.alignment.vertical,
-                                                        wrap_text=src_cell.alignment.wrap_text,
-                                                        indent=src_cell.alignment.indent
+                                                        horizontal=cell.alignment.horizontal,
+                                                        vertical=cell.alignment.vertical,
+                                                        wrap_text=cell.alignment.wrap_text,
+                                                        indent=cell.alignment.indent
                                                     )
-                                                dst_cell.number_format = src_cell.number_format
-                                            except Exception as e:
+                                                dst_cell.number_format = cell.number_format
+                                            except Exception:
                                                 pass
+                                current_row += 1
 
-                                # Copy merged cells
-                                if src_ws.merged_cells.ranges:
-                                    for merged_range in src_ws.merged_cells.ranges:
-                                        new_ws.merge_cells(str(merged_range))
+                            # Copy data rows (skip header)
+                            for row in src_ws.iter_rows(min_row=2):
+                                for cell in row:
+                                    dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
+                                    if cell.has_style:
+                                        try:
+                                            if cell.font:
+                                                dst_cell.font = Font(
+                                                    name=cell.font.name,
+                                                    size=cell.font.size,
+                                                    bold=cell.font.bold,
+                                                    italic=cell.font.italic,
+                                                    color=cell.font.color
+                                                )
+                                            if cell.fill and cell.fill.fill_type:
+                                                dst_cell.fill = PatternFill(
+                                                    fill_type=cell.fill.fill_type,
+                                                    start_color=cell.fill.start_color,
+                                                    end_color=cell.fill.end_color
+                                                )
+                                            if cell.border:
+                                                dst_cell.border = Border(
+                                                    left=cell.border.left,
+                                                    right=cell.border.right,
+                                                    top=cell.border.top,
+                                                    bottom=cell.border.bottom
+                                                )
+                                            if cell.alignment:
+                                                dst_cell.alignment = Alignment(
+                                                    horizontal=cell.alignment.horizontal,
+                                                    vertical=cell.alignment.vertical,
+                                                    wrap_text=cell.alignment.wrap_text,
+                                                    indent=cell.alignment.indent
+                                                )
+                                            dst_cell.number_format = cell.number_format
+                                        except Exception:
+                                            pass
+                                current_row += 1
 
-                                # Copy column widths
-                                try:
-                                    for col_letter in src_ws.column_dimensions:
-                                        if src_ws.column_dimensions[col_letter].width:
-                                            new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                                except Exception:
-                                    pass
+                            # Copy column widths
+                            try:
+                                for col_letter in src_ws.column_dimensions:
+                                    if src_ws.column_dimensions[col_letter].width:
+                                        merged_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
+                            except Exception:
+                                pass
 
-                                # Copy row heights
-                                try:
-                                    for row_idx in src_ws.row_dimensions:
-                                        if src_ws.row_dimensions[row_idx].height:
-                                            new_ws.row_dimensions[row_idx].height = src_ws.row_dimensions[row_idx].height
-                                except Exception:
-                                    pass
+                            # Copy row heights (optional, may be heavy)
+                            # Skipped for simplicity unless needed
 
-                        # Save to buffer
+                            # Copy merged cells
+                            if src_ws.merged_cells.ranges:
+                                for merged_range in src_ws.merged_cells.ranges:
+                                    min_col = merged_range.min_col
+                                    max_col = merged_range.max_col
+                                    min_row_src = merged_range.min_row
+                                    max_row_src = merged_range.max_row
+                                    # Adjust row numbers to target sheet
+                                    offset = current_row - len(list(src_ws.iter_rows(min_row=2))) - 1
+                                    new_min_row = min_row_src + offset
+                                    new_max_row = max_row_src + offset
+                                    new_range = f"{merged_range.min_col_letter}{new_min_row}:{merged_range.max_col_letter}{new_max_row}"
+                                    merged_ws.merge_cells(new_range)
+                                    # Copy value from top-left
+                                    top_left = src_ws.cell(min_row_src, min_col)
+                                    merged_ws.cell(new_min_row, min_col).value = top_left.value
+
+                        # Save result
                         output_buffer = BytesIO()
                         merged_wb.save(output_buffer)
                         output_buffer.seek(0)
-                        st.success("✅ Merged successfully with formatting preserved!")
+                        st.success("✅ Merged successfully with original formatting preserved!")
                         st.download_button(
-                            label="📥 Download Merged File (Excel with Formatting)",
+                            label="📥 Download Merged File (Formatted)",
                             data=output_buffer.getvalue(),
                             file_name="Merged_Consolidated_Formatted.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                     else:
-                        # Fallback: use pandas for CSV or mixed types (no formatting)
+                        # Fallback to pandas for CSV or mixed types
                         all_dfs = []
                         for file in merge_files:
                             ext = file.name.split('.')[-1].lower()
