@@ -331,9 +331,11 @@ with tab1:
             # =============== Progress Bar for Split ===============
             progress_bar = st.progress(0)
             status_text = st.empty()
+
             def update_progress(pct, msg=""):
                 progress_bar.progress(pct)
                 status_text.text(f"🔄 {msg}... {pct}%")
+
             update_progress(10, "Loading file")
 
             file_ext = uploaded_file.name.split('.')[-1].lower()
@@ -967,6 +969,18 @@ with tab3:
 
             update_progress(40, "Identifying key columns")
 
+            # =============== Select Measure Column ===============
+            numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
+            if numeric_cols_in_long:
+                user_measure_col = st.selectbox(
+                    "🎯 Select Sales/Value Column (for KPIs & Charts)",
+                    numeric_cols_in_long,
+                    index=numeric_cols_in_long.index(measure_col) if measure_col in numeric_cols_in_long else 0
+                )
+                kpi_measure_col = user_measure_col
+            else:
+                kpi_measure_col = measure_col
+
             # =============== Identify Categorical & Date Columns ===============
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
@@ -1083,13 +1097,27 @@ with tab3:
 
                 # If period comparison exists, calculate growth for this column
                 if period_comparison and '__pct_change__' in final_df.columns:
-                    avg_growth = final_df['__pct_change__'].mean() * 100
-                    kpi_cards.append({
-                        'title': f'Avg Growth {sales_col}',
-                        'value': f"{avg_growth:.1f}%",
-                        'color': 'linear-gradient(135deg, #28a745, #85e085)' if avg_growth >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)',
-                        'icon': '↗️' if avg_growth >= 0 else '↘️'
-                    })
+                    # Calculate growth between last two periods (not average)
+                    if len(valid_periods.get(base_key, [])) >= 2:
+                        # Get the last two periods' values for this sales column
+                        col1, col2 = period_comparison['col1'], period_comparison['col2']
+                        if col1 in final_df.columns and col2 in final_df.columns:
+                            abs_change = final_df[col2].sum() - final_df[col1].sum()
+                            if final_df[col1].sum() != 0:
+                                pct_change = (abs_change / final_df[col1].sum()) * 100
+                                kpi_cards.append({
+                                    'title': f'Growth {sales_col}',
+                                    'value': f"{pct_change:.1f}%",
+                                    'color': 'linear-gradient(135deg, #28a745, #85e085)' if pct_change >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)',
+                                    'icon': '↗️' if pct_change >= 0 else '↘️'
+                                })
+                            else:
+                                kpi_cards.append({
+                                    'title': f'Growth {sales_col}',
+                                    'value': "N/A",
+                                    'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)',
+                                    'icon': '❓'
+                                })
 
             # Add other KPIs
             found_dims = {}
@@ -1255,10 +1283,14 @@ with tab3:
                     fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     fig.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     plotly_figs.append((fig, "Performance Groups"))
-                    # Add to charts_buffers for PDF
-                    img_buf = BytesIO()
-                    fig.write_image(img_buf, format="png", width=760, height=360)
-                    charts_buffers.append((img_buf, "Performance Groups"))
+                    # Try to add to charts_buffers for PDF (without requiring kaleido)
+                    try:
+                        img_buf = BytesIO()
+                        fig.write_image(img_buf, format="png", width=760, height=360)
+                        charts_buffers.append((img_buf, "Performance Groups"))
+                    except Exception:
+                        # Skip if kaleido not available
+                        pass
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
 
@@ -1274,10 +1306,13 @@ with tab3:
                     fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_top, "Top 10 Employees"))
-                    # Add to charts_buffers
-                    img_buf = BytesIO()
-                    fig_top.write_image(img_buf, format="png", width=760, height=360)
-                    charts_buffers.append((img_buf, "Top 10 Employees"))
+                    # Try to add to charts_buffers
+                    try:
+                        img_buf = BytesIO()
+                        fig_top.write_image(img_buf, format="png", width=760, height=360)
+                        charts_buffers.append((img_buf, "Top 10 Employees"))
+                    except Exception:
+                        pass
 
                     bottom10 = rep_data.sort_values(ascending=True).head(10)
                     df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
@@ -1286,13 +1321,16 @@ with tab3:
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
-                    # Add to charts_buffers
-                    img_buf = BytesIO()
-                    fig_bottom.write_image(img_buf, format="png", width=760, height=360)
-                    charts_buffers.append((img_buf, "Bottom 10 Employees"))
+                    # Try to add to charts_buffers
+                    try:
+                        img_buf = BytesIO()
+                        fig_bottom.write_image(img_buf, format="png", width=760, height=360)
+                        charts_buffers.append((img_buf, "Bottom 10 Employees"))
+                    except Exception:
+                        pass
 
             # Other charts
-            possible_dims = [c for c in final_df.columns if c not in sales_cols and c not in date_cols and c != rep_col]
+            possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
             chosen_dim = None
             for alias in ["area", "region", "branch", "product", "item"]:
                 col = _find_col(final_df, [alias])
@@ -1301,8 +1339,7 @@ with tab3:
                     break
             if not chosen_dim and possible_dims:
                 chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
-            if chosen_dim and sales_cols and chosen_dim in final_df.columns:
-                kpi_measure_col = sales_cols[0]
+            if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
                 try:
                     series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
                     df_series = series.reset_index().rename(columns={kpi_measure_col: "value"})
@@ -1312,10 +1349,13 @@ with tab3:
                     fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
-                    # Add to charts_buffers
-                    img_buf = BytesIO()
-                    fig_bar.write_image(img_buf, format="png", width=760, height=360)
-                    charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
+                    # Try to add to charts_buffers
+                    try:
+                        img_buf = BytesIO()
+                        fig_bar.write_image(img_buf, format="png", width=760, height=360)
+                        charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
+                    except Exception:
+                        pass
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
 
