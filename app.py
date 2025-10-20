@@ -23,9 +23,11 @@ from pptx.enum.text import PP_ALIGN
 from PIL import Image
 from sklearn.linear_model import LinearRegression
 import numpy as np
+
 # Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
+
 # ------------------ Page Setup ------------------
 st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
@@ -33,6 +35,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
 # Hide default Streamlit elements
 hide_default = """
     <style>
@@ -42,6 +45,7 @@ hide_default = """
     </style>
 """
 st.markdown(hide_default, unsafe_allow_html=True)
+
 # ------------------ Custom CSS ------------------
 custom_css = """
     <style>
@@ -164,6 +168,7 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
 # ------------------ Helper Functions ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
@@ -174,8 +179,10 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
                 f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
                 unsafe_allow_html=True
             )
+
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -187,6 +194,7 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
+
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -197,6 +205,7 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
+
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -235,6 +244,7 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
+
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -264,6 +274,7 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
+
 # ------------------ Navigation & Logo ------------------
 st.markdown(
     """
@@ -293,6 +304,7 @@ st.markdown(
 )
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
+
 # ------------------ Tabs ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📂 Split & Merge", 
@@ -300,6 +312,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Auto Dashboard", 
     "ℹ️ Info"
 ])
+
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
     st.markdown("### ✂ Split Excel/CSV File")
@@ -315,6 +328,14 @@ with tab1:
             st.session_state.clear_counter += 1
             st.rerun()
         try:
+            # =============== Progress Bar for Split ===============
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            def update_progress(pct, msg=""):
+                progress_bar.progress(pct)
+                status_text.text(f"🔄 {msg}... {pct}%")
+            update_progress(10, "Loading file")
+
             file_ext = uploaded_file.name.split('.')[-1].lower()
             if file_ext == "csv":
                 df = pd.read_csv(uploaded_file)
@@ -328,6 +349,8 @@ with tab1:
                 st.success(f"✅ Excel file uploaded successfully. Number of sheets: {len(sheet_names)}")
                 selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
                 df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
+            update_progress(30, "Analyzing data")
+
             st.markdown(f"### 📊 Data View – {selected_sheet}")
             st.dataframe(df, use_container_width=True)
             st.markdown("### ✂ Select Column to Split")
@@ -354,7 +377,8 @@ with tab1:
                         unique_values = df[col_to_split].dropna().unique()
                         zip_buffer = BytesIO()
                         with ZipFile(zip_buffer, "w") as zip_file:
-                            for value in unique_values:
+                            for i, value in enumerate(unique_values):
+                                update_progress(40 + int(60 * i / len(unique_values)), "Creating split files")
                                 filtered_df = df[df[col_to_split] == value]
                                 csv_buffer = BytesIO()
                                 filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
@@ -377,7 +401,8 @@ with tab1:
                             unique_values = df[col_to_split].dropna().unique()
                             zip_buffer = BytesIO()
                             with ZipFile(zip_buffer, "w") as zip_file:
-                                for value in unique_values:
+                                for i, value in enumerate(unique_values):
+                                    update_progress(40 + int(60 * i / len(unique_values)), "Creating split files")
                                     new_wb = Workbook()
                                     default_ws = new_wb.active
                                     new_wb.remove(default_ws)
@@ -477,7 +502,8 @@ with tab1:
                         elif split_option == "Split Each Sheet into Separate File":
                             zip_buffer = BytesIO()
                             with ZipFile(zip_buffer, "w") as zip_file:
-                                for sheet_name in original_wb.sheetnames:
+                                for i, sheet_name in enumerate(original_wb.sheetnames):
+                                    update_progress(40 + int(60 * i / len(original_wb.sheetnames)), "Creating split files")
                                     new_wb = Workbook()
                                     default_ws = new_wb.active
                                     new_wb.remove(default_ws)
@@ -548,8 +574,13 @@ with tab1:
                                 file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
                                 mime="application/zip"
                             )
+                    progress_bar.empty()
+                    status_text.empty()
         except Exception as e:
             st.error(f"❌ Error processing file: {e}")
+            if 'progress_bar' in locals():
+                progress_bar.empty()
+                status_text.empty()
     else:
         st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No file uploaded yet for splitting.</p>", unsafe_allow_html=True)
     st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
@@ -569,9 +600,18 @@ with tab1:
         if st.button("✨ Merge Files"):
             with st.spinner("Merging files..."):
                 try:
+                    # =============== Progress Bar for Merge ===============
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    def update_progress(pct, msg=""):
+                        progress_bar.progress(pct)
+                        status_text.text(f"🔄 {msg}... {pct}%")
+                    update_progress(10, "Analyzing files")
+
                     # Check if all files are Excel (to preserve formatting)
                     all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                     if all_excel:
+                        update_progress(20, "Merging with formatting")
                         # Merge with formatting preserved using openpyxl
                         merged_wb = Workbook()
                         merged_ws = merged_wb.active
@@ -579,6 +619,7 @@ with tab1:
                         current_row = 1
 
                         for idx, file in enumerate(merge_files):
+                            update_progress(20 + int(70 * idx / len(merge_files)), "Processing files")
                             file_bytes = file.getvalue()
                             src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                             src_ws = src_wb.active  # First sheet only
@@ -701,7 +742,8 @@ with tab1:
                     else:
                         # Fallback to pandas for CSV or mixed types
                         all_dfs = []
-                        for file in merge_files:
+                        for i, file in enumerate(merge_files):
+                            update_progress(20 + int(70 * i / len(merge_files)), "Merging data")
                             ext = file.name.split('.')[-1].lower()
                             if ext == "csv":
                                 df = pd.read_csv(file)
@@ -719,8 +761,16 @@ with tab1:
                             file_name="Merged_Consolidated.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
+                    progress_bar.empty()
+                    status_text.empty()
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
+                    if 'progress_bar' in locals():
+                        progress_bar.empty()
+                        status_text.empty()
+    else:
+        st.markdown("<p style='text-align:center; color:#FFD700;'>⚠️ No files uploaded for merging.</p>", unsafe_allow_html=True)
+
 # ------------------ Tab 2: Image to PDF ------------------
 with tab2:
     st.markdown("### 📷 Convert Images to PDF")
@@ -760,13 +810,22 @@ with tab2:
                     bordered = np.clip(bordered, 0, 255).astype(np.uint8)
                 result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
                 return Image.fromarray(result)
+            
+            # =============== Progress Bar for Image Processing ===============
             if st.button("🖨️ Create PDF (CamScanner Style)"):
                 with st.spinner("Enhancing images for PDF..."):
                     try:
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        def update_progress(pct, msg=""):
+                            progress_bar.progress(pct)
+                            status_text.text(f"🔄 {msg}... {pct}%")
+                        update_progress(10, "Processing first image")
                         first_image = Image.open(uploaded_images[0])
                         first_image_enhanced = enhance_image_for_pdf(first_image)
                         other_images = []
-                        for img_file in uploaded_images[1:]:
+                        for i, img_file in enumerate(uploaded_images[1:]):
+                            update_progress(20 + int(70 * i / len(uploaded_images[1:])), "Enhancing images")
                             img = Image.open(img_file)
                             enhanced_img = enhance_image_for_pdf(img)
                             other_images.append(enhanced_img.convert("RGB"))
@@ -780,13 +839,24 @@ with tab2:
                             file_name="Enhanced_Images_CamScanner.pdf",
                             mime="application/pdf"
                         )
+                        progress_bar.empty()
+                        status_text.empty()
                     except Exception as e:
                         st.error(f"❌ Error creating enhanced PDF: {e}")
+                        if 'progress_bar' in locals():
+                            progress_bar.empty()
+                            status_text.empty()
         except ImportError:
             st.warning("⚠️ CamScanner effect requires 'opencv-python'. Install it to enable this feature.")
         if st.button("🖨️ Create PDF (Original Quality)"):
             with st.spinner("Converting images to PDF..."):
                 try:
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    def update_progress(pct, msg=""):
+                        progress_bar.progress(pct)
+                        status_text.text(f"🔄 {msg}... {pct}%")
+                    update_progress(20, "Converting images")
                     first_image = Image.open(uploaded_images[0]).convert("RGB")
                     other_images = []
                     for img_file in uploaded_images[1:]:
@@ -802,10 +872,16 @@ with tab2:
                         file_name="Images_Combined.pdf",
                         mime="application/pdf"
                     )
+                    progress_bar.empty()
+                    status_text.empty()
                 except Exception as e:
                     st.error(f"❌ Error creating PDF: {e}")
+                    if 'progress_bar' in locals():
+                        progress_bar.empty()
+                        status_text.empty()
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
+
 # ------------------ Tab 3: Dashboard ------------------
 with tab3:
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
@@ -891,18 +967,6 @@ with tab3:
 
             update_progress(40, "Identifying key columns")
 
-            # =============== Select Measure Column ===============
-            numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
-            if numeric_cols_in_long:
-                user_measure_col = st.selectbox(
-                    "🎯 Select Sales/Value Column (for KPIs & Charts)",
-                    numeric_cols_in_long,
-                    index=numeric_cols_in_long.index(measure_col) if measure_col in numeric_cols_in_long else 0
-                )
-                kpi_measure_col = user_measure_col
-            else:
-                kpi_measure_col = measure_col
-
             # =============== Identify Categorical & Date Columns ===============
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
@@ -917,6 +981,14 @@ with tab3:
                 col_lower = str(col).lower()
                 if any(kw in col_lower for kw in date_keywords):
                     date_cols.append(col)
+
+            # 🔍 Detect sales-related columns
+            sales_keywords = ['sales', 'value', 'quantity', 'qty', 'amount', 'revenue', 'total', 'قيمة', 'كمية', 'مبيعات']
+            sales_cols = []
+            for col in df_long.select_dtypes(include='number').columns:
+                col_lower = col.lower()
+                if any(kw in col_lower for kw in sales_keywords):
+                    sales_cols.append(col)
 
             # =============== Sidebar Filters ===============
             st.sidebar.header("🔍 Dynamic Filters")
@@ -958,7 +1030,8 @@ with tab3:
             rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
             performance_group_col = None
             filtered_with_group = filtered.copy()
-            if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
+            if rep_col and sales_cols and rep_col in filtered.columns:
+                kpi_measure_col = sales_cols[0]  # Use first sales column for grouping
                 sales_by_rep = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
                 total_reps = len(sales_by_rep)
                 if total_reps >= 5:
@@ -996,51 +1069,52 @@ with tab3:
             update_progress(60, "Calculating KPIs")
 
             # =============== KPIs ===============
+            kpi_cards = []
+
+            # For each sales column, calculate Total and Growth (if possible)
+            for sales_col in sales_cols:
+                total_val = final_df[sales_col].sum()
+                kpi_cards.append({
+                    'title': f'Total {sales_col}',
+                    'value': f"{total_val:,.0f}",
+                    'color': 'linear-gradient(135deg, #28a745, #85e085)',
+                    'icon': '📈'
+                })
+
+                # If period comparison exists, calculate growth for this column
+                if period_comparison and '__pct_change__' in final_df.columns:
+                    avg_growth = final_df['__pct_change__'].mean() * 100
+                    kpi_cards.append({
+                        'title': f'Avg Growth {sales_col}',
+                        'value': f"{avg_growth:.1f}%",
+                        'color': 'linear-gradient(135deg, #28a745, #85e085)' if avg_growth >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)',
+                        'icon': '↗️' if avg_growth >= 0 else '↘️'
+                    })
+
+            # Add other KPIs
             found_dims = {}
             for dim_key, aliases in {"area": ["area", "region", "governorate", "محافظة"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
                 col = _find_col(final_df, aliases)
                 if col:
                     found_dims[dim_key] = col
 
-            kpi_values = {}
-            if kpi_measure_col and kpi_measure_col in final_df.columns:
-                kpi_values['total'] = final_df[kpi_measure_col].sum()
-                kpi_values['avg'] = final_df[kpi_measure_col].mean()
-                if date_cols:
-                    unique_dates = final_df[date_cols[0]].nunique()
-                    kpi_values['avg_per_date'] = kpi_values['total'] / unique_dates if unique_dates > 0 else None
-                else:
-                    kpi_values['avg_per_date'] = None
-            else:
-                kpi_values['total'] = None
-                kpi_values['avg'] = None
-                kpi_values['avg_per_date'] = None
-
             for dim_key, col_name in found_dims.items():
-                kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
+                unique_count = final_df[col_name].nunique()
+                kpi_cards.append({
+                    'title': f'Number of {dim_key}',
+                    'value': f"{unique_count}",
+                    'color': 'linear-gradient(135deg, #6f42c1, #a779e9)',
+                    'icon': '🌍' if dim_key == 'area' else '👥' if dim_key == 'rep' else '🏢'
+                })
 
-            if period_comparison and '__pct_change__' in final_df.columns:
-                kpi_values['growth_pct'] = final_df['__pct_change__'].mean() * 100
-
-            kpi_cards = []
-            if kpi_values.get('total') is not None:
-                kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
-            if kpi_values.get('avg') is not None:
-                kpi_cards.append({'title': f'Average {kpi_measure_col}', 'value': f"{kpi_values['avg']:,.0f}", 'color': 'linear-gradient(135deg, #00c0ff, #007bff)', 'icon': '📊'})
-            if kpi_values.get('avg_per_date') is not None:
-                kpi_cards.append({'title': 'Monthly Avg', 'value': f"{kpi_values['avg_per_date']:,.0f}", 'color': 'linear-gradient(135deg, #17a2b8, #66d9b3)', 'icon': '📅'})
-            if kpi_values.get('growth_pct') is not None:
-                color = 'linear-gradient(135deg, #28a745, #85e085)' if kpi_values['growth_pct'] >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)'
-                kpi_cards.append({'title': 'Avg Growth', 'value': f"{kpi_values['growth_pct']:.1f}%", 'color': color, 'icon': '↗️' if kpi_values['growth_pct'] >= 0 else '↘️'})
-            if kpi_values.get('unique_area') is not None:
-                kpi_cards.append({'title': 'Number of Areas', 'value': f"{kpi_values['unique_area']}", 'color': 'linear-gradient(135deg, #6f42c1, #a779e9)', 'icon': '🌍'})
-            if kpi_values.get('unique_rep') is not None:
-                kpi_cards.append({'title': 'Number of Reps', 'value': f"{kpi_values['unique_rep']}", 'color': 'linear-gradient(135deg, #ffc107, #ff8a00)', 'icon': '👥'})
-            if kpi_values.get('unique_branch') is not None:
-                kpi_cards.append({'title': 'Number of Branches', 'value': f"{kpi_values['unique_branch']}", 'color': 'linear-gradient(135deg, #20c997, #66d9b3)', 'icon': '🏢'})
             if performance_group_col:
                 num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
-                kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
+                kpi_cards.append({
+                    'title': 'Needs Support',
+                    'value': f"{num_needs_support}",
+                    'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)',
+                    'icon': '🆘'
+                })
 
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
@@ -1059,11 +1133,11 @@ with tab3:
             st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
             st.markdown("### 🧠 Smart Insights")
             insights = []
-            if kpi_measure_col and kpi_measure_col in final_df.columns:
-                total = final_df[kpi_measure_col].sum()
-                avg = final_df[kpi_measure_col].mean()
-                insights.append(f"The total {kpi_measure_col} is {total:,.0f}, with an average of {avg:,.0f} per record.")
-            if rep_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
+            for sales_col in sales_cols:
+                total = final_df[sales_col].sum()
+                insights.append(f"The total {sales_col} is {total:,.0f}.")
+            if rep_col and rep_col in final_df.columns and sales_cols:
+                kpi_measure_col = sales_cols[0]
                 rep_sum = final_df.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
                 if not rep_sum.empty:
                     top_rep = rep_sum.index[0]
@@ -1072,8 +1146,9 @@ with tab3:
                     if performance_group_col:
                         low_count = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
                         insights.append(f"🔴 **{low_count} representatives** are classified as 'Needs Support' (bottom 20%). Consider follow-up actions.")
-            if date_cols and kpi_measure_col in final_df.columns:
+            if date_cols and sales_cols:
                 date_col = date_cols[0]
+                kpi_measure_col = sales_cols[0]
                 try:
                     df_sorted = final_df.dropna(subset=[date_col, kpi_measure_col]).sort_values(date_col)
                     if len(df_sorted) >= 2:
@@ -1088,7 +1163,8 @@ with tab3:
                 except:
                     pass
             product_col = _find_col(final_df, ["product", "item", "sku", "brand"])
-            if product_col and product_col in final_df.columns and kpi_measure_col in final_df.columns:
+            if product_col and product_col in final_df.columns and sales_cols:
+                kpi_measure_col = sales_cols[0]
                 try:
                     prod_sum = final_df.groupby(product_col)[kpi_measure_col].sum().sort_values(ascending=False)
                     if not prod_sum.empty:
@@ -1107,8 +1183,9 @@ with tab3:
 
             # =============== Forecasting with Linear Regression ===============
             forecasting_done = False
-            if date_cols and kpi_measure_col:
+            if date_cols and sales_cols:
                 date_col = date_cols[0]
+                kpi_measure_col = sales_cols[0]
                 try:
                     df_forecast = final_df[[date_col, kpi_measure_col]].dropna()
                     df_forecast[date_col] = pd.to_datetime(df_forecast[date_col], errors='coerce')
@@ -1164,11 +1241,12 @@ with tab3:
 
             # =============== Auto Charts ===============
             st.markdown("### 📊 Auto Charts")
-            charts_buffers = []
+            charts_buffers = []  # Reset charts_buffers
             plotly_figs = []
 
             # Performance Group Chart
-            if performance_group_col:
+            if performance_group_col and sales_cols:
+                kpi_measure_col = sales_cols[0]
                 try:
                     group_total = final_df.groupby('Performance Group')[kpi_measure_col].sum().reset_index()
                     color_map = {'High Performer': '#28a745', 'Medium Performer': '#ffc107', 'Needs Support': '#dc3545'}
@@ -1177,11 +1255,16 @@ with tab3:
                     fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     fig.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     plotly_figs.append((fig, "Performance Groups"))
+                    # Add to charts_buffers for PDF
+                    img_buf = BytesIO()
+                    fig.write_image(img_buf, format="png", width=760, height=360)
+                    charts_buffers.append((img_buf, "Performance Groups"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
 
             # Top/Bottom Employees
-            if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
+            if rep_col and sales_cols and rep_col in final_df.columns:
+                kpi_measure_col = sales_cols[0]
                 rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
                 if len(rep_data) >= 10:
                     top10 = rep_data.sort_values(ascending=False).head(10)
@@ -1191,6 +1274,11 @@ with tab3:
                     fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_top, "Top 10 Employees"))
+                    # Add to charts_buffers
+                    img_buf = BytesIO()
+                    fig_top.write_image(img_buf, format="png", width=760, height=360)
+                    charts_buffers.append((img_buf, "Top 10 Employees"))
+
                     bottom10 = rep_data.sort_values(ascending=True).head(10)
                     df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
                     df_bottom[rep_col] = df_bottom[rep_col].astype(str).str.strip()
@@ -1198,9 +1286,13 @@ with tab3:
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
+                    # Add to charts_buffers
+                    img_buf = BytesIO()
+                    fig_bottom.write_image(img_buf, format="png", width=760, height=360)
+                    charts_buffers.append((img_buf, "Bottom 10 Employees"))
 
             # Other charts
-            possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
+            possible_dims = [c for c in final_df.columns if c not in sales_cols and c not in date_cols and c != rep_col]
             chosen_dim = None
             for alias in ["area", "region", "branch", "product", "item"]:
                 col = _find_col(final_df, [alias])
@@ -1209,7 +1301,8 @@ with tab3:
                     break
             if not chosen_dim and possible_dims:
                 chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
-            if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
+            if chosen_dim and sales_cols and chosen_dim in final_df.columns:
+                kpi_measure_col = sales_cols[0]
                 try:
                     series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
                     df_series = series.reset_index().rename(columns={kpi_measure_col: "value"})
@@ -1219,6 +1312,10 @@ with tab3:
                     fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
+                    # Add to charts_buffers
+                    img_buf = BytesIO()
+                    fig_bar.write_image(img_buf, format="png", width=760, height=360)
+                    charts_buffers.append((img_buf, f"Top by {chosen_dim}"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
 
@@ -1239,13 +1336,9 @@ with tab3:
                                 st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                                 st.markdown('</div>', unsafe_allow_html=True)
 
-            update_progress(100, "Dashboard ready!")
-            if hasattr(st, 'toast'):
-                st.toast("🎉 Dashboard generated successfully!", icon="✅")
-            else:
-                st.success("🎉 Dashboard generated successfully!")
+            update_progress(95, "Finalizing")
 
-            # =============== Export Section ===============
+            # === Export Section ===
             st.markdown("### 💾 Export Report / Data")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
@@ -1257,10 +1350,10 @@ with tab3:
                 file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-            if st.button("📥 Generate Dashboard PDF (charts only)"):
+            if st.button("📥 Generate Dashboard PDF (charts + table)"):
                 with st.spinner("Generating Dashboard PDF..."):
                     try:
-                        pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=False)
+                        pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=True, filtered_df=final_df.head(200))
                         st.success("✅ Dashboard PDF ready.")
                         st.download_button(
                             label="⬇️ Download Dashboard PDF",
@@ -1275,11 +1368,21 @@ with tab3:
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
 
-        except Exception as e:
-            st.error(f"❌ Error generating dashboard: {e}")
-        finally:
+            update_progress(100, "Dashboard ready!")
+            if hasattr(st, 'toast'):
+                st.toast("🎉 Dashboard generated successfully!", icon="✅")
+            else:
+                st.success("🎉 Dashboard generated successfully!")
+
             progress_bar.empty()
             status_text.empty()
+
+        except Exception as e:
+            st.error(f"❌ Error generating dashboard: {e}")
+            if 'progress_bar' in locals():
+                progress_bar.empty()
+                status_text.empty()
+
 # ------------------ Tab 4: Info ------------------
 with tab4:
     st.markdown("""
