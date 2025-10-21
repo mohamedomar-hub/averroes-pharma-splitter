@@ -23,11 +23,31 @@ from pptx.enum.text import PP_ALIGN
 from PIL import Image
 from sklearn.linear_model import LinearRegression
 import numpy as np
+# === Lottie animation support ===
+from streamlit_lottie import st_lottie
+import requests
+import json
+
+def load_lottie_url(url: str):
+    """تحميل Lottie JSON من رابط خارجي"""
+    try:
+        r = requests.get(url, timeout=8)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        return None
+    return None
 # Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
 # ------------------ Page Setup ------------------
 st.set_page_config(
+   # === Load Lottie animations (one-time) ===
+    LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")   # split
+    LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")  # merge
+    LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")  # image/pdf
+    LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")   # dashboard
+    LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")   # dashboard PDF
     page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
@@ -345,6 +365,10 @@ with tab1:
             )
             if st.button("🚀 Start Split"):
                 with st.spinner("Splitting process in progress..."):
+                    if LOTTIE_SPLIT:
+                        st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+                        st_lottie(LOTTIE_SPLIT, height=180, key="lottie_split")
+                        st.markdown("</div>", unsafe_allow_html=True)
                     def clean_name(name):
                         name = str(name).strip()
                         invalid_chars = r'[\\/*?:\[\]|<>"]'
@@ -568,6 +592,10 @@ with tab1:
 
         if st.button("✨ Merge Files"):
             with st.spinner("Merging files..."):
+               if LOTTIE_MERGE:
+                    st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+                    st_lottie(LOTTIE_MERGE, height=180, key="lottie_merge")
+                    st.markdown("</div>", unsafe_allow_html=True)                
                 try:
                     # Check if all files are Excel (to preserve formatting)
                     all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
@@ -762,6 +790,10 @@ with tab2:
                 return Image.fromarray(result)
             if st.button("🖨️ Create PDF (CamScanner Style)"):
                 with st.spinner("Enhancing images for PDF..."):
+                   if LOTTIE_IMAGE:
+                    st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+                    st_lottie(LOTTIE_IMAGE, height=180, key="lottie_image_enhance")
+                    st.markdown("</div>", unsafe_allow_html=True)
                     try:
                         first_image = Image.open(uploaded_images[0])
                         first_image_enhanced = enhance_image_for_pdf(first_image)
@@ -1132,6 +1164,10 @@ with tab3:
             )
             if st.button("📥 Generate Dashboard PDF (charts only)"):
                 with st.spinner("Generating Dashboard PDF..."):
+                    if LOTTIE_PDF:
+                        st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+                        st_lottie(LOTTIE_PDF, height=180, key="lottie_dashboard_pdf")
+                        st.markdown("</div>", unsafe_allow_html=True)
                     try:
                         pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=False)
                         st.success("✅ Dashboard PDF ready.")
@@ -1178,3 +1214,4 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
+
