@@ -9,3 +9,5 @@ reportlab
 python-pptx
 scikit-learn
 opencv-python-headless
+streamlit-lottie
+requests
