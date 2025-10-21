@@ -596,7 +596,7 @@ with tab1:
                     st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
                     st_lottie(LOTTIE_MERGE, height=180, key="lottie_merge")
                     st.markdown("</div>", unsafe_allow_html=True)                
-                try:
+                        try:
                     # Check if all files are Excel (to preserve formatting)
                     all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                     if all_excel:
@@ -1214,6 +1214,7 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
+
 
 
 
