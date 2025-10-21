@@ -43,16 +43,16 @@ if 'clear_counter' not in st.session_state:
 # ------------------ Page Setup ------------------
 st.set_page_config(
    # === Load Lottie animations (one-time) ===
-    LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")   # split
-    LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")  # merge
-    LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")  # image/pdf
-    LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")   # dashboard
-    LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")   # dashboard PDF
     page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")   # split
+LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")  # merge
+LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")  # image/pdf
+LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")   # dashboard
+LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")   # dashboard PDF
 # Hide default Streamlit elements
 hide_default = """
     <style>
@@ -1214,4 +1214,5 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
+
 
