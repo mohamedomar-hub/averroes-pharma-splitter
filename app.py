@@ -37,22 +37,25 @@ def load_lottie_url(url: str):
     except Exception:
         return None
     return None
+
 # Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
+
 # ------------------ Page Setup ------------------
 st.set_page_config(
-   # === Load Lottie animations (one-time) ===
     page_title="Averroes Pharma File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
 LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")   # split
 LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")  # merge
 LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")  # image/pdf
 LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")   # dashboard
 LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")   # dashboard PDF
+
 # Hide default Streamlit elements
 hide_default = """
     <style>
@@ -62,6 +65,7 @@ hide_default = """
     </style>
 """
 st.markdown(hide_default, unsafe_allow_html=True)
+
 # ------------------ Custom CSS ------------------
 custom_css = """
     <style>
@@ -184,6 +188,7 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
 # ------------------ Helper Functions ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
@@ -194,8 +199,10 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
                 f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
                 unsafe_allow_html=True
             )
+
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -207,6 +214,7 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
+
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -217,6 +225,7 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
+
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -255,6 +264,7 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
+
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -284,6 +294,7 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
+
 # ------------------ Navigation & Logo ------------------
 st.markdown(
     """
@@ -313,6 +324,7 @@ st.markdown(
 )
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
+
 # ------------------ Tabs ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📂 Split & Merge", 
@@ -320,6 +332,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Auto Dashboard", 
     "ℹ️ Info"
 ])
+
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
     st.markdown("### ✂ Split Excel/CSV File")
@@ -589,14 +602,13 @@ with tab1:
         if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
             st.session_state.clear_counter += 1
             st.rerun()
-
         if st.button("✨ Merge Files"):
             with st.spinner("Merging files..."):
-               if LOTTIE_MERGE:
+                if LOTTIE_MERGE:
                     st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
                     st_lottie(LOTTIE_MERGE, height=180, key="lottie_merge")
-                    st.markdown("</div>", unsafe_allow_html=True)                
-                        try:
+                    st.markdown("</div>", unsafe_allow_html=True)
+                try:
                     # Check if all files are Excel (to preserve formatting)
                     all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                     if all_excel:
@@ -605,12 +617,10 @@ with tab1:
                         merged_ws = merged_wb.active
                         merged_ws.title = "Merged_Data"
                         current_row = 1
-
                         for idx, file in enumerate(merge_files):
                             file_bytes = file.getvalue()
                             src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                             src_ws = src_wb.active  # First sheet only
-
                             # Copy header only once
                             if idx == 0:
                                 for row in src_ws.iter_rows(min_row=1, max_row=1):
@@ -650,7 +660,6 @@ with tab1:
                                             except Exception:
                                                 pass
                                 current_row += 1
-
                             # Copy data rows (skip header)
                             for row in src_ws.iter_rows(min_row=2):
                                 for cell in row:
@@ -689,7 +698,6 @@ with tab1:
                                         except Exception:
                                             pass
                                 current_row += 1
-
                             # Copy column widths
                             try:
                                 for col_letter in src_ws.column_dimensions:
@@ -697,7 +705,6 @@ with tab1:
                                         merged_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
                             except Exception:
                                 pass
-
                             # Copy merged cells
                             if src_ws.merged_cells.ranges:
                                 for merged_range in src_ws.merged_cells.ranges:
@@ -714,7 +721,6 @@ with tab1:
                                     # Copy value from top-left
                                     top_left = src_ws.cell(min_row_src, min_col)
                                     merged_ws.cell(new_min_row, min_col).value = top_left.value
-
                         # Save result
                         output_buffer = BytesIO()
                         merged_wb.save(output_buffer)
@@ -749,6 +755,7 @@ with tab1:
                         )
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
+
 # ------------------ Tab 2: Image to PDF ------------------
 with tab2:
     st.markdown("### 📷 Convert Images to PDF")
@@ -790,10 +797,10 @@ with tab2:
                 return Image.fromarray(result)
             if st.button("🖨️ Create PDF (CamScanner Style)"):
                 with st.spinner("Enhancing images for PDF..."):
-                   if LOTTIE_IMAGE:
-                    st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
-                    st_lottie(LOTTIE_IMAGE, height=180, key="lottie_image_enhance")
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    if LOTTIE_IMAGE:
+                        st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+                        st_lottie(LOTTIE_IMAGE, height=180, key="lottie_image_enhance")
+                        st.markdown("</div>", unsafe_allow_html=True)
                     try:
                         first_image = Image.open(uploaded_images[0])
                         first_image_enhanced = enhance_image_for_pdf(first_image)
@@ -838,6 +845,7 @@ with tab2:
                     st.error(f"❌ Error creating PDF: {e}")
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
+
 # ------------------ Tab 3: Dashboard ------------------
 with tab3:
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
@@ -1188,6 +1196,7 @@ with tab3:
             if 'progress_bar' in locals():
                 progress_bar.empty()
                 status_text.empty()
+
 # ------------------ Tab 4: Info ------------------
 with tab4:
     st.markdown("""
@@ -1214,7 +1223,3 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
-
-
-
-
