@@ -853,7 +853,7 @@ with tab3:
     if dashboard_file:
         display_uploaded_files([dashboard_file], "Excel/CSV")
         if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
-            st.session_state.clear_counter += تم دمج الكود من ملف `edit.txt` (الذي يحتوي على واجهة شريط التقدم الذهبية الموحّدة مع مؤقّت) داخل الكود الكامل من `Code Edit.txt`، مع الحفاظ على جميع الوظائف الأخرى (مثل تحويل الصور إلى PDF، لوحة التحكم التلقائية، إلخ) دون أي تغيير.
+            st.session_state.clear_counter # تم دمج الكود من ملف `edit.txt` (الذي يحتوي على واجهة شريط التقدم الذهبية الموحّدة مع مؤقّت) داخل الكود الكامل من `Code Edit.txt`، مع الحفاظ على جميع الوظائف الأخرى (مثل تحويل الصور إلى PDF، لوحة التحكم التلقائية، إلخ) دون أي تغيير.
 
 التعديل الوحيد تم في **Tab 1: Split & Merge**، حيث تم استبدال قسم التقسيم والدمج الأصلي بنسخة مُحسّنة تُظهر شريط تقدم ذهبي موحّد مع مؤقّت زمني لكل من عمليات **Split** و**Merge**.
 
@@ -2046,3 +2046,4 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
+
