@@ -857,9 +857,9 @@ with tab3:
 
 #التعديل الوحيد تم في **Tab 1: Split & Merge**، حيث تم استبدال قسم التقسيم والدمج الأصلي بنسخة مُحسّنة تُظهر شريط تقدم ذهبي موحّد مع مؤقّت زمني لكل من عمليات **Split** و**Merge**.
 
-إليك الكود الكامل بعد الدمج:
+#إليك الكود الكامل بعد الدمج:
 
-```python
+#python
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
@@ -2046,5 +2046,6 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
+
 
 
