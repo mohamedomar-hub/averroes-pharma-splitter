@@ -27,7 +27,6 @@ import numpy as np
 from streamlit_lottie import st_lottie
 import requests
 import json
-
 def load_lottie_url(url: str):
     """تحميل Lottie JSON من رابط خارجي"""
     try:
@@ -37,11 +36,9 @@ def load_lottie_url(url: str):
     except Exception:
         return None
     return None
-
 # Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
-
 # ------------------ Page Setup ------------------
 st.set_page_config(
     page_title="Averroes Pharma File Splitter & Dashboard",
@@ -49,13 +46,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
 LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")   # split
 LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")  # merge
 LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")  # image/pdf
 LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")   # dashboard
 LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")   # dashboard PDF
-
 # Hide default Streamlit elements
 hide_default = """
     <style>
@@ -65,7 +60,6 @@ hide_default = """
     </style>
 """
 st.markdown(hide_default, unsafe_allow_html=True)
-
 # ------------------ Custom CSS ------------------
 custom_css = """
     <style>
@@ -188,7 +182,6 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
 # ------------------ Helper Functions ------------------
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
@@ -199,10 +192,8 @@ def display_uploaded_files(file_list, file_type="Excel/CSV"):
                 f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
                 unsafe_allow_html=True
             )
-
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
-
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
     for a in aliases:
@@ -214,7 +205,6 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
-
 def _format_millions(x, pos=None):
     try:
         x = float(x)
@@ -225,7 +215,6 @@ def _format_millions(x, pos=None):
     if abs(x) >= 1_000:
         return f"{x/1_000:.0f}K"
     return f"{x:.0f}"
-
 def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
@@ -264,7 +253,6 @@ def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None
     doc.build(elements)
     buf.seek(0)
     return buf
-
 def build_pptx(sheet_title, charts_buffers):
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -294,7 +282,6 @@ def build_pptx(sheet_title, charts_buffers):
     prs.save(pptx_buffer)
     pptx_buffer.seek(0)
     return pptx_buffer
-
 # ------------------ Navigation & Logo ------------------
 st.markdown(
     """
@@ -324,7 +311,6 @@ st.markdown(
 )
 st.markdown("<h1 style='text-align:center; color:#FFD700;'>💊 Averroes Pharma File Splitter & Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:white;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</h3>", unsafe_allow_html=True)
-
 # ------------------ Tabs ------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📂 Split & Merge", 
@@ -332,7 +318,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Auto Dashboard", 
     "ℹ️ Info"
 ])
-
 # ------------------ Tab 1: Split & Merge ------------------
 with tab1:
     st.markdown("### ✂ Split Excel/CSV File")
@@ -388,17 +373,25 @@ with tab1:
                         cleaned = re.sub(invalid_chars, '_', name)
                         return cleaned[:30] if cleaned else "Sheet"
                     if file_ext == "csv":
+                        # ===== CSV Split =====
                         unique_values = df[col_to_split].dropna().unique()
                         zip_buffer = BytesIO()
+                        progress = st.progress(0)
+                        status = st.empty()
+                        total = len(unique_values)
                         with ZipFile(zip_buffer, "w") as zip_file:
-                            for value in unique_values:
+                            for i, value in enumerate(unique_values):
                                 filtered_df = df[df[col_to_split] == value]
                                 csv_buffer = BytesIO()
                                 filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
                                 csv_buffer.seek(0)
                                 file_name = f"{clean_name(value)}.csv"
                                 zip_file.writestr(file_name, csv_buffer.read())
-                                st.write(f"📁 Created file: `{value}`")
+                                # تحديث البار
+                                status.text(f"Processing {i+1}/{total} → {value}")
+                                progress.progress(int((i+1)/total*100))
+                        progress.empty()
+                        status.empty()
                         zip_buffer.seek(0)
                         st.success("🎉 Splitting completed successfully!")
                         st.download_button(
@@ -408,51 +401,43 @@ with tab1:
                             mime="application/zip"
                         )
                     else:
+                        # ===== Excel Split =====
                         if split_option == "Split by Column Values":
                             ws = original_wb[selected_sheet]
                             col_idx = df.columns.get_loc(col_to_split) + 1
                             unique_values = df[col_to_split].dropna().unique()
                             zip_buffer = BytesIO()
+                            progress = st.progress(0)
+                            status = st.empty()
+                            total = len(unique_values)
                             with ZipFile(zip_buffer, "w") as zip_file:
-                                for value in unique_values:
+                                for i, value in enumerate(unique_values):
                                     new_wb = Workbook()
                                     default_ws = new_wb.active
                                     new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=clean_name(value))
+                                    # Copy headers
                                     for cell in ws[1]:
                                         dst_cell = new_ws.cell(1, cell.column, cell.value)
                                         if cell.has_style:
                                             try:
-                                                if cell.font:
-                                                    dst_cell.font = Font(
-                                                        name=cell.font.name,
-                                                        size=cell.font.size,
-                                                        bold=cell.font.bold,
-                                                        italic=cell.font.italic,
-                                                        color=cell.font.color
-                                                    )
+                                                dst_cell.font = Font(
+                                                    name=cell.font.name, size=cell.font.size,
+                                                    bold=cell.font.bold, italic=cell.font.italic,
+                                                    color=cell.font.color
+                                                )
                                                 if cell.fill and cell.fill.fill_type:
                                                     dst_cell.fill = PatternFill(
                                                         fill_type=cell.fill.fill_type,
                                                         start_color=cell.fill.start_color,
                                                         end_color=cell.fill.end_color
                                                     )
-                                                if cell.border:
-                                                    dst_cell.border = Border(
-                                                        left=cell.border.left,
-                                                        right=cell.border.right,
-                                                        top=cell.border.top,
-                                                        bottom=cell.border.bottom
-                                                    )
-                                                if cell.alignment:
-                                                    dst_cell.alignment = Alignment(
-                                                        horizontal=cell.alignment.horizontal,
-                                                        vertical=cell.alignment.vertical,
-                                                        wrap_text=cell.alignment.wrap_text
-                                                    )
+                                                dst_cell.alignment = cell.alignment
+                                                dst_cell.border = cell.border
                                                 dst_cell.number_format = cell.number_format
                                             except Exception:
                                                 pass
+                                    # Copy data rows
                                     row_idx = 2
                                     for row in ws.iter_rows(min_row=2):
                                         cell_in_col = row[col_idx - 1]
@@ -461,33 +446,10 @@ with tab1:
                                                 dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
                                                 if src_cell.has_style:
                                                     try:
-                                                        if src_cell.font:
-                                                            dst_cell.font = Font(
-                                                                name=src_cell.font.name,
-                                                                size=src_cell.font.size,
-                                                                bold=src_cell.font.bold,
-                                                                italic=src_cell.font.italic,
-                                                                color=src_cell.font.color
-                                                            )
-                                                        if src_cell.fill and src_cell.fill.fill_type:
-                                                            dst_cell.fill = PatternFill(
-                                                                fill_type=src_cell.fill.fill_type,
-                                                                start_color=src_cell.fill.start_color,
-                                                                end_color=src_cell.fill.end_color
-                                                            )
-                                                        if src_cell.border:
-                                                            dst_cell.border = Border(
-                                                                left=src_cell.border.left,
-                                                                right=src_cell.border.right,
-                                                                top=src_cell.border.top,
-                                                                bottom=src_cell.border.bottom
-                                                            )
-                                                        if src_cell.alignment:
-                                                            dst_cell.alignment = Alignment(
-                                                                horizontal=src_cell.alignment.horizontal,
-                                                                vertical=src_cell.alignment.vertical,
-                                                                wrap_text=src_cell.alignment.wrap_text
-                                                            )
+                                                        dst_cell.font = src_cell.font
+                                                        dst_cell.fill = src_cell.fill
+                                                        dst_cell.border = src_cell.border
+                                                        dst_cell.alignment = src_cell.alignment
                                                         dst_cell.number_format = src_cell.number_format
                                                     except Exception:
                                                         pass
@@ -502,7 +464,11 @@ with tab1:
                                     file_buffer.seek(0)
                                     file_name = f"{clean_name(value)}.xlsx"
                                     zip_file.writestr(file_name, file_buffer.read())
-                                    st.write(f"📁 Created file: `{value}`")
+                                    # تحديث البار
+                                    status.text(f"Processing {i+1}/{total} → {value}")
+                                    progress.progress(int((i+1)/total*100))
+                            progress.empty()
+                            status.empty()
                             zip_buffer.seek(0)
                             st.success("🎉 Splitting completed successfully!")
                             st.download_button(
@@ -513,55 +479,35 @@ with tab1:
                             )
                         elif split_option == "Split Each Sheet into Separate File":
                             zip_buffer = BytesIO()
+                            sheets = original_wb.sheetnames
+                            progress = st.progress(0)
+                            status = st.empty()
+                            total = len(sheets)
                             with ZipFile(zip_buffer, "w") as zip_file:
-                                for sheet_name in original_wb.sheetnames:
+                                for i, sheet_name in enumerate(sheets):
+                                    src_ws = original_wb[sheet_name]
                                     new_wb = Workbook()
                                     default_ws = new_wb.active
                                     new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=sheet_name)
-                                    src_ws = original_wb[sheet_name]
                                     for row in src_ws.iter_rows():
                                         for src_cell in row:
                                             dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
                                             if src_cell.has_style:
                                                 try:
-                                                    if src_cell.font:
-                                                        dst_cell.font = Font(
-                                                            name=src_cell.font.name,
-                                                            size=src_cell.font.size,
-                                                            bold=src_cell.font.bold,
-                                                            italic=src_cell.font.italic,
-                                                            color=src_cell.font.color
-                                                        )
-                                                    if src_cell.fill and src_cell.fill.fill_type:
-                                                        dst_cell.fill = PatternFill(
-                                                            fill_type=src_cell.fill.fill_type,
-                                                            start_color=src_cell.fill.start_color,
-                                                            end_color=src_cell.fill.end_color
-                                                        )
-                                                    if src_cell.border:
-                                                        dst_cell.border = Border(
-                                                            left=src_cell.border.left,
-                                                            right=src_cell.border.right,
-                                                            top=src_cell.border.top,
-                                                            bottom=src_cell.border.bottom
-                                                        )
-                                                    if src_cell.alignment:
-                                                        dst_cell.alignment = Alignment(
-                                                            horizontal=src_cell.alignment.horizontal,
-                                                            vertical=src_cell.alignment.vertical,
-                                                            wrap_text=src_cell.alignment.wrap_text,
-                                                            indent=src_cell.alignment.indent
-                                                        )
+                                                    dst_cell.font = src_cell.font
+                                                    dst_cell.fill = src_cell.fill
+                                                    dst_cell.border = src_cell.border
+                                                    dst_cell.alignment = src_cell.alignment
                                                     dst_cell.number_format = src_cell.number_format
                                                 except Exception:
                                                     pass
+                                    # Copy merged cells + dimensions
                                     if src_ws.merged_cells.ranges:
                                         for merged_range in src_ws.merged_cells.ranges:
                                             new_ws.merge_cells(str(merged_range))
-                                            top_left_cell = src_ws.cell(merged_range.min_row, merged_range.min_col)
-                                            merged_value = top_left_cell.value
-                                            new_ws.cell(merged_range.min_row, merged_range.min_col, merged_value)
+                                            top_left = src_ws.cell(merged_range.min_row, merged_range.min_col)
+                                            new_ws.cell(merged_range.min_row, merged_range.min_col, top_left.value)
                                     try:
                                         for col_letter in src_ws.column_dimensions:
                                             if src_ws.column_dimensions[col_letter].width:
@@ -576,7 +522,11 @@ with tab1:
                                     file_buffer.seek(0)
                                     file_name = f"{clean_name(sheet_name)}.xlsx"
                                     zip_file.writestr(file_name, file_buffer.read())
-                                    st.write(f"📁 Created file: `{sheet_name}`")
+                                    # تحديث البار
+                                    status.text(f"Processing {i+1}/{total} → {sheet_name}")
+                                    progress.progress(int((i+1)/total*100))
+                            progress.empty()
+                            status.empty()
                             zip_buffer.seek(0)
                             st.success("🎉 Splitting completed successfully!")
                             st.download_button(
@@ -755,7 +705,6 @@ with tab1:
                         )
                 except Exception as e:
                     st.error(f"❌ Error during merge: {e}")
-
 # ------------------ Tab 2: Image to PDF ------------------
 with tab2:
     st.markdown("### 📷 Convert Images to PDF")
@@ -845,7 +794,6 @@ with tab2:
                     st.error(f"❌ Error creating PDF: {e}")
     else:
         st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
-
 # ------------------ Tab 3: Dashboard ------------------
 with tab3:
     st.markdown("### 📊 Interactive Auto Dashboard Generator")
@@ -863,13 +811,10 @@ with tab3:
             # =============== Progress Bar ===============
             progress_bar = st.progress(0)
             status_text = st.empty()
-
             def update_progress(pct, msg=""):
                 progress_bar.progress(pct)
                 status_text.text(f"🔄 {msg}... {pct}%")
-
             update_progress(10, "Loading file")
-
             file_ext = dashboard_file.name.split('.')[-1].lower()
             if file_ext == "csv":
                 df0 = pd.read_csv(dashboard_file)
@@ -880,11 +825,9 @@ with tab3:
                 selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
                 df0 = df_dict[selected_sheet_dash].copy()
                 sheet_title = selected_sheet_dash
-
             update_progress(30, "Analyzing data")
             st.markdown("### 🔍 Data Preview (original)")
             st.dataframe(df0.head(), use_container_width=True)
-
             # =============== Detect Period Columns ===============
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             period_cols = []
@@ -901,7 +844,6 @@ with tab3:
             for base, cols in base_names.items():
                 if len(cols) >= 2:
                     valid_periods[base] = sorted(cols, key=lambda x: x[1])
-
             period_comparison = None
             if valid_periods:
                 base_key = list(valid_periods.keys())[0]
@@ -912,9 +854,7 @@ with tab3:
                 df0['__pct_change__'] = df0['__abs_change__'] / df0[col1].replace(0, pd.NA)
                 period_comparison = {'col1': col1, 'col2': col2, 'period1': period1, 'period2': period2, 'base': base_key}
                 st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
-
             update_progress(50, "Processing filters")
-
             # =============== Handle Month Columns ===============
             month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
             potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
@@ -928,7 +868,6 @@ with tab3:
                 numeric_cols = df0.select_dtypes(include='number').columns.tolist()
                 measure_col = numeric_cols[0] if numeric_cols else None
                 df_long = df0.copy()
-
             # =============== Select Measure Column ===============
             numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
             if numeric_cols_in_long:
@@ -940,14 +879,12 @@ with tab3:
                 kpi_measure_col = user_measure_col
             else:
                 kpi_measure_col = measure_col
-
             # =============== Identify Categorical Columns ===============
             cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
             for c in df_long.columns:
                 if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
                     cat_cols.append(c)
             cat_cols = [c for c in cat_cols if c is not None]
-
             # =============== Sidebar Filters ===============
             st.sidebar.header("🔍 Dynamic Filters")
             primary_filter_col = None
@@ -973,7 +910,6 @@ with tab3:
                     pass
                 sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
                 active_filters[fc] = sel
-
             # =============== Apply Filters ===============
             filtered = df_long.copy()
             if primary_filter_col and primary_values is not None and len(primary_values) > 0:
@@ -981,9 +917,7 @@ with tab3:
             for fc, sel in active_filters.items():
                 if sel is not None and len(sel) > 0:
                     filtered = filtered[filtered[fc].astype(str).isin(sel)]
-
             update_progress(70, "Building KPIs")
-
             # === Auto Group Low-Performers ===
             rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
             performance_group_col = None
@@ -1005,16 +939,13 @@ with tab3:
                             return "Medium Performer"
                     filtered_with_group['Performance Group'] = filtered_with_group[rep_col].apply(assign_group)
                     performance_group_col = 'Performance Group'
-
             final_df = filtered_with_group
-
             # === KPIs ===
             found_dims = {}
             for dim_key, aliases in {"area": ["area", "region"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
                 col = _find_col(final_df, aliases)
                 if col:
                     found_dims[dim_key] = col
-
             kpi_values = {}
             if kpi_measure_col and kpi_measure_col in final_df.columns:
                 kpi_values['total'] = final_df[kpi_measure_col].sum()
@@ -1027,10 +958,8 @@ with tab3:
             else:
                 kpi_values['total'] = None
                 kpi_values['avg_per_date'] = None
-
             for dim_key, col_name in found_dims.items():
                 kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
-
             # Calculate growth as direct difference (not average)
             if period_comparison and '__pct_change__' in final_df.columns:
                 # Use sum of last period minus sum of previous period
@@ -1041,20 +970,15 @@ with tab3:
                 else:
                     growth_pct = 0
                 kpi_values['growth_pct'] = growth_pct
-
             kpi_cards = []
             if kpi_values.get('total') is not None:
                 kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
-
             # Removed Average KPI as requested
-
             if kpi_values.get('avg_per_date') is not None:
                 kpi_cards.append({'title': 'Monthly Avg', 'value': f"{kpi_values['avg_per_date']:,.0f}", 'color': 'linear-gradient(135deg, #17a2b8, #66d9b3)', 'icon': '📅'})
-
             if kpi_values.get('growth_pct') is not None:
                 color = 'linear-gradient(135deg, #28a745, #85e085)' if kpi_values['growth_pct'] >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)'
                 kpi_cards.append({'title': 'Growth', 'value': f"{kpi_values['growth_pct']:.1f}%", 'color': color, 'icon': '↗️' if kpi_values['growth_pct'] >= 0 else '↘️'})
-
             if kpi_values.get('unique_area') is not None:
                 kpi_cards.append({'title': 'Number of Areas', 'value': f"{kpi_values['unique_area']}", 'color': 'linear-gradient(135deg, #6f42c1, #a779e9)', 'icon': '🌍'})
             if kpi_values.get('unique_rep') is not None:
@@ -1064,7 +988,6 @@ with tab3:
             if performance_group_col:
                 num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
                 kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
-
             st.markdown("### 🚀 KPIs")
             cols = st.columns(min(6, len(kpi_cards)))
             for i, card in enumerate(kpi_cards[:6]):
@@ -1075,14 +998,11 @@ with tab3:
                         <div class='kpi-value'>{card['value']}</div>
                     </div>
                     """, unsafe_allow_html=True)
-
             update_progress(90, "Rendering charts")
-
             # === Auto Charts ===
             st.markdown("### 📊 Auto Charts")
             charts_buffers = []
             plotly_figs = []
-
             # Performance Group Chart
             if performance_group_col:
                 try:
@@ -1095,7 +1015,6 @@ with tab3:
                     plotly_figs.append((fig, "Performance Groups"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
-
             # Top/Bottom Employees
             if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
                 rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
@@ -1114,7 +1033,6 @@ with tab3:
                     fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                     fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                     plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
-
             # Other charts
             possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
             chosen_dim = None
@@ -1137,7 +1055,6 @@ with tab3:
                     plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
                 except Exception as e:
                     st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
-
             # Display charts
             st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
             plotly_figs = plotly_figs[:6]
@@ -1154,10 +1071,8 @@ with tab3:
                                 st.plotly_chart(fig, use_container_width=True, theme="streamlit")
                                 st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                                 st.markdown('</div>', unsafe_allow_html=True)
-
             update_progress(100, "Dashboard ready!")
             st.success("🎉 Dashboard generated successfully!")
-
             # === Export Section ===
             st.markdown("### 💾 Export Report / Data")
             excel_buffer = BytesIO()
@@ -1187,16 +1102,13 @@ with tab3:
                         )
                     except Exception as e:
                         st.error(f"❌ PDF generation failed: {e}")
-
             progress_bar.empty()
             status_text.empty()
-
         except Exception as e:
             st.error(f"❌ Error generating dashboard: {e}")
             if 'progress_bar' in locals():
                 progress_bar.empty()
                 status_text.empty()
-
 # ------------------ Tab 4: Info ------------------
 with tab4:
     st.markdown("""
@@ -1223,4 +1135,3 @@ with tab4:
         <li>Performance grouping requires at least 5 representatives.</li>
     </ul>
     """, unsafe_allow_html=True)
-
