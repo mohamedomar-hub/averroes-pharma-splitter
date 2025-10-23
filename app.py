@@ -218,18 +218,16 @@ custom_css = """
     .nav-link {
         color: #FFD700;
         text-decoration: none;
-        font-weight: bold;
-        padding: 6px 10px;
-        border-radius: 6px;
-        transition: all 0.2s ease;
+        font-weight: 700;
+        font-size: 16px;
+        margin: 0 12px;
+        transition: color 0.2s ease-in-out;
     }
     .nav-link:hover {
-        background-color: #FFD700;
-        color: black;
+        color: #FFE97F
     }
     .nav-link.active {
-        color: black;
-        background: #FFD700;
+        color: #FFFFFF
     }
     .logo-small {
         width: 120px;
@@ -803,3 +801,4 @@ st.markdown("""
 <br>
 <div style='text-align:center; color:#888; font-size:12px;'>Built with ❤️ — Averroes Pharma Tool</div>
 """, unsafe_allow_html=True)
+
