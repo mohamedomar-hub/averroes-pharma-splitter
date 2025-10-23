@@ -30,7 +30,7 @@ from pptx.enum.text import PP_ALIGN
 
 # ----------------------- Utilities & Config -----------------------
 st.set_page_config(
-    page_title="Averroes Pharma File Splitter & Dashboard",
+    page_title="Tricks For Excel| File Splitter & Dashboard",
     page_icon="💊",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -796,9 +796,11 @@ st.markdown("""
     Contact / Support
 </div>
 <div style='text-align:center; color:white; margin-top:6px;'>
-    WhatsApp: 01554694554 • Email: admin@example.com
+    WhatsApp: 01554694554 •
+    Email: lmohamedomar825@Gmail.com
 </div>
 <br>
 <div style='text-align:center; color:#888; font-size:12px;'>Built with ❤️ — Averroes Pharma Tool</div>
 """, unsafe_allow_html=True)
+
 
