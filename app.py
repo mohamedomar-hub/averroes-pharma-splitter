@@ -275,7 +275,7 @@ st.markdown('<a name="home"></a>', unsafe_allow_html=True)
 st.markdown("""
     <div style='text-align:center; margin-top:20px;'>
         <div style='color:#FFD700; font-weight:700;'>By <strong>Mohamed Abd ELGhany</strong> – 01554694554 (WhatsApp)</div>
-        <h1 style='color:#FFD700; font-size:38px; margin:8px 0;'>💊 Averroes Pharma File Splitter & Dashboard</h1>
+        <h1 style='color:#FFD700; font-size:38px; margin:8px 0;'>💊Tricks Excel File Splitter & Dashboard</h1>
         <div style='color:white; font-size:16px;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</div>
     </div>
     <hr style='border:1px solid #123; margin-top:18px; opacity:0.4;' />
@@ -802,5 +802,6 @@ st.markdown("""
 <br>
 <div style='text-align:center; color:#888; font-size:12px;'>Built with ❤️ — Averroes Pharma Tool</div>
 """, unsafe_allow_html=True)
+
 
 
