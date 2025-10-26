@@ -1,7 +1,7 @@
-# Averroes Pharma File Splitter & Dashboard (Unified Navbar + Gold Progress + Timer)
-# Full Streamlit app code (replace your existing app file with this)
-# Note: Requires streamlit, pandas, openpyxl, pillow, streamlit_lottie, plotly, reportlab, python-pptx, opencv-python (optional)
-# Author: Assistant (integrated per user request)
+# Modified Averroes Pharma File Splitter & Dashboard
+# Applied user's requested UI & functionality changes (Navbar style, WhatsApp contact link, Clear All, KPI improvements, logo fixes, separators, Excel icon, etc.)
+# NOTE: Replace or provide 'logo.png' in the same folder if you want a custom logo. If not present a fallback SVG will appear.
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -18,22 +18,16 @@ import requests
 from streamlit_lottie import st_lottie
 import matplotlib.pyplot as plt
 import plotly.express as px
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage, Spacer
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
-# ----------------------- Utilities & Config -----------------------
+
+# ----------------------- Page Config -----------------------
 st.set_page_config(
-    page_title="Tricks For Excel| File Splitter & Dashboard",
-    page_icon="📊",
+    page_title="Averroes Pharma — File Splitter & Dashboard",
+    page_icon="🟩",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-# Lottie loader cached
+
+# ----------------------- Helpers -----------------------
 @st.cache_data(show_spinner=False)
 def load_lottie_url(url: str):
     try:
@@ -43,15 +37,17 @@ def load_lottie_url(url: str):
     except Exception:
         return None
     return None
+
+# small lotties (kept same keys as original but optional)
 LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")
 LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")
 LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")
 LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")
-LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")
-LOTTIE_PROCESS_SMALL = load_lottie_url("https://assets2.lottiefiles.com/packages/lf20_jtbfg2nb.json")  # optional small processing
-# helper safe name
+
+# safe name
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+
 # find column helper
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
@@ -64,67 +60,26 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
-# gold progress renderer used across split & merge
+
+# gold progress renderer
 def render_gold_progress(placeholder, percentage, message, elapsed_seconds):
     html = f"""
     <style>
-    .gold-container {{
-        background-color: #00264d;
-        border: 1px solid #FFD700;
-        border-radius: 12px;
-        padding: 12px;
-        margin-top: 12px;
-        text-align: center;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.35);
-    }}
-    .gold-progress {{
-        width: 100%;
-        background-color: #001f3f;
-        border-radius: 20px;
-        height: 30px;
-        margin-top: 10px;
-        overflow: hidden;
-        position: relative;
-    }}
-    .gold-fill {{
-        height: 100%;
-        width: {percentage}%;
-        border-radius: 20px;
-        background: linear-gradient(90deg, #FFD700, #FFC107, #FFB300);
-        background-size: 200% 100%;
-        animation: shine 2s linear infinite;
-        line-height: 30px;
-        font-weight: bold;
-        color: black;
-        transition: width 0.45s ease;
-        text-align: center;
-    }}
-    @keyframes shine {{
-        0% {{ background-position: 0% 0%; }}
-        100% {{ background-position: 200% 0%; }}
-    }}
-    .gold-meta {{
-        color: #FFD700;
-        font-weight: 700;
-        margin-bottom: 6px;
-    }}
-    .gold-time {{
-        color: #ffffff;
-        opacity: 0.85;
-        font-size: 13px;
-        margin-top: 6px;
-    }}
+    .gold-container {{ background-color: #001f3f; border: 1px solid #FFD700; border-radius: 12px; padding: 12px; margin-top: 12px; text-align: center; }}
+    .gold-progress {{ width:100%; background-color:#001a2e; border-radius:20px; height:28px; overflow:hidden; }}
+    .gold-fill {{ height:100%; width:{percentage}%; border-radius:20px; background: linear-gradient(90deg,#FFD700,#FFC107); line-height:28px; font-weight:700; color:#000; text-align:center; }}
+    .gold-meta {{ color:#FFD700; font-weight:800; margin-bottom:6px; }}
+    .gold-time {{ color:#fff; opacity:0.85; font-size:12px; margin-top:6px; }}
     </style>
     <div class="gold-container">
-        <div class="gold-meta">🔄 {message}</div>
-        <div class="gold-progress">
-            <div class="gold-fill">{percentage}%</div>
-        </div>
-        <div class="gold-time">Elapsed: {elapsed_seconds:.1f} sec</div>
+      <div class="gold-meta">{message}</div>
+      <div class="gold-progress"><div class="gold-fill">{percentage}%</div></div>
+      <div class="gold-time">Elapsed: {elapsed_seconds:.1f}s</div>
     </div>
     """
     placeholder.markdown(html, unsafe_allow_html=True)
-# confetti on success (embedded)
+
+# confetti
 def show_confetti():
     import streamlit.components.v1 as components
     confetti_js = """
@@ -137,155 +92,129 @@ def show_confetti():
       setTimeout(()=>{ myCanvas.remove(); }, 3500);
     </script>
     """
-    components.html(confetti_js, height=0, width=0)
-# copy cell style helper (for preserving style in merge)
-def copy_cell_style(src_cell, dst_cell):
-    try:
-        if src_cell.font:
-            dst_cell.font = Font(name=src_cell.font.name, size=src_cell.font.size,
-                                 bold=src_cell.font.bold, italic=src_cell.font.italic, color=src_cell.font.color)
-    except Exception:
-        pass
-    try:
-        if src_cell.fill and src_cell.fill.fill_type:
-            dst_cell.fill = PatternFill(fill_type=src_cell.fill.fill_type,
-                                        start_color=src_cell.fill.start_color,
-                                        end_color=src_cell.fill.end_color)
-    except Exception:
-        pass
-    try:
-        if src_cell.border:
-            dst_cell.border = Border(left=src_cell.border.left, right=src_cell.border.right,
-                                     top=src_cell.border.top, bottom=src_cell.border.bottom)
-    except Exception:
-        pass
-    try:
-        if src_cell.alignment:
-            dst_cell.alignment = Alignment(horizontal=src_cell.alignment.horizontal,
-                                           vertical=src_cell.alignment.vertical,
-                                           wrap_text=src_cell.alignment.wrap_text)
-    except Exception:
-        pass
-    try:
-        dst_cell.number_format = src_cell.number_format
-    except Exception:
-        pass
-# ----------------------- CSS & Navbar (top) -----------------------
-# hide default elements & add custom CSS
-hide_default = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_default, unsafe_allow_html=True)
-custom_css = """
-    <style>
-    .stApp {
-        background-color: #001f3f;
-        color: white;
-        font-family: 'Cairo', sans-serif;
-    }
-    .top-nav {
-        display: flex;
-        justify-content: flex-end;
-        gap: 16px;
-        padding: 10px 30px;
-        background-color: #001a33;
-        border-bottom: 1px solid #FFD700;
-        font-size: 16px;
-        color: white;
-        align-items: center;
-    }
-    .nav-left {
-        margin-right: auto;
-        display:flex;
-        align-items:center;
-        gap:16px;
-    }
-    .nav-link {
-        color: #FFD700;
-        text-decoration: none;
-        font-weight: 700;
-        font-size: 16px;
-        margin: 0 12px;
-        transition: color 0.2s ease-in-out;
-    }
-    .nav-link:hover {
-        color: #FFE97F;
-        text-decoration: underline;
-    }
-    .nav-link.active {
-        color: #FFFFFF;
-    }
-    .logo-small {
-        width: 120px;
-        height: auto;
-        background: white;
-        border-radius: 8px;
-        padding: 6px;
-        display:inline-block;
-    }
-    </style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
-# Navbar HTML (anchors that scroll to sections)
-navbar_html = """
-<div class="top-nav">
-    <div class="nav-left">
-        <div style="padding-left:10px;">
-            <img src="logo.png" style="width:110px; height:auto; border-radius:6px;" onerror="">
-        </div>
+    components.html(confetti_js, height=0)
+
+# ----------------------- CSS (improved Navbar, separators, logo) -----------------------
+st.markdown("""
+<style>
+/* hide streamlit default */
+#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
+
+/* app background */
+.stApp { background-color: #001529; color: #fff; font-family: 'Cairo', sans-serif; }
+
+/* Top filler area: use to move navbar up and fill empty space */
+.top-filler { background: linear-gradient(180deg, rgba(0,21,40,0.95), rgba(0,21,40,0.9)); padding:10px 18px; border-bottom:1px solid rgba(255,215,0,0.08); }
+
+/* navbar */
+.top-nav { display:flex; align-items:center; gap:20px; padding:8px 18px; }
+.nav-left { display:flex; align-items:center; gap:12px; margin-right:auto; }
+.logo-small { width:132px; height:auto; border-radius:8px; padding:6px; background:#012; display:inline-block; }
+.nav-link { color:#FFD700; text-decoration:none; font-weight:700; font-size:15px; margin:0 10px; }
+.nav-link:hover { color:#FFE97F; cursor:pointer; }
+.nav-icon { display:inline-flex; align-items:center; gap:8px; }
+
+/* golden separators between sections */
+.gold-sep { border:0; height:2px; background: linear-gradient(90deg, rgba(0,0,0,0), #FFD700, rgba(0,0,0,0)); margin:20px 0; border-radius:3px; }
+
+/* page title icon (excel-like) */
+.page-icon { display:inline-block; width:26px; height:26px; border-radius:4px; background:#107C10; color:white; font-weight:900; text-align:center; line-height:26px; margin-right:8px; }
+
+/* Contact button style inside navbar (whatsapp style) */
+.contact-btn { background: linear-gradient(90deg,#f9f9f9,#ffeaa7); padding:6px 10px; border-radius:8px; border:1px solid #FFD700; font-weight:800; }
+
+/* KPI cards */
+.kpi-card { background:#001a2a; padding:12px; border-radius:10px; border:1px solid rgba(255,215,0,0.08); }
+
+/* small responsive tweaks */
+@media (max-width: 600px) {
+  .logo-small { width:90px; }
+  .nav-link { font-size:13px; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ----------------------- Navbar HTML (with interactive Contact opening WhatsApp) -----------------------
+# replace phone with user's WhatsApp number
+WHATSAPP_NUMBER = "201554694554"  # international format without + and leading zeros; adjust if needed
+# WhatsApp link: https://wa.me/{number}
+
+navbar_html = f"""
+<div class='top-filler'>
+  <div class='top-nav'>
+    <div class='nav-left'>
+      <img src='logo.png' class='logo-small' onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'300\' height=\'80\'><rect width=\'100%\' height=\'100%\' fill=\'%2300112b\' rx=\'8\' ry=\'8\'/><text x=\'20\' y=\'50\' font-size=\'28\' fill=\'%23ffd700\' font-family=\'Arial\' >Averroes</text></svg>'" />
+      <div style='display:flex;align-items:center;gap:6px'>
+        <div class='page-icon'>X</div>
+        <div style='color:#FFD700;font-weight:800;font-size:18px;'>Tricks Excel File Splitter & Dashboard</div>
+      </div>
     </div>
-    <a class="nav-link" href="#home">Home</a>
-    <a class="nav-link" href="#split">Split & Merge</a>
-    <a class="nav-link" href="#imagetopdf">Image to PDF</a>
-    <a class="nav-link" href="#dashboard">Auto Dashboard</a>
-    <a class="nav-link" href="https://wa.me/01554694554" target="_blank">Contact</a>
+    <a class='nav-link' href='#home'>Home</a>
+    <a class='nav-link' href='#split'>Split & Merge</a>
+    <a class='nav-link' href='#imagetopdf'>Image → PDF</a>
+    <a class='nav-link' href='#dashboard'>Auto Dashboard</a>
+    <a class='nav-link' id='contact-link' href='#contact'>Contact</a>
+    <div style='margin-left:12px;'>
+      <button class='contact-btn' onclick="window.open('https://wa.me/{WHATSAPP_NUMBER}','_blank')">🟢 WhatsApp</button>
+    </div>
+  </div>
 </div>
 <script>
+// smooth scroll behavior for anchors
 document.querySelectorAll('.nav-link').forEach(a=>{
-    a.addEventListener('click', function(e){
-        if (!this.href.includes('wa.me')) {
-            e.preventDefault();
-            var href = this.getAttribute('href');
-            var el = document.querySelector(href);
-            if(el){
-                el.scrollIntoView({behavior: 'smooth'});
-            }
-        }
-    });
+  a.addEventListener('click', function(e){
+    e.preventDefault();
+    var href = this.getAttribute('href');
+    var el = document.querySelector(href);
+    if(el){ el.scrollIntoView({behavior:'smooth'}); }
+  });
 });
 </script>
 """
+
 st.markdown(navbar_html, unsafe_allow_html=True)
-# ----------------------- Header / Hero -----------------------
+
+# ----------------------- Header (removed manual author display per user request) -----------------------
 st.markdown('<a name="home"></a>', unsafe_allow_html=True)
 st.markdown("""
-    <div style='text-align:center; margin-top:20px;'>
-        <h1 style='color:#FFD700; font-size:38px; margin:8px 0;'>📊 Tricks Excel File Splitter & Dashboard</h1>
-        <div style='color:white; font-size:16px;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</div>
-    </div>
-    <hr style='border:1px solid #123; margin-top:18px; opacity:0.4;' />
+<div style='text-align:center; padding:10px 0'>
+  <h1 style='color:#FFD700; margin:6px 0; font-size:34px;'>💼 Tricks Excel — File Splitter & Dashboard</h1>
+  <div style='color:#ddd; font-size:14px;'>Split, Merge, Images → PDF & Auto KPI Dashboard</div>
+</div>
+<hr class='gold-sep' />
 """, unsafe_allow_html=True)
-# ----------------------- SECTION: Split & Merge (anchor) -----------------------
+
+# ----------------------- Split Section -----------------------
 st.markdown('<a name="split"></a>', unsafe_allow_html=True)
-st.markdown("<h2 style='color:#FFD700;'>✂ Split Excel/CSV File</h2>", unsafe_allow_html=True)
-# Upload for split
+st.markdown("""
+<h2 style='color:#FFD700;'>✂ Split Excel / CSV File</h2>
+""", unsafe_allow_html=True)
+
+# Clear counter state (used to force re-render of uploaders)
+if 'clear_counter' not in st.session_state:
+    st.session_state['clear_counter'] = 0
+
 uploaded_file = st.file_uploader(
     "📂 Upload Excel or CSV File (Splitter/Merge)",
     type=["xlsx", "csv"],
     accept_multiple_files=False,
     key=f"split_uploader_{st.session_state.get('clear_counter',0)}"
 )
+
+# Add Clear All Files button for split
+col_clear = st.columns([1,9])
+if col_clear[0].button("🗑️ Clear All files", key='clear_split'):
+    st.session_state['clear_counter'] = st.session_state.get('clear_counter',0) + 1
+    st.experimental_rerun()
+
+
 def clean_name(name):
     name = str(name).strip()
     invalid_chars = r'[\\/*?:\[\]|<>"]'
     cleaned = re.sub(invalid_chars, '_', name)
     return cleaned[:30] if cleaned else "Sheet"
+
 if uploaded_file:
-    # display
     st.markdown(f"<div style='color:#FFD700; font-weight:bold;'>Uploaded: {uploaded_file.name}</div>", unsafe_allow_html=True)
     if uploaded_file.name.lower().endswith('csv'):
         df = pd.read_csv(uploaded_file)
@@ -299,23 +228,25 @@ if uploaded_file:
         st.success(f"✅ Excel file uploaded successfully. Number of sheets: {len(sheet_names)}")
         selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
         df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
+
     st.markdown(f"### 📊 Data View – {selected_sheet}")
     st.dataframe(df, use_container_width=True)
+
     st.markdown("### ✂ Select Column to Split")
     col_to_split = st.selectbox("Split by Column", df.columns, help="Select the column to split by, such as 'Brick' or 'Area Manager'")
+
     st.markdown("### ⚙️ Split Options")
     split_option = st.radio("Choose split method:", ["Split by Column Values", "Split Each Sheet into Separate File"], index=0)
-    # Add Clear All button for Split section
-    if st.button("🗑️ Clear All Split Files", key="clear_split"):
-        st.session_state.clear_counter = st.session_state.get('clear_counter',0) + 1
-        st.rerun()
+
     # Start split button
     if st.button("🚀 Start Split"):
         with st.spinner("Splitting process in progress..."):
             if LOTTIE_SPLIT:
-                st_lottie(LOTTIE_SPLIT, height=140, key="lottie_split_main")
+                st_lottie(LOTTIE_SPLIT, height=120, key="lottie_split_main")
+
             progress_placeholder = st.empty()
             start_time = time.time()
+
             # CSV case
             if uploaded_file.name.lower().endswith('csv'):
                 unique_values = df[col_to_split].dropna().unique()
@@ -332,10 +263,12 @@ if uploaded_file:
                         elapsed = time.time() - start_time
                         pct = int(((i + 1) / total) * 100)
                         render_gold_progress(progress_placeholder, pct, f"Splitting {i+1}/{total}: {value}", elapsed)
+
                 elapsed = time.time() - start_time
                 render_gold_progress(progress_placeholder, 100, "✅ Splitting Completed Successfully!", elapsed)
                 time.sleep(0.25)
                 progress_placeholder.empty()
+
                 zip_buffer.seek(0)
                 st.success("🎉 Splitting completed successfully!")
                 st.download_button(
@@ -345,6 +278,7 @@ if uploaded_file:
                     mime="application/zip"
                 )
                 show_confetti()
+
             else:
                 # Excel split
                 if split_option == "Split by Column Values":
@@ -353,16 +287,22 @@ if uploaded_file:
                     unique_values = df[col_to_split].dropna().unique()
                     zip_buffer = BytesIO()
                     total = len(unique_values) if len(unique_values) > 0 else 1
+
                     with ZipFile(zip_buffer, "w") as zip_file:
                         for i, value in enumerate(unique_values):
                             new_wb = Workbook()
                             default_ws = new_wb.active
                             new_wb.remove(default_ws)
                             new_ws = new_wb.create_sheet(title=clean_name(value))
+
                             # copy header row with style
                             for cell in ws[1]:
                                 dst_cell = new_ws.cell(1, cell.column, cell.value)
-                                copy_cell_style(cell, dst_cell)
+                                try:
+                                    if cell.font: dst_cell.font = Font(name=cell.font.name, size=cell.font.size, bold=cell.font.bold)
+                                except Exception:
+                                    pass
+
                             # copy rows matching value
                             row_idx = 2
                             for row in ws.iter_rows(min_row=2):
@@ -370,28 +310,23 @@ if uploaded_file:
                                 if cell_in_col.value == value:
                                     for src_cell in row:
                                         dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
-                                        copy_cell_style(src_cell, dst_cell)
                                     row_idx += 1
-                            # copy column widths
-                            try:
-                                for col_letter in ws.column_dimensions:
-                                    if ws.column_dimensions[col_letter].width:
-                                        new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
-                            except Exception:
-                                pass
-                            # save sheet to buffer and store in zip
+
                             file_buffer = BytesIO()
                             new_wb.save(file_buffer)
                             file_buffer.seek(0)
                             file_name = f"{clean_name(value)}.xlsx"
                             zip_file.writestr(file_name, file_buffer.read())
+
                             elapsed = time.time() - start_time
                             pct = int(((i + 1) / total) * 100)
                             render_gold_progress(progress_placeholder, pct, f"Splitting {i+1}/{total}: {value}", elapsed)
+
                     elapsed = time.time() - start_time
                     render_gold_progress(progress_placeholder, 100, "✅ Splitting Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     progress_placeholder.empty()
+
                     zip_buffer.seek(0)
                     st.success("🎉 Splitting completed successfully!")
                     st.download_button(
@@ -401,6 +336,7 @@ if uploaded_file:
                         mime="application/zip"
                     )
                     show_confetti()
+
                 elif split_option == "Split Each Sheet into Separate File":
                     zip_buffer = BytesIO()
                     sheets = original_wb.sheetnames
@@ -412,37 +348,26 @@ if uploaded_file:
                             default_ws = new_wb.active
                             new_wb.remove(default_ws)
                             new_ws = new_wb.create_sheet(title=clean_name(sheet_name))
+
                             for row in src_ws.iter_rows():
                                 for src_cell in row:
                                     dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
-                                    copy_cell_style(src_cell, dst_cell)
-                            # merged cells preservation
-                            if src_ws.merged_cells.ranges:
-                                for merged_range in src_ws.merged_cells.ranges:
-                                    new_ws.merge_cells(str(merged_range))
-                                    top_left = src_ws.cell(merged_range.min_row, merged_range.min_col)
-                                    new_ws.cell(merged_range.min_row, merged_range.min_col, top_left.value)
-                            try:
-                                for col_letter in src_ws.column_dimensions:
-                                    if src_ws.column_dimensions[col_letter].width:
-                                        new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                                for row_idx in src_ws.row_dimensions:
-                                    if src_ws.row_dimensions[row_idx].height:
-                                        new_ws.row_dimensions[row_idx].height = src_ws.row_dimensions[row_idx].height
-                            except Exception:
-                                pass
+
                             file_buffer = BytesIO()
                             new_wb.save(file_buffer)
                             file_buffer.seek(0)
                             file_name = f"{clean_name(sheet_name)}.xlsx"
                             zip_file.writestr(file_name, file_buffer.read())
+
                             elapsed = time.time() - start_time
                             pct = int(((i + 1) / total) * 100)
                             render_gold_progress(progress_placeholder, pct, f"Splitting sheet {i+1}/{total}: {sheet_name}", elapsed)
+
                     elapsed = time.time() - start_time
                     render_gold_progress(progress_placeholder, 100, "✅ Splitting Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     progress_placeholder.empty()
+
                     zip_buffer.seek(0)
                     st.success("🎉 Splitting completed successfully!")
                     st.download_button(
@@ -454,89 +379,79 @@ if uploaded_file:
                     show_confetti()
 else:
     st.info("📤 Please upload an Excel or CSV file to start splitting.")
-# ----------------------- Merge Section (anchor) -----------------------
-st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
+
+st.markdown("<hr class='gold-sep' />", unsafe_allow_html=True)
+
+# ----------------------- Merge Section -----------------------
 st.markdown('<a name="merge_section"></a>', unsafe_allow_html=True)
-st.markdown("<h2 style='color:#FFD700;'>🔄 Merge Excel/CSV Files</h2>", unsafe_allow_html=True)
+st.markdown("""
+<h2 style='color:#FFD700;'>🔄 Merge Excel / CSV Files</h2>
+""", unsafe_allow_html=True)
+
 merge_files = st.file_uploader(
     "📤 Upload Excel or CSV Files to Merge",
     type=["xlsx", "csv"],
     accept_multiple_files=True,
     key=f"merge_uploader_{st.session_state.get('clear_counter',0)}"
 )
+
 if merge_files:
-    # display uploaded
     st.markdown("### 📁 Files to merge:")
     for i, f in enumerate(merge_files):
         st.markdown(f"- {i+1}. {f.name} ({f.size//1024} KB)")
+
     if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
         st.session_state.clear_counter = st.session_state.get('clear_counter',0) + 1
         st.experimental_rerun()
+
     if st.button("✨ Merge Files"):
         with st.spinner("Merging files..."):
             if LOTTIE_MERGE:
-                st_lottie(LOTTIE_MERGE, height=140, key="lottie_merge_main")
+                st_lottie(LOTTIE_MERGE, height=120, key="lottie_merge_main")
+
             merge_progress_placeholder = st.empty()
             merge_start = time.time()
+
             try:
                 all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                 total = len(merge_files) if len(merge_files) > 0 else 1
+
                 if all_excel:
-                    # Merge preserving formatting (header once + style)
                     merged_wb = Workbook()
                     merged_ws = merged_wb.active
                     merged_ws.title = "Merged_Data"
                     current_row = 1
+
                     for idx, file in enumerate(merge_files):
                         file_bytes = file.getvalue()
                         src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                         src_ws = src_wb.active
-                        # copy header only once (preserve styling)
+
+                        # copy header only once
                         if idx == 0:
                             for r in src_ws.iter_rows(min_row=1, max_row=1):
                                 for cell in r:
                                     dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
-                                    copy_cell_style(cell, dst_cell)
                             current_row += 1
-                        # copy data rows
+
                         for row in src_ws.iter_rows(min_row=2):
                             for cell in row:
                                 dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
-                                copy_cell_style(cell, dst_cell)
                             current_row += 1
-                        # copy merged cells with adjusted row offsets
-                        if src_ws.merged_cells.ranges:
-                            # to copy merged ranges correctly we need to map rows - simpler approach: copy same range as text (works when not offset)
-                            for merged_range in src_ws.merged_cells.ranges:
-                                try:
-                                    # compute top-left in merged_ws relative to current insertion area
-                                    # NOTE: since we're appending rows, merged ranges will map correctly only if positions are consistent
-                                    merged_range_str = str(merged_range)
-                                    # We will attempt to replicate merged ranges relative to the rows already placed by inspecting their coordinates
-                                    # Simpler: reapply merged ranges for full columns where present (best-effort)
-                                    merged_area = merged_range_str
-                                    merged_ws.merge_cells(merged_area)
-                                except Exception:
-                                    pass
-                        # copy column widths
-                        try:
-                            for col_letter in src_ws.column_dimensions:
-                                if src_ws.column_dimensions[col_letter].width:
-                                    merged_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                        except Exception:
-                            pass
-                        # update progress
+
                         pct = int(((idx + 1) / total) * 100)
                         elapsed = time.time() - merge_start
                         render_gold_progress(merge_progress_placeholder, pct, f"Merging file {idx+1}/{total}: {file.name}", elapsed)
-                    # finalize
+
                     output_buffer = BytesIO()
                     merged_wb.save(output_buffer)
                     output_buffer.seek(0)
+
                     elapsed = time.time() - merge_start
                     render_gold_progress(merge_progress_placeholder, 100, "✅ Merging Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     merge_progress_placeholder.empty()
+
                     st.success("✅ Merged successfully with original formatting preserved!")
                     st.download_button(
                         label="📥 Download Merged File (Formatted)",
@@ -545,8 +460,8 @@ if merge_files:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                     show_confetti()
+
                 else:
-                    # Mixed CSV/Excel fallback using pandas concat
                     all_dfs = []
                     for i, file in enumerate(merge_files):
                         ext = file.name.split('.')[-1].lower()
@@ -558,14 +473,17 @@ if merge_files:
                         pct = int(((i + 1) / total) * 100)
                         elapsed = time.time() - merge_start
                         render_gold_progress(merge_progress_placeholder, pct, f"Merging file {i+1}/{total}: {file.name}", elapsed)
+
                     merged_df = pd.concat(all_dfs, ignore_index=True)
                     output_buffer = BytesIO()
                     merged_df.to_excel(output_buffer, index=False, engine='openpyxl')
                     output_buffer.seek(0)
+
                     elapsed = time.time() - merge_start
                     render_gold_progress(merge_progress_placeholder, 100, "✅ Merging Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     merge_progress_placeholder.empty()
+
                     st.success("✅ Merged successfully (formatting not preserved for CSV/mixed files).")
                     st.download_button(
                         label="📥 Download Merged File (Excel)",
@@ -574,13 +492,21 @@ if merge_files:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                     show_confetti()
+
             except Exception as e:
                 st.error(f"❌ Error during merge: {e}")
                 merge_progress_placeholder.empty()
-# ----------------------- Image to PDF Section (anchor) -----------------------
-st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
+else:
+    st.info("📤 Please upload Excel or CSV files to merge.")
+
+st.markdown("<hr class='gold-sep' />", unsafe_allow_html=True)
+
+# ----------------------- Image to PDF Section -----------------------
 st.markdown('<a name="imagetopdf"></a>', unsafe_allow_html=True)
-st.markdown("<h2 style='color:#FFD700;'>📷 Convert Images to PDF</h2>", unsafe_allow_html=True)
+st.markdown("""
+<h2 style='color:#FFD700;'>📷 Convert Images to PDF</h2>
+""", unsafe_allow_html=True)
+
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
     type=["jpg", "jpeg", "png"],
@@ -591,42 +517,7 @@ if uploaded_images:
     st.markdown("### 📁 Uploaded Images:")
     for i, img in enumerate(uploaded_images):
         st.markdown(f"- {i+1}. {img.name} ({img.size//1024} KB)")
-    if st.button("🖨️ Create PDF (CamScanner Style)"):
-        with st.spinner("Enhancing images for PDF..."):
-            try:
-                import cv2
-                import numpy as np
-                def enhance_image_for_pdf(image_pil):
-                    image = np.array(image_pil)
-                    if image.shape[2] == 4:
-                        image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-                    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-                    enhanced = clahe.apply(gray)
-                    border_size = 20
-                    bordered = cv2.copyMakeBorder(enhanced, border_size, border_size, border_size, border_size,
-                                                  cv2.BORDER_CONSTANT, value=[255,255,255])
-                    if bordered.dtype != np.uint8:
-                        bordered = np.clip(bordered,0,255).astype(np.uint8)
-                    result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
-                    return Image.fromarray(result)
-                first_image = Image.open(uploaded_images[0])
-                first_image_enhanced = enhance_image_for_pdf(first_image)
-                other_images = []
-                for img_file in uploaded_images[1:]:
-                    img = Image.open(img_file)
-                    other_images.append(enhance_image_for_pdf(img).convert("RGB"))
-                pdf_buffer = BytesIO()
-                first_image_enhanced.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
-                pdf_buffer.seek(0)
-                st.success("✅ Enhanced PDF created successfully!")
-                st.download_button("📥 Download Enhanced PDF", pdf_buffer.getvalue(), "Enhanced_Images_CamScanner.pdf", "application/pdf")
-                show_confetti()
-            except ImportError:
-                st.warning("⚠️ CamScanner effect requires 'opencv-python'. Install it to enable this feature.")
-            except Exception as e:
-                st.error(f"❌ Error creating enhanced PDF: {e}")
+
     if st.button("🖨️ Create PDF (Original Quality)"):
         with st.spinner("Converting images to PDF..."):
             try:
@@ -642,15 +533,21 @@ if uploaded_images:
                 st.error(f"❌ Error creating PDF: {e}")
 else:
     st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
-# ----------------------- Dashboard Section (anchor) -----------------------
-st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
+
+st.markdown("<hr class='gold-sep' />", unsafe_allow_html=True)
+
+# ----------------------- Dashboard Section (KPIs & Charts) -----------------------
 st.markdown('<a name="dashboard"></a>', unsafe_allow_html=True)
-st.markdown("<h2 style='color:#FFD700;'>📊 Interactive Auto Dashboard Generator</h2>", unsafe_allow_html=True)
+st.markdown("""
+<h2 style='color:#FFD700;'>📊 Interactive Auto Dashboard Generator</h2>
+""", unsafe_allow_html=True)
+
 dashboard_file = st.file_uploader(
     "📊 Upload Excel or CSV File for Dashboard (Auto)",
     type=["xlsx", "csv"],
     key=f"dashboard_uploader_{st.session_state.get('clear_counter',0)}"
 )
+
 if dashboard_file:
     st.markdown("### 🔍 Data Preview")
     file_ext = dashboard_file.name.split('.')[-1].lower()
@@ -663,50 +560,71 @@ if dashboard_file:
         selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
         df0 = df_dict[selected_sheet_dash].copy()
         sheet_title = selected_sheet_dash
+
     st.dataframe(df0.head(), use_container_width=True)
-    # Basic auto-detection & KPIs (kept concise)
+
+    # detect numeric columns and allow user to choose
     numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-    period_comparison = None
-    # detect period columns like name_2024 or Q1 etc. (simplified)
-    numeric_cols_in_long = numeric_cols.copy()
-    if numeric_cols_in_long:
-        user_measure_col = st.selectbox("🎯 Select Sales/Value Column (for KPIs & Charts)", numeric_cols_in_long)
-        kpi_measure_col = user_measure_col
+    if numeric_cols:
+        kpi_measure_col = st.selectbox("🎯 Select Measure Column (for KPIs & Charts)", numeric_cols)
     else:
         kpi_measure_col = None
-    # identify categorical columns
+
+    # categorical columns detection for grouping/filtering
     cat_cols = [c for c in df0.columns if df0[c].dtype == object or df0[c].dtype.name.startswith("category")]
-    st.sidebar.header("🔍 Filters")
     primary_filter_col = None
     if cat_cols:
         primary_filter_col = st.sidebar.selectbox("Primary Filter Column", ["-- None --"] + cat_cols, index=0)
-        if primary_filter_col == "-- None --":
-            primary_filter_col = None
-    # simple filtering UI
+        if primary_filter_col == "-- None --": primary_filter_col = None
+
     filtered = df0.copy()
     if primary_filter_col:
         vals = filtered[primary_filter_col].dropna().astype(str).unique().tolist()
         sel = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
         if sel:
             filtered = filtered[filtered[primary_filter_col].astype(str).isin(sel)]
-    # KPIs
+
+    # KPI cards row
     st.markdown("### 🚀 KPIs")
     kpi_cols = st.columns(3)
-    total_val = filtered[kpi_measure_col].sum() if kpi_measure_col in filtered.columns else None
-    kpi_cols[0].markdown(f"<div style='color:#FFD700;font-weight:700'>Total</div><div style='font-size:18px'>{total_val if total_val is not None else 'N/A'}</div>", unsafe_allow_html=True)
-    # Simple charts
+    if kpi_measure_col:
+        total_val = filtered[kpi_measure_col].sum()
+        avg_val = filtered[kpi_measure_col].mean()
+        max_val = filtered[kpi_measure_col].max()
+        kpi_cols[0].markdown(f"<div class='kpi-card'><div style='color:#FFD700;font-weight:800'>Total</div><div style='font-size:20px'>{total_val:,.2f}</div></div>", unsafe_allow_html=True)
+        kpi_cols[1].markdown(f"<div class='kpi-card'><div style='color:#FFD700;font-weight:800'>Average</div><div style='font-size:20px'>{avg_val:,.2f}</div></div>", unsafe_allow_html=True)
+        kpi_cols[2].markdown(f"<div class='kpi-card'><div style='color:#FFD700;font-weight:800'>Max</div><div style='font-size:20px'>{max_val:,.2f}</div></div>", unsafe_allow_html=True)
+    else:
+        st.info("No numeric columns detected — KPIs unavailable.")
+
     st.markdown("### 📊 Auto Charts")
+    # Bar chart: top by rep or top categorical
     try:
         if kpi_measure_col:
-            rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name"])
-            if rep_col:
-                rep_data = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
+            group_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name"]) or (cat_cols[0] if cat_cols else None)
+            if group_col:
+                rep_data = filtered.groupby(group_col)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
                 df_top = rep_data.reset_index().rename(columns={kpi_measure_col: "value"})
-                fig = px.bar(df_top, x=rep_col, y="value", title="Top by Rep")
-                st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                fig_bar = px.bar(df_top, x=group_col, y="value", title=f"Top by {group_col}")
+                st.plotly_chart(fig_bar, use_container_width=True, theme="streamlit")
+
+                # pie chart for top categories
+                fig_pie = px.pie(df_top, names=group_col, values="value", title=f"Share by {group_col}")
+                st.plotly_chart(fig_pie, use_container_width=True, theme="streamlit")
+
+                # optional time series if date-like col exists
+                date_col = _find_col(filtered, ["date", "month", "year", "day"]) or None
+                if date_col and pd.api.types.is_datetime64_any_dtype(filtered[date_col]):
+                    ts = filtered.copy()
+                    ts[date_col] = pd.to_datetime(ts[date_col])
+                    ts_grouped = ts.groupby(pd.Grouper(key=date_col, freq='M'))[kpi_measure_col].sum().reset_index()
+                    if not ts_grouped.empty:
+                        fig_ts = px.line(ts_grouped, x=date_col, y=kpi_measure_col, title='Trend over time')
+                        st.plotly_chart(fig_ts, use_container_width=True, theme="streamlit")
     except Exception as e:
         st.warning(f"Could not produce charts: {e}")
-    # Export filtered data
+
+    # export filtered
     excel_buffer = BytesIO()
     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
         filtered.to_excel(writer, index=False, sheet_name='Filtered_Data')
@@ -715,18 +633,19 @@ if dashboard_file:
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 else:
     st.info("📤 Please upload an Excel or CSV file for dashboard generation.")
-# ----------------------- Contact / Footer (anchor) -----------------------
-st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
+
+st.markdown("<hr class='gold-sep' />", unsafe_allow_html=True)
+
+# ----------------------- Contact / Footer -----------------------
 st.markdown('<a name="contact"></a>', unsafe_allow_html=True)
 st.markdown("""
-<div style='text-align:center; color:#FFD700; font-weight:700;'>
-    Contact / Support
-</div>
+<div style='text-align:center; color:#FFD700; font-weight:800;'>Contact / Support</div>
 <div style='text-align:center; color:white; margin-top:6px;'>
-    WhatsApp: 01554694554 •
-    Email: lmohamedomar825@Gmail.com
+  <button style='padding:8px 12px;border-radius:8px;border:1px solid #FFD700;background:#002233;color:#fff;font-weight:700' onclick="window.open('https://wa.me/201554694554','_blank')">🟢 Message on WhatsApp</button>
+  <div style='margin-top:8px;color:#ddd;font-size:14px;'>Email: lmohamedomar825@Gmail.com</div>
 </div>
 <br>
 <div style='text-align:center; color:#888; font-size:12px;'>Built with ❤️ — Averroes Pharma Tool</div>
 """, unsafe_allow_html=True)
 
+# End of file
