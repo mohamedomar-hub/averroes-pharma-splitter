@@ -205,9 +205,7 @@ uploaded_file = st.file_uploader(
 col_clear = st.columns([1,9])
 if col_clear[0].button("🗑️ Clear All files", key='clear_split'):
     st.session_state['clear_counter'] = st.session_state.get('clear_counter',0) + 1
-    st.experimental_rerun()
-
-
+    st.rerun()
 def clean_name(name):
     name = str(name).strip()
     invalid_chars = r'[\\/*?:\[\]|<>"]'
@@ -649,3 +647,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # End of file
+
