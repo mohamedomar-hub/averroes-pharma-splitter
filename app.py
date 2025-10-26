@@ -161,14 +161,14 @@ navbar_html = f"""
 </div>
 <script>
 // smooth scroll behavior for anchors
-document.querySelectorAll('.nav-link').forEach(a=>{
-  a.addEventListener('click', function(e){
+document.querySelectorAll('.nav-link').forEach(a=>{{
+  a.addEventListener('click', function(e){{
     e.preventDefault();
     var href = this.getAttribute('href');
     var el = document.querySelector(href);
-    if(el){ el.scrollIntoView({behavior:'smooth'}); }
-  });
-});
+    if(el){{ el.scrollIntoView({{behavior:'smooth'}}); }}
+  }});
+}});
 </script>
 """
 
