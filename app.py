@@ -74,34 +74,59 @@ custom_css = """
         color: white;
         font-family: 'Cairo', sans-serif;
     }
+    /* Top Navigation Bar */
     .top-nav {
         display: flex;
-        justify-content: flex-end;
-        gap: 16px;
-        padding: 10px 30px;
-        background-color: #001a33;
-        border-bottom: 1px solid #FFD700;
-        font-size: 16px;
-        color: white;
+        justify-content: space-between;
         align-items: center;
+        padding: 12px 30px;
+        background: linear-gradient(90deg, #001a33, #00264d);
+        border-bottom: 2px solid #FFD700;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    .nav-left {
-        margin-right: auto;
-        display:flex;
-        align-items:center;
-        gap:16px;
+    .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .nav-logo img {
+        width: 120px;
+        height: auto;
+        border-radius: 8px;
+        border: 1px solid #FFD700;
+    }
+    .nav-links {
+        display: flex;
+        gap: 20px;
+        margin-left: auto;
     }
     .nav-link {
         color: #FFD700;
         text-decoration: none;
-        font-weight: 700;
+        font-weight: bold;
         font-size: 16px;
-        margin: 0 12px;
-        transition: color 0.2s ease-in-out;
+        padding: 8px 16px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        position: relative;
     }
     .nav-link:hover {
-        color: #FFE97F;
-        text-decoration: underline;
+        background-color: #FFD700;
+        color: black;
+        transform: translateY(-2px);
+    }
+    .nav-link::after {
+        content: '';
+        position: absolute;
+        bottom: -4px;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background-color: #FFD700;
+        transition: width 0.3s ease;
+    }
+    .nav-link:hover::after {
+        width: 100%;
     }
     label, .stSelectbox label, .stFileUploader label {
         color: #FFD700 !important;
@@ -171,18 +196,26 @@ custom_css = """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ------------------ Navigation Bar (Top) ------------------
-navbar_html = """
+# Check if logo exists and display it
+logo_path = "logo.png"
+logo_display = ""
+if os.path.exists(logo_path):
+    logo_display = f'<img src="data:image/png;base64,{st.image(logo_path, output_format="PNG", width=120)}" style="width:120px; height:auto; border-radius:8px; border:1px solid #FFD700;">'
+else:
+    logo_display = '<div style="color:#FFD700; font-weight:bold; font-size:18px;">Tricks For Excel</div>'
+
+navbar_html = f"""
 <div class="top-nav">
-    <div class="nav-left">
-        <div style="padding-left:10px;">
-            <img src="logo.png" style="width:110px; height:auto; border-radius:6px;" onerror="">
-        </div>
+    <div class="nav-logo">
+        {logo_display}
     </div>
-    <a class="nav-link" href="#home">Home</a>
-    <a class="nav-link" href="#split">Split & Merge</a>
-    <a class="nav-link" href="#imagetopdf">Image to PDF</a>
-    <a class="nav-link" href="#dashboard">Auto Dashboard</a>
-    <a class="nav-link" href="https://wa.me/01554694554" target="_blank">Contact</a>
+    <div class="nav-links">
+        <a class="nav-link" href="#home">Home</a>
+        <a class="nav-link" href="#split">Split & Merge</a>
+        <a class="nav-link" href="#imagetopdf">Image to PDF</a>
+        <a class="nav-link" href="#dashboard">Auto Dashboard</a>
+        <a class="nav-link" href="https://wa.me/01554694554" target="_blank">Contact</a>
+    </div>
 </div>
 <script>
 document.querySelectorAll('.nav-link').forEach(a=>{
@@ -200,112 +233,6 @@ document.querySelectorAll('.nav-link').forEach(a=>{
 </script>
 """
 st.markdown(navbar_html, unsafe_allow_html=True)
-
-# ------------------ Helper Functions ------------------
-def display_uploaded_files(file_list, file_type="Excel/CSV"):
-    if file_list:
-        st.markdown("### 📁 Uploaded Files:")
-        for i, f in enumerate(file_list):
-            st.markdown(
-                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
-                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
-                unsafe_allow_html=True
-            )
-
-def _safe_name(s):
-    return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
-
-def _find_col(df, aliases):
-    lowered = {c.lower(): c for c in df.columns}
-    for a in aliases:
-        if a.lower() in lowered:
-            return lowered[a.lower()]
-    for c in df.columns:
-        name = c.strip().lower()
-        for a in aliases:
-            if a.lower() in name:
-                return c
-    return None
-
-def _format_millions(x, pos=None):
-    try:
-        x = float(x)
-    except:
-        return str(x)
-    if abs(x) >= 1_000_000:
-        return f"{x/1_000_000:.1f}M"
-    if abs(x) >= 1_000:
-        return f"{x/1_000:.0f}K"
-    return f"{x:.0f}"
-
-def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
-    buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
-    styles = getSampleStyleSheet()
-    elements = []
-    elements.append(Paragraph(f"<para align='center'><b>{sheet_title} Report</b></para>", styles['Title']))
-    elements.append(Spacer(1,12))
-    elements.append(Paragraph("<para align='center'>Averroes Pharma - Auto Generated Dashboard</para>", styles['Heading3']))
-    elements.append(Spacer(1,18))
-    for img_buf, caption in charts_buffers:
-        try:
-            img_buf.seek(0)
-            img = RLImage(img_buf, width=760, height=360)
-            elements.append(img)
-            elements.append(Spacer(1,6))
-            elements.append(Paragraph(f"<para align='center'>{caption}</para>", styles['Normal']))
-            elements.append(Spacer(1,12))
-        except Exception:
-            pass
-    if include_table and (filtered_df is not None):
-        table_df = filtered_df.copy().fillna("")
-        if len(table_df) > max_table_rows:
-            table_df = table_df.head(max_table_rows)
-            elements.append(Paragraph(f"Showing first {max_table_rows} rows of filtered data", styles['Normal']))
-            elements.append(Spacer(1,6))
-        table_data = [table_df.columns.tolist()] + table_df.astype(str).values.tolist()
-        tbl = Table(table_data, hAlign='CENTER')
-        tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#FFD700")),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.black),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('GRID', (0,0), (-1,-1), 0.3, colors.grey),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ]))
-        elements.append(tbl)
-    doc.build(elements)
-    buf.seek(0)
-    return buf
-
-def build_pptx(sheet_title, charts_buffers):
-    prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[0])
-    title = slide.shapes.title
-    title.text = f"{sheet_title} Dashboard"
-    subtitle = slide.placeholders[1]
-    subtitle.text = "Auto-generated by Averroes Pharma"
-    for img_buf, caption in charts_buffers:
-        try:
-            img_buf.seek(0)
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
-            left = Inches(0.5)
-            top = Inches(0.8)
-            width = Inches(9)
-            height = Inches(5)
-            slide.shapes.add_picture(img_buf, left, top, width=width, height=height)
-            txBox = slide.shapes.add_textbox(left, top + height + Inches(0.1), width, Inches(0.5))
-            tf = txBox.text_frame
-            p = tf.paragraphs[0]
-            p.text = caption
-            p.font.size = Pt(14)
-            p.font.color.rgb = RGBColor(0, 0, 0)
-            p.alignment = PP_ALIGN.CENTER
-        except Exception:
-            pass
-    pptx_buffer = BytesIO()
-    prs.save(pptx_buffer)
-    pptx_buffer.seek(0)
-    return pptx_buffer
 
 # ------------------ Header / Hero ------------------
 st.markdown('<a name="home"></a>', unsafe_allow_html=True)
@@ -1131,7 +1058,7 @@ if dashboard_file:
                     st.success("✅ Dashboard PDF ready.")
                     st.download_button(
                         label="⬇️ Download Dashboard PDF",
-                        data=pdf_buffer,
+                        data=pdf_buffer.getvalue(),
                         file_name=f"{_safe_name(sheet_title)}_Dashboard.pdf",
                         mime="application/pdf"
                     )
@@ -1149,17 +1076,5 @@ if dashboard_file:
 else:
     st.info("📤 Please upload an Excel or CSV file for dashboard generation.")
 
-# ------------------ Contact / Footer ------------------
-st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-st.markdown('<a name="contact"></a>', unsafe_allow_html=True)
-st.markdown("""
-<div style='text-align:center; color:#FFD700; font-weight:700;'>
-    Contact / Support
-</div>
-<div style='text-align:center; color:white; margin-top:6px;'>
-    WhatsApp: 01554694554 •
-    Email: lmohamedomar825@Gmail.com
-</div>
-<br>
-<div style='text-align:center; color:#888; font-size:12px;'>Built with ❤️ — Tricks For Excel</div>
-""", unsafe_allow_html=True)
+# ------------------ Footer (Removed Contact Info) ------------------
+# No contact info at the bottom. Only the navigation bar contains the "Contact" link.
