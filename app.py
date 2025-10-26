@@ -204,7 +204,7 @@ if os.path.exists(logo_path):
 else:
     logo_display = '<div style="color:#FFD700; font-weight:bold; font-size:18px;">Tricks For Excel</div>'
 
-navbar_html = f"""
+navbar_html = """
 <div class="top-nav">
     <div class="nav-logo">
         {logo_display}
@@ -1078,3 +1078,4 @@ else:
 
 # ------------------ Footer (Removed Contact Info) ------------------
 # No contact info at the bottom. Only the navigation bar contains the "Contact" link.
+
