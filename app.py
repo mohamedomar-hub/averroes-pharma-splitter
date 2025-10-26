@@ -308,7 +308,7 @@ if uploaded_file:
     # Add Clear All button for Split section
     if st.button("🗑️ Clear All Split Files", key="clear_split"):
         st.session_state.clear_counter = st.session_state.get('clear_counter',0) + 1
-        st.experimental_rerun()
+        st.rerun()
     # Start split button
     if st.button("🚀 Start Split"):
         with st.spinner("Splitting process in progress..."):
@@ -729,3 +729,4 @@ st.markdown("""
 <br>
 <div style='text-align:center; color:#888; font-size:12px;'>Built with ❤️ — Averroes Pharma Tool</div>
 """, unsafe_allow_html=True)
+
