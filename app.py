@@ -400,8 +400,7 @@ if merge_files:
 
     if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
         st.session_state.clear_counter = st.session_state.get('clear_counter',0) + 1
-        st.experimental_rerun()
-
+        st.rerun()
     if st.button("✨ Merge Files"):
         with st.spinner("Merging files..."):
             if LOTTIE_MERGE:
@@ -647,4 +646,5 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # End of file
+
 
