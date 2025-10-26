@@ -2,7 +2,6 @@
 # Full Streamlit app code (replace your existing app file with this)
 # Note: Requires streamlit, pandas, openpyxl, pillow, streamlit_lottie, plotly, reportlab, python-pptx, opencv-python (optional)
 # Author: Assistant (integrated per user request)
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -27,15 +26,13 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-
 # ----------------------- Utilities & Config -----------------------
 st.set_page_config(
     page_title="Tricks For Excel| File Splitter & Dashboard",
-    page_icon="💊",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-
 # Lottie loader cached
 @st.cache_data(show_spinner=False)
 def load_lottie_url(url: str):
@@ -46,18 +43,15 @@ def load_lottie_url(url: str):
     except Exception:
         return None
     return None
-
 LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")
 LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")
 LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")
 LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")
 LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")
 LOTTIE_PROCESS_SMALL = load_lottie_url("https://assets2.lottiefiles.com/packages/lf20_jtbfg2nb.json")  # optional small processing
-
 # helper safe name
 def _safe_name(s):
     return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
-
 # find column helper
 def _find_col(df, aliases):
     lowered = {c.lower(): c for c in df.columns}
@@ -70,7 +64,6 @@ def _find_col(df, aliases):
             if a.lower() in name:
                 return c
     return None
-
 # gold progress renderer used across split & merge
 def render_gold_progress(placeholder, percentage, message, elapsed_seconds):
     html = f"""
@@ -131,7 +124,6 @@ def render_gold_progress(placeholder, percentage, message, elapsed_seconds):
     </div>
     """
     placeholder.markdown(html, unsafe_allow_html=True)
-
 # confetti on success (embedded)
 def show_confetti():
     import streamlit.components.v1 as components
@@ -146,7 +138,6 @@ def show_confetti():
     </script>
     """
     components.html(confetti_js, height=0, width=0)
-
 # copy cell style helper (for preserving style in merge)
 def copy_cell_style(src_cell, dst_cell):
     try:
@@ -179,7 +170,6 @@ def copy_cell_style(src_cell, dst_cell):
         dst_cell.number_format = src_cell.number_format
     except Exception:
         pass
-
 # ----------------------- CSS & Navbar (top) -----------------------
 # hide default elements & add custom CSS
 hide_default = """
@@ -190,7 +180,6 @@ hide_default = """
     </style>
 """
 st.markdown(hide_default, unsafe_allow_html=True)
-
 custom_css = """
     <style>
     .stApp {
@@ -224,10 +213,11 @@ custom_css = """
         transition: color 0.2s ease-in-out;
     }
     .nav-link:hover {
-        color: #FFE97F
+        color: #FFE97F;
+        text-decoration: underline;
     }
     .nav-link.active {
-        color: #FFFFFF
+        color: #FFFFFF;
     }
     .logo-small {
         width: 120px;
@@ -240,7 +230,6 @@ custom_css = """
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
-
 # Navbar HTML (anchors that scroll to sections)
 navbar_html = """
 <div class="top-nav">
@@ -253,38 +242,36 @@ navbar_html = """
     <a class="nav-link" href="#split">Split & Merge</a>
     <a class="nav-link" href="#imagetopdf">Image to PDF</a>
     <a class="nav-link" href="#dashboard">Auto Dashboard</a>
-    <a class="nav-link" href="#contact">Contact</a>
+    <a class="nav-link" href="https://wa.me/01554694554" target="_blank">Contact</a>
 </div>
 <script>
 document.querySelectorAll('.nav-link').forEach(a=>{
     a.addEventListener('click', function(e){
-        e.preventDefault();
-        var href = this.getAttribute('href');
-        var el = document.querySelector(href);
-        if(el){
-            el.scrollIntoView({behavior: 'smooth'});
+        if (!this.href.includes('wa.me')) {
+            e.preventDefault();
+            var href = this.getAttribute('href');
+            var el = document.querySelector(href);
+            if(el){
+                el.scrollIntoView({behavior: 'smooth'});
+            }
         }
     });
 });
 </script>
 """
 st.markdown(navbar_html, unsafe_allow_html=True)
-
 # ----------------------- Header / Hero -----------------------
 st.markdown('<a name="home"></a>', unsafe_allow_html=True)
 st.markdown("""
     <div style='text-align:center; margin-top:20px;'>
-        <div style='color:#FFD700; font-weight:700;'>By <strong>Mohamed Abd ELGhany</strong> – 01554694554 (WhatsApp)</div>
-        <h1 style='color:#FFD700; font-size:38px; margin:8px 0;'>💊Tricks Excel File Splitter & Dashboard</h1>
+        <h1 style='color:#FFD700; font-size:38px; margin:8px 0;'>📊 Tricks Excel File Splitter & Dashboard</h1>
         <div style='color:white; font-size:16px;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</div>
     </div>
     <hr style='border:1px solid #123; margin-top:18px; opacity:0.4;' />
 """, unsafe_allow_html=True)
-
 # ----------------------- SECTION: Split & Merge (anchor) -----------------------
 st.markdown('<a name="split"></a>', unsafe_allow_html=True)
 st.markdown("<h2 style='color:#FFD700;'>✂ Split Excel/CSV File</h2>", unsafe_allow_html=True)
-
 # Upload for split
 uploaded_file = st.file_uploader(
     "📂 Upload Excel or CSV File (Splitter/Merge)",
@@ -292,13 +279,11 @@ uploaded_file = st.file_uploader(
     accept_multiple_files=False,
     key=f"split_uploader_{st.session_state.get('clear_counter',0)}"
 )
-
 def clean_name(name):
     name = str(name).strip()
     invalid_chars = r'[\\/*?:\[\]|<>"]'
     cleaned = re.sub(invalid_chars, '_', name)
     return cleaned[:30] if cleaned else "Sheet"
-
 if uploaded_file:
     # display
     st.markdown(f"<div style='color:#FFD700; font-weight:bold;'>Uploaded: {uploaded_file.name}</div>", unsafe_allow_html=True)
@@ -314,25 +299,23 @@ if uploaded_file:
         st.success(f"✅ Excel file uploaded successfully. Number of sheets: {len(sheet_names)}")
         selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
         df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
-
     st.markdown(f"### 📊 Data View – {selected_sheet}")
     st.dataframe(df, use_container_width=True)
-
     st.markdown("### ✂ Select Column to Split")
     col_to_split = st.selectbox("Split by Column", df.columns, help="Select the column to split by, such as 'Brick' or 'Area Manager'")
-
     st.markdown("### ⚙️ Split Options")
     split_option = st.radio("Choose split method:", ["Split by Column Values", "Split Each Sheet into Separate File"], index=0)
-
+    # Add Clear All button for Split section
+    if st.button("🗑️ Clear All Split Files", key="clear_split"):
+        st.session_state.clear_counter = st.session_state.get('clear_counter',0) + 1
+        st.experimental_rerun()
     # Start split button
     if st.button("🚀 Start Split"):
         with st.spinner("Splitting process in progress..."):
             if LOTTIE_SPLIT:
                 st_lottie(LOTTIE_SPLIT, height=140, key="lottie_split_main")
-
             progress_placeholder = st.empty()
             start_time = time.time()
-
             # CSV case
             if uploaded_file.name.lower().endswith('csv'):
                 unique_values = df[col_to_split].dropna().unique()
@@ -349,12 +332,10 @@ if uploaded_file:
                         elapsed = time.time() - start_time
                         pct = int(((i + 1) / total) * 100)
                         render_gold_progress(progress_placeholder, pct, f"Splitting {i+1}/{total}: {value}", elapsed)
-
                 elapsed = time.time() - start_time
                 render_gold_progress(progress_placeholder, 100, "✅ Splitting Completed Successfully!", elapsed)
                 time.sleep(0.25)
                 progress_placeholder.empty()
-
                 zip_buffer.seek(0)
                 st.success("🎉 Splitting completed successfully!")
                 st.download_button(
@@ -364,7 +345,6 @@ if uploaded_file:
                     mime="application/zip"
                 )
                 show_confetti()
-
             else:
                 # Excel split
                 if split_option == "Split by Column Values":
@@ -373,19 +353,16 @@ if uploaded_file:
                     unique_values = df[col_to_split].dropna().unique()
                     zip_buffer = BytesIO()
                     total = len(unique_values) if len(unique_values) > 0 else 1
-
                     with ZipFile(zip_buffer, "w") as zip_file:
                         for i, value in enumerate(unique_values):
                             new_wb = Workbook()
                             default_ws = new_wb.active
                             new_wb.remove(default_ws)
                             new_ws = new_wb.create_sheet(title=clean_name(value))
-
                             # copy header row with style
                             for cell in ws[1]:
                                 dst_cell = new_ws.cell(1, cell.column, cell.value)
                                 copy_cell_style(cell, dst_cell)
-
                             # copy rows matching value
                             row_idx = 2
                             for row in ws.iter_rows(min_row=2):
@@ -395,7 +372,6 @@ if uploaded_file:
                                         dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
                                         copy_cell_style(src_cell, dst_cell)
                                     row_idx += 1
-
                             # copy column widths
                             try:
                                 for col_letter in ws.column_dimensions:
@@ -403,23 +379,19 @@ if uploaded_file:
                                         new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
                             except Exception:
                                 pass
-
                             # save sheet to buffer and store in zip
                             file_buffer = BytesIO()
                             new_wb.save(file_buffer)
                             file_buffer.seek(0)
                             file_name = f"{clean_name(value)}.xlsx"
                             zip_file.writestr(file_name, file_buffer.read())
-
                             elapsed = time.time() - start_time
                             pct = int(((i + 1) / total) * 100)
                             render_gold_progress(progress_placeholder, pct, f"Splitting {i+1}/{total}: {value}", elapsed)
-
                     elapsed = time.time() - start_time
                     render_gold_progress(progress_placeholder, 100, "✅ Splitting Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     progress_placeholder.empty()
-
                     zip_buffer.seek(0)
                     st.success("🎉 Splitting completed successfully!")
                     st.download_button(
@@ -429,7 +401,6 @@ if uploaded_file:
                         mime="application/zip"
                     )
                     show_confetti()
-
                 elif split_option == "Split Each Sheet into Separate File":
                     zip_buffer = BytesIO()
                     sheets = original_wb.sheetnames
@@ -441,19 +412,16 @@ if uploaded_file:
                             default_ws = new_wb.active
                             new_wb.remove(default_ws)
                             new_ws = new_wb.create_sheet(title=clean_name(sheet_name))
-
                             for row in src_ws.iter_rows():
                                 for src_cell in row:
                                     dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
                                     copy_cell_style(src_cell, dst_cell)
-
                             # merged cells preservation
                             if src_ws.merged_cells.ranges:
                                 for merged_range in src_ws.merged_cells.ranges:
                                     new_ws.merge_cells(str(merged_range))
                                     top_left = src_ws.cell(merged_range.min_row, merged_range.min_col)
                                     new_ws.cell(merged_range.min_row, merged_range.min_col, top_left.value)
-
                             try:
                                 for col_letter in src_ws.column_dimensions:
                                     if src_ws.column_dimensions[col_letter].width:
@@ -463,22 +431,18 @@ if uploaded_file:
                                         new_ws.row_dimensions[row_idx].height = src_ws.row_dimensions[row_idx].height
                             except Exception:
                                 pass
-
                             file_buffer = BytesIO()
                             new_wb.save(file_buffer)
                             file_buffer.seek(0)
                             file_name = f"{clean_name(sheet_name)}.xlsx"
                             zip_file.writestr(file_name, file_buffer.read())
-
                             elapsed = time.time() - start_time
                             pct = int(((i + 1) / total) * 100)
                             render_gold_progress(progress_placeholder, pct, f"Splitting sheet {i+1}/{total}: {sheet_name}", elapsed)
-
                     elapsed = time.time() - start_time
                     render_gold_progress(progress_placeholder, 100, "✅ Splitting Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     progress_placeholder.empty()
-
                     zip_buffer.seek(0)
                     st.success("🎉 Splitting completed successfully!")
                     st.download_button(
@@ -490,53 +454,43 @@ if uploaded_file:
                     show_confetti()
 else:
     st.info("📤 Please upload an Excel or CSV file to start splitting.")
-
 # ----------------------- Merge Section (anchor) -----------------------
 st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
 st.markdown('<a name="merge_section"></a>', unsafe_allow_html=True)
 st.markdown("<h2 style='color:#FFD700;'>🔄 Merge Excel/CSV Files</h2>", unsafe_allow_html=True)
-
 merge_files = st.file_uploader(
     "📤 Upload Excel or CSV Files to Merge",
     type=["xlsx", "csv"],
     accept_multiple_files=True,
     key=f"merge_uploader_{st.session_state.get('clear_counter',0)}"
 )
-
 if merge_files:
     # display uploaded
     st.markdown("### 📁 Files to merge:")
     for i, f in enumerate(merge_files):
         st.markdown(f"- {i+1}. {f.name} ({f.size//1024} KB)")
-
     if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
         st.session_state.clear_counter = st.session_state.get('clear_counter',0) + 1
         st.experimental_rerun()
-
     if st.button("✨ Merge Files"):
         with st.spinner("Merging files..."):
             if LOTTIE_MERGE:
                 st_lottie(LOTTIE_MERGE, height=140, key="lottie_merge_main")
-
             merge_progress_placeholder = st.empty()
             merge_start = time.time()
-
             try:
                 all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                 total = len(merge_files) if len(merge_files) > 0 else 1
-
                 if all_excel:
                     # Merge preserving formatting (header once + style)
                     merged_wb = Workbook()
                     merged_ws = merged_wb.active
                     merged_ws.title = "Merged_Data"
                     current_row = 1
-
                     for idx, file in enumerate(merge_files):
                         file_bytes = file.getvalue()
                         src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                         src_ws = src_wb.active
-
                         # copy header only once (preserve styling)
                         if idx == 0:
                             for r in src_ws.iter_rows(min_row=1, max_row=1):
@@ -544,14 +498,12 @@ if merge_files:
                                     dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
                                     copy_cell_style(cell, dst_cell)
                             current_row += 1
-
                         # copy data rows
                         for row in src_ws.iter_rows(min_row=2):
                             for cell in row:
                                 dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
                                 copy_cell_style(cell, dst_cell)
                             current_row += 1
-
                         # copy merged cells with adjusted row offsets
                         if src_ws.merged_cells.ranges:
                             # to copy merged ranges correctly we need to map rows - simpler approach: copy same range as text (works when not offset)
@@ -566,7 +518,6 @@ if merge_files:
                                     merged_ws.merge_cells(merged_area)
                                 except Exception:
                                     pass
-
                         # copy column widths
                         try:
                             for col_letter in src_ws.column_dimensions:
@@ -574,22 +525,18 @@ if merge_files:
                                     merged_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
                         except Exception:
                             pass
-
                         # update progress
                         pct = int(((idx + 1) / total) * 100)
                         elapsed = time.time() - merge_start
                         render_gold_progress(merge_progress_placeholder, pct, f"Merging file {idx+1}/{total}: {file.name}", elapsed)
-
                     # finalize
                     output_buffer = BytesIO()
                     merged_wb.save(output_buffer)
                     output_buffer.seek(0)
-
                     elapsed = time.time() - merge_start
                     render_gold_progress(merge_progress_placeholder, 100, "✅ Merging Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     merge_progress_placeholder.empty()
-
                     st.success("✅ Merged successfully with original formatting preserved!")
                     st.download_button(
                         label="📥 Download Merged File (Formatted)",
@@ -598,7 +545,6 @@ if merge_files:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                     show_confetti()
-
                 else:
                     # Mixed CSV/Excel fallback using pandas concat
                     all_dfs = []
@@ -612,17 +558,14 @@ if merge_files:
                         pct = int(((i + 1) / total) * 100)
                         elapsed = time.time() - merge_start
                         render_gold_progress(merge_progress_placeholder, pct, f"Merging file {i+1}/{total}: {file.name}", elapsed)
-
                     merged_df = pd.concat(all_dfs, ignore_index=True)
                     output_buffer = BytesIO()
                     merged_df.to_excel(output_buffer, index=False, engine='openpyxl')
                     output_buffer.seek(0)
-
                     elapsed = time.time() - merge_start
                     render_gold_progress(merge_progress_placeholder, 100, "✅ Merging Completed Successfully!", elapsed)
                     time.sleep(0.25)
                     merge_progress_placeholder.empty()
-
                     st.success("✅ Merged successfully (formatting not preserved for CSV/mixed files).")
                     st.download_button(
                         label="📥 Download Merged File (Excel)",
@@ -631,16 +574,13 @@ if merge_files:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                     show_confetti()
-
             except Exception as e:
                 st.error(f"❌ Error during merge: {e}")
                 merge_progress_placeholder.empty()
-
 # ----------------------- Image to PDF Section (anchor) -----------------------
 st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
 st.markdown('<a name="imagetopdf"></a>', unsafe_allow_html=True)
 st.markdown("<h2 style='color:#FFD700;'>📷 Convert Images to PDF</h2>", unsafe_allow_html=True)
-
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
     type=["jpg", "jpeg", "png"],
@@ -651,7 +591,6 @@ if uploaded_images:
     st.markdown("### 📁 Uploaded Images:")
     for i, img in enumerate(uploaded_images):
         st.markdown(f"- {i+1}. {img.name} ({img.size//1024} KB)")
-
     if st.button("🖨️ Create PDF (CamScanner Style)"):
         with st.spinner("Enhancing images for PDF..."):
             try:
@@ -672,7 +611,6 @@ if uploaded_images:
                         bordered = np.clip(bordered,0,255).astype(np.uint8)
                     result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
                     return Image.fromarray(result)
-
                 first_image = Image.open(uploaded_images[0])
                 first_image_enhanced = enhance_image_for_pdf(first_image)
                 other_images = []
@@ -689,7 +627,6 @@ if uploaded_images:
                 st.warning("⚠️ CamScanner effect requires 'opencv-python'. Install it to enable this feature.")
             except Exception as e:
                 st.error(f"❌ Error creating enhanced PDF: {e}")
-
     if st.button("🖨️ Create PDF (Original Quality)"):
         with st.spinner("Converting images to PDF..."):
             try:
@@ -705,12 +642,10 @@ if uploaded_images:
                 st.error(f"❌ Error creating PDF: {e}")
 else:
     st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
-
 # ----------------------- Dashboard Section (anchor) -----------------------
 st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
 st.markdown('<a name="dashboard"></a>', unsafe_allow_html=True)
 st.markdown("<h2 style='color:#FFD700;'>📊 Interactive Auto Dashboard Generator</h2>", unsafe_allow_html=True)
-
 dashboard_file = st.file_uploader(
     "📊 Upload Excel or CSV File for Dashboard (Auto)",
     type=["xlsx", "csv"],
@@ -728,9 +663,7 @@ if dashboard_file:
         selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
         df0 = df_dict[selected_sheet_dash].copy()
         sheet_title = selected_sheet_dash
-
     st.dataframe(df0.head(), use_container_width=True)
-
     # Basic auto-detection & KPIs (kept concise)
     numeric_cols = df0.select_dtypes(include='number').columns.tolist()
     period_comparison = None
@@ -741,7 +674,6 @@ if dashboard_file:
         kpi_measure_col = user_measure_col
     else:
         kpi_measure_col = None
-
     # identify categorical columns
     cat_cols = [c for c in df0.columns if df0[c].dtype == object or df0[c].dtype.name.startswith("category")]
     st.sidebar.header("🔍 Filters")
@@ -750,7 +682,6 @@ if dashboard_file:
         primary_filter_col = st.sidebar.selectbox("Primary Filter Column", ["-- None --"] + cat_cols, index=0)
         if primary_filter_col == "-- None --":
             primary_filter_col = None
-
     # simple filtering UI
     filtered = df0.copy()
     if primary_filter_col:
@@ -758,13 +689,11 @@ if dashboard_file:
         sel = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
         if sel:
             filtered = filtered[filtered[primary_filter_col].astype(str).isin(sel)]
-
     # KPIs
     st.markdown("### 🚀 KPIs")
     kpi_cols = st.columns(3)
     total_val = filtered[kpi_measure_col].sum() if kpi_measure_col in filtered.columns else None
     kpi_cols[0].markdown(f"<div style='color:#FFD700;font-weight:700'>Total</div><div style='font-size:18px'>{total_val if total_val is not None else 'N/A'}</div>", unsafe_allow_html=True)
-
     # Simple charts
     st.markdown("### 📊 Auto Charts")
     try:
@@ -777,7 +706,6 @@ if dashboard_file:
                 st.plotly_chart(fig, use_container_width=True, theme="streamlit")
     except Exception as e:
         st.warning(f"Could not produce charts: {e}")
-
     # Export filtered data
     excel_buffer = BytesIO()
     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
@@ -787,7 +715,6 @@ if dashboard_file:
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 else:
     st.info("📤 Please upload an Excel or CSV file for dashboard generation.")
-
 # ----------------------- Contact / Footer (anchor) -----------------------
 st.markdown("<hr style='border:1px dashed #FFD700; margin-top:18px; opacity:0.6;' />", unsafe_allow_html=True)
 st.markdown('<a name="contact"></a>', unsafe_allow_html=True)
@@ -802,6 +729,3 @@ st.markdown("""
 <br>
 <div style='text-align:center; color:#888; font-size:12px;'>Built with ❤️ — Averroes Pharma Tool</div>
 """, unsafe_allow_html=True)
-
-
-
