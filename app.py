@@ -305,6 +305,7 @@ else:
     st.markdown(
         '<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Tricks For Excel</div>',
         unsafe_allow_html=True
+    )
 navbar_html = f"""
 <div class="top-nav">
     <div class="nav-logo">
@@ -1178,4 +1179,5 @@ else:
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
 
