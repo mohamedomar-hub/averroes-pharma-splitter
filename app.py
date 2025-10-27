@@ -286,12 +286,25 @@ def build_pptx(sheet_title, charts_buffers):
     return pptx_buffer
 
 # ------------------ Navigation Bar (Top) ------------------
-logo_html = ""
-if os.path.exists("logo.png"):
-    logo_html = '<img src="logo.png" style="width:120px; height:auto; border-radius:8px; border:1px solid #FFD700;">'
-else:
-    logo_html = '<div style="color:#FFD700; font-weight:bold; font-size:18px;">Tricks For Excel</div>'
+import base64
 
+def get_image_as_base64(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return None
+
+logo_b64 = get_image_as_base64("logo.png")
+if logo_b64:
+    st.markdown(
+        f'<div style="text-align:center; margin:20px 0;"><img src="data:image/png;base64,{logo_b64}" width="200" style="border-radius:8px; border:1px solid #FFD700;"></div>',
+        unsafe_allow_html=True
+    )
+else:
+    st.markdown(
+        '<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Tricks For Excel</div>',
+        unsafe_allow_html=True
 navbar_html = f"""
 <div class="top-nav">
     <div class="nav-logo">
@@ -1165,3 +1178,4 @@ else:
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
