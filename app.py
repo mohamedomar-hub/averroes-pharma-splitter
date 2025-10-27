@@ -5,6 +5,7 @@ from io import BytesIO
 from zipfile import ZipFile
 import re
 import os
+import base64
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl import load_workbook, Workbook
 # ====== Dashboard & Reporting ======
@@ -285,9 +286,7 @@ def build_pptx(sheet_title, charts_buffers):
     pptx_buffer.seek(0)
     return pptx_buffer
 
-# ------------------ Navigation Bar (Top) ------------------
-import base64
-
+# ------------------ Navigation & Logo ------------------
 def get_image_as_base64(image_path):
     try:
         with open(image_path, "rb") as img_file:
@@ -306,10 +305,12 @@ else:
         '<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Tricks For Excel</div>',
         unsafe_allow_html=True
     )
-navbar_html = f"""
+
+# Navbar
+navbar_html = """
 <div class="top-nav">
     <div class="nav-logo">
-        {logo_b64}
+        <div style="color:#FFD700; font-weight:bold; font-size:18px;">Menu</div>
     </div>
     <div class="nav-links">
         <a class="nav-link" href="#home">Home</a>
@@ -320,19 +321,19 @@ navbar_html = f"""
     </div>
 </div>
 <script>
-document.querySelectorAll('.nav-link:not([href*="wa.me"])').forEach(link => {{
-    link.addEventListener('click', function(e) {{
+document.querySelectorAll('.nav-link:not([href*="wa.me"])').forEach(link => {
+    link.addEventListener('click', function(e) {
         e.preventDefault();
         const targetId = this.getAttribute('href');
         const targetElement = document.querySelector(targetId);
-        if (targetElement) {{
-            window.scrollTo({{
+        if (targetElement) {
+            window.scrollTo({
                 top: targetElement.offsetTop - 70,
                 behavior: 'smooth'
-            }});
-        }}
-    }});
-}});
+            });
+        }
+    });
+});
 </script>
 """
 st.markdown(navbar_html, unsafe_allow_html=True)
@@ -366,7 +367,7 @@ if uploaded_file:
     if st.button("🗑️ Clear All Split Files", key="clear_split"):
         st.session_state.clear_counter += 1
         st.rerun()
-    # ... (باقي كود التقسيم كما في Code Website.txt)
+    # ... (باقي كود التقسيم كما في Code Website.txt - تم الحفاظ عليه كاملاً)
     try:
         file_ext = uploaded_file.name.split('.')[-1].lower()
         if file_ext == "csv":
@@ -1179,6 +1180,3 @@ else:
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
-
-
-
