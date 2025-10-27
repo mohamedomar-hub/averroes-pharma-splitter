@@ -309,7 +309,7 @@ else:
 navbar_html = f"""
 <div class="top-nav">
     <div class="nav-logo">
-        {logo_html}
+        {logo_b64}
     </div>
     <div class="nav-links">
         <a class="nav-link" href="#home">Home</a>
@@ -1179,5 +1179,6 @@ else:
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
 
 
