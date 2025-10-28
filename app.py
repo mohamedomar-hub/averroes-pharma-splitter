@@ -47,7 +47,7 @@ return None
 
 # Initialize session state
 if 'clear_counter' not in st.session_state:
-st.session_state.clear_counter = 0
+    st.session_state.clear_counter = 0
 
 # ------------------ Page Setup ------------------
 st.set_page_config(
@@ -1242,6 +1242,7 @@ st.info("📤 Please upload an Excel or CSV file for dashboard generation.")
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
 
 
 
