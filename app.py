@@ -889,7 +889,64 @@ if dashboard_file:
         update_progress(30, "Analyzing data")
         st.markdown("### 🔍 Data Preview (original)")
         st.dataframe(df0.head(), use_container_width=True)
+        # ==================== 🧠 Smart Insights (AI Quick Analysis) ====================
+st.markdown("### 🧠 Smart Insights (AI Quick Analysis)")
+if st.button("🔍 Analyze Smartly"):
+    with st.spinner("Analyzing data..."):
+        numeric_cols = df0.select_dtypes(include='number').columns.tolist()
+        cat_cols = [c for c in df0.columns if df0[c].dtype == "object"]
+        insight_text = ""
 
+        if not numeric_cols:
+            st.warning("⚠️ No numeric columns found for analysis.")
+        else:
+            main_col = numeric_cols[0]
+            total_val = df0[main_col].sum()
+            avg_val = df0[main_col].mean()
+            top_row = df0.loc[df0[main_col].idxmax()]
+            bottom_row = df0.loc[df0[main_col].idxmin()]
+
+            insight_text += f"✅ **Total {main_col}:** {total_val:,.0f}\\n\\n"
+            insight_text += f"📊 **Average {main_col}:** {avg_val:,.2f}\\n\\n"
+
+            if cat_cols:
+                top_col = cat_cols[0]
+                insight_text += f"🏆 **Top Performer ({top_col}):** {top_row[top_col]} with {top_row[main_col]:,.0f}\\n\\n"
+                insight_text += f"⚠️ **Lowest Performer ({top_col}):** {bottom_row[top_col]} with {bottom_row[main_col]:,.0f}\\n\\n"
+
+            if "__pct_change__" in df0.columns:
+                growth = df0["__pct_change__"].mean() * 100
+                insight_text += f"📈 **Average Growth:** {growth:.2f}%\\n\\n"
+
+            st.markdown(
+                f"<div style='background:#002b55; border-radius:10px; padding:15px; border:1px solid #FFD700; color:white;'>{insight_text}</div>",
+                unsafe_allow_html=True
+            )
+
+            # Trend chart if date/month/year found
+            trend_col = None
+            for c in df0.columns:
+                if any(k in c.lower() for k in ["month", "date", "year"]):
+                    trend_col = c
+                    break
+
+            if trend_col:
+                try:
+                    trend_data = df0.groupby(trend_col)[main_col].sum().reset_index()
+                    fig_trend = px.line(
+                        trend_data, x=trend_col, y=main_col,
+                        title=f"📈 Trend by {trend_col}", markers=True
+                    )
+                    fig_trend.update_layout(
+                        template="plotly_white",
+                        margin=dict(t=40,b=10,l=10,r=10),
+                        plot_bgcolor="#001f3f",
+                        paper_bgcolor="#001f3f",
+                        font_color="white"
+                    )
+                    st.plotly_chart(fig_trend, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"⚠️ Could not build trend chart: {e}")
         numeric_cols = df0.select_dtypes(include='number').columns.tolist()
         period_cols = []
         base_names = {}
@@ -1180,4 +1237,5 @@ else:
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
 
