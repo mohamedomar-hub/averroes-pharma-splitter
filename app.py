@@ -42,6 +42,8 @@ def load_lottie_url(url: str):
 # Initialize session state
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
+if 'show_guide' not in st.session_state:
+    st.session_state.show_guide = False
 
 # ------------------ Page Setup ------------------
 st.set_page_config(
@@ -176,6 +178,14 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
+    .highlight-section {
+        animation: highlight 2s ease-in-out;
+    }
+    @keyframes highlight {
+        0% { background-color: transparent; }
+        50% { background-color: rgba(255, 215, 0, 0.2); }
+        100% { background-color: transparent; }
+    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -286,6 +296,30 @@ def build_pptx(sheet_title, charts_buffers):
     pptx_buffer.seek(0)
     return pptx_buffer
 
+# ------------------ User Guide Sidebar ------------------
+if st.session_state.show_guide:
+    with st.sidebar:
+        st.markdown("## 📘 User Guide")
+        st.markdown("""
+        ### 📂 Split & Merge
+        - **Split**: Upload Excel/CSV → Choose column → Split into files.
+        - **Merge**: Upload multiple files → Click "Merge".
+
+        ### 📷 Image to PDF
+        - Upload images → Choose "CamScanner" or "Original" → Download PDF.
+
+        ### 📊 Auto Dashboard
+        - Upload file → Select sheet → Choose measure column → Apply filters.
+        - Use **Smart Analytics** for AI-powered insights.
+
+        ### 🧠 Smart Analytics
+        - Click after uploading dashboard file.
+        - Get: Top/Bottom performers, growth, forecast, category insights.
+        """)
+        if st.button("❌ Close Guide"):
+            st.session_state.show_guide = False
+            st.rerun()
+
 # ------------------ Navigation & Logo ------------------
 def get_image_as_base64(image_path):
     try:
@@ -306,7 +340,7 @@ else:
         unsafe_allow_html=True
     )
 
-# Navbar
+# Navbar with smooth scroll + highlight
 navbar_html = """
 <div class="top-nav">
     <div class="nav-logo">
@@ -318,25 +352,47 @@ navbar_html = """
         <a class="nav-link" href="#imagetopdf">Image to PDF</a>
         <a class="nav-link" href="#dashboard">Auto Dashboard</a>
         <a class="nav-link" href="https://wa.me/01554694554" target="_blank">Contact</a>
+        <a class="nav-link" onclick="showGuide()">📘 Guide</a>
     </div>
 </div>
 <script>
-document.querySelectorAll('.nav-link:not([href*="wa.me"])').forEach(link => {
+function showGuide() {
+    const url = new URL(window.location);
+    url.searchParams.set('guide', '1');
+    window.history.pushState({}, '', url);
+    location.reload();
+}
+document.querySelectorAll('.nav-link:not([href*="wa.me"]):not([onclick])').forEach(link => {
     link.addEventListener('click', function(e) {
         e.preventDefault();
         const targetId = this.getAttribute('href');
         const targetElement = document.querySelector(targetId);
         if (targetElement) {
+            targetElement.classList.add('highlight-section');
             window.scrollTo({
                 top: targetElement.offsetTop - 70,
                 behavior: 'smooth'
             });
+            setTimeout(() => {
+                targetElement.classList.remove('highlight-section');
+            }, 2000);
         }
     });
 });
+// Handle guide param
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('guide') === '1') {
+    // Guide will be shown via Streamlit state
+}
 </script>
 """
 st.markdown(navbar_html, unsafe_allow_html=True)
+
+# Check URL param for guide
+if 'guide' in st.query_params:
+    st.session_state.show_guide = True
+    # Remove param to avoid reload loop
+    st.query_params.clear()
 
 # ------------------ Header / Hero ------------------
 st.markdown('<a name="home"></a>', unsafe_allow_html=True)
@@ -361,7 +417,6 @@ if uploaded_file:
     if st.button("🗑️ Clear All Split Files", key="clear_split"):
         st.session_state.clear_counter += 1
         st.rerun()
-    # ... (باقي كود التقسيم كما في Code Website.txt - تم الحفاظ عليه كاملاً)
     try:
         file_ext = uploaded_file.name.split('.')[-1].lower()
         if file_ext == "csv":
@@ -878,6 +933,7 @@ if dashboard_file:
         # === Smart Analytics Button ===
         if st.button("🧠 Smart Analytics"):
             analysis_report = []
+            figs_to_show = []
 
             # Find representative column
             rep_col = _find_col(df0, ["rep", "representative", "salesman", "employee", "name", "mr", "agent"])
@@ -904,12 +960,43 @@ if dashboard_file:
                         bottom_val = sales_by_rep.iloc[-1]
                         analysis_report.append(f"✅ **Top Performer**: {top_rep} with {top_val:,.0f} {measure_col}")
                         analysis_report.append(f"⚠️ **Lowest Performer**: {bottom_rep} with {bottom_val:,.0f} {measure_col}")
+
+                        # Top/Bottom Chart
+                        top_bottom_df = pd.DataFrame({
+                            'Employee': [top_rep, bottom_rep],
+                            'Sales': [top_val, bottom_val]
+                        })
+                        fig_tb = px.bar(top_bottom_df, x='Employee', y='Sales', title="Top vs Bottom Performer",
+                                        color='Employee', color_discrete_sequence=['#28a745', '#dc3545'])
+                        figs_to_show.append(fig_tb)
                     else:
                         analysis_report.append("⚠️ Could not calculate top/bottom performers (insufficient data).")
                 else:
                     analysis_report.append("⚠️ Missing data in representative or measure column.")
             else:
                 analysis_report.append("ℹ️ Representative or sales column not detected. Skipping performer analysis.")
+
+            # === Category Analysis (Area, Product, etc.) ===
+            cat_col = None
+            for alias in ["area", "region", "product", "item", "branch", "category"]:
+                col = _find_col(df0, [alias])
+                if col and measure_col and col in df0.columns and measure_col in df0.columns:
+                    cat_col = col
+                    break
+            if cat_col:
+                cat_sales = df0.groupby(cat_col)[measure_col].sum().sort_values(ascending=False)
+                if len(cat_sales) >= 2:
+                    top_cat = cat_sales.index[0]
+                    top_cat_val = cat_sales.iloc[0]
+                    bottom_cat = cat_sales.index[-1]
+                    bottom_cat_val = cat_sales.iloc[-1]
+                    analysis_report.append(f"🏆 **Top Category ({cat_col})**: {top_cat} ({top_cat_val:,.0f})")
+                    analysis_report.append(f"🔻 **Lowest Category ({cat_col})**: {bottom_cat} ({bottom_cat_val:,.0f})")
+
+                    # Category Chart
+                    cat_df = cat_sales.head(5).reset_index()
+                    fig_cat = px.bar(cat_df, x=cat_col, y=measure_col, title=f"Top 5 by {cat_col}")
+                    figs_to_show.append(fig_cat)
 
             # === Period Growth (e.g., 2023 vs 2024) ===
             period_comparison = None
@@ -933,6 +1020,11 @@ if dashboard_file:
                     if total1 != 0:
                         growth = ((total2 - total1) / total1) * 100
                         analysis_report.append(f"📈 **Growth ({p1} → {p2})**: {growth:.1f}% (from {total1:,.0f} to {total2:,.0f})")
+                        # Smart Alert
+                        if growth < -10:
+                            st.warning(f"⚠️ Sales dropped by {abs(growth):.1f}% compared to last period!")
+                        elif growth > 20:
+                            st.success(f"✅ Strong growth: +{growth:.1f}% compared to last period!")
                     else:
                         analysis_report.append(f"ℹ️ **Growth ({p1} → {p2})**: Cannot calculate (base period is zero).")
                     period_comparison = True
@@ -957,6 +1049,11 @@ if dashboard_file:
                 monthly_totals = df0[cols_only].sum()
                 months = [c[1].capitalize() for c in month_cols_sorted]
 
+                # Monthly chart
+                monthly_df = pd.DataFrame({'Month': months, 'Sales': monthly_totals.values})
+                fig_month = px.line(monthly_df, x='Month', y='Sales', title="Monthly Sales Trend", markers=True)
+                figs_to_show.append(fig_month)
+
                 # Monthly growth rate
                 if len(monthly_totals) > 1:
                     growth_rates = []
@@ -975,9 +1072,21 @@ if dashboard_file:
                     X = np.arange(len(monthly_totals)).reshape(-1, 1)
                     y = monthly_totals.values
                     model = LinearRegression().fit(X, y)
-                    next_3 = model.predict(np.arange(len(monthly_totals), len(monthly_totals)+3).reshape(-1, 1))
+                    next_3_x = np.arange(len(monthly_totals), len(monthly_totals)+3).reshape(-1, 1)
+                    next_3 = model.predict(next_3_x)
                     forecast_str = ", ".join([f"{v:,.0f}" for v in next_3])
                     analysis_report.append(f"🔮 **Forecast (Next 3 Months)**: {forecast_str}")
+
+                    # Add forecast to chart
+                    forecast_df = pd.DataFrame({
+                        'Month': months + [f"Forecast {i+1}" for i in range(3)],
+                        'Sales': list(monthly_totals.values) + list(next_3),
+                        'Type': ['Actual']*len(months) + ['Forecast']*3
+                    })
+                    fig_forecast = px.line(forecast_df, x='Month', y='Sales', color='Type',
+                                           title="Sales Forecast (Next 3 Months)",
+                                           color_discrete_map={'Actual': '#1f77b4', 'Forecast': '#ff7f0e'})
+                    figs_to_show.append(fig_forecast)
                 else:
                     analysis_report.append("ℹ️ Not enough monthly data for forecasting.")
             else:
@@ -985,7 +1094,12 @@ if dashboard_file:
 
             # Display report
             full_report = "\n\n".join(analysis_report)
-            st.text_area("🧠 Smart Analytics Report", full_report, height=300, key="smart_report")
+            with st.expander("🧠 Smart Analytics Report (Click to Expand)", expanded=True):
+                st.text_area("Insights Summary", full_report, height=200, key="smart_report")
+                if figs_to_show:
+                    st.markdown("### 📈 Visual Insights")
+                    for fig in figs_to_show:
+                        st.plotly_chart(fig, use_container_width=True)
 
         # === Rest of Dashboard Logic ===
         numeric_cols = df0.select_dtypes(include='number').columns.tolist()
@@ -1120,6 +1234,11 @@ if dashboard_file:
             else:
                 growth_pct = 0
             kpi_values['growth_pct'] = growth_pct
+            # Smart Alert for overall dashboard
+            if growth_pct < -10:
+                st.warning(f"⚠️ Overall sales dropped by {abs(growth_pct):.1f}% compared to last period!")
+            elif growth_pct > 20:
+                st.success(f"✅ Overall sales grew by {growth_pct:.1f}% — excellent performance!")
         kpi_cards = []
         if kpi_values.get('total') is not None:
             kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
