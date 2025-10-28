@@ -890,13 +890,12 @@ if dashboard_file:
         st.markdown("### 🔍 Data Preview (original)")
         st.dataframe(df0.head(), use_container_width=True)
         # ==================== 🧠 Smart Insights (AI Quick Analysis) ====================
-st.markdown("### 🧠 Smart Insights (AI Quick Analysis)")
-if st.button("🔍 Analyze Smartly"):
-    with st.spinner("Analyzing data..."):
-        numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-        cat_cols = [c for c in df0.columns if df0[c].dtype == "object"]
-        insight_text = ""
-
+        st.markdown("### 🧠 Smart Insights (AI Quick Analysis)")
+          if st.button("🔍 Analyze Smartly"):
+              with st.spinner("Analyzing data..."):
+                   numeric_cols = df0.select_dtypes(include='number').columns.tolist()
+                    cat_cols = [c for c in df0.columns if df0[c].dtype == "object"]
+                    insight_text = ""
         if not numeric_cols:
             st.warning("⚠️ No numeric columns found for analysis.")
         else:
@@ -1237,5 +1236,6 @@ else:
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
 
 
