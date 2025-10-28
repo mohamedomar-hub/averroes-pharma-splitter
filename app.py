@@ -178,14 +178,6 @@ custom_css = """
         margin: 10px 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    .highlight-section {
-        animation: highlight 2s ease-in-out;
-    }
-    @keyframes highlight {
-        0% { background-color: transparent; }
-        50% { background-color: rgba(255, 215, 0, 0.2); }
-        100% { background-color: transparent; }
-    }
     </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -296,7 +288,10 @@ def build_pptx(sheet_title, charts_buffers):
     pptx_buffer.seek(0)
     return pptx_buffer
 
-# ------------------ User Guide Sidebar ------------------
+# ------------------ User Guide Button & Sidebar ------------------
+if st.button("📘 User Guide"):
+    st.session_state.show_guide = not st.session_state.show_guide
+
 if st.session_state.show_guide:
     with st.sidebar:
         st.markdown("## 📘 User Guide")
@@ -340,7 +335,7 @@ else:
         unsafe_allow_html=True
     )
 
-# Navbar with smooth scroll + highlight
+# Navbar
 navbar_html = """
 <div class="top-nav">
     <div class="nav-logo">
@@ -352,47 +347,25 @@ navbar_html = """
         <a class="nav-link" href="#imagetopdf">Image to PDF</a>
         <a class="nav-link" href="#dashboard">Auto Dashboard</a>
         <a class="nav-link" href="https://wa.me/01554694554" target="_blank">Contact</a>
-        <a class="nav-link" onclick="showGuide()">📘 Guide</a>
     </div>
 </div>
 <script>
-function showGuide() {
-    const url = new URL(window.location);
-    url.searchParams.set('guide', '1');
-    window.history.pushState({}, '', url);
-    location.reload();
-}
-document.querySelectorAll('.nav-link:not([href*="wa.me"]):not([onclick])').forEach(link => {
+document.querySelectorAll('.nav-link:not([href*="wa.me"])').forEach(link => {
     link.addEventListener('click', function(e) {
         e.preventDefault();
         const targetId = this.getAttribute('href');
         const targetElement = document.querySelector(targetId);
         if (targetElement) {
-            targetElement.classList.add('highlight-section');
             window.scrollTo({
                 top: targetElement.offsetTop - 70,
                 behavior: 'smooth'
             });
-            setTimeout(() => {
-                targetElement.classList.remove('highlight-section');
-            }, 2000);
         }
     });
 });
-// Handle guide param
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('guide') === '1') {
-    // Guide will be shown via Streamlit state
-}
 </script>
 """
 st.markdown(navbar_html, unsafe_allow_html=True)
-
-# Check URL param for guide
-if 'guide' in st.query_params:
-    st.session_state.show_guide = True
-    # Remove param to avoid reload loop
-    st.query_params.clear()
 
 # ------------------ Header / Hero ------------------
 st.markdown('<a name="home"></a>', unsafe_allow_html=True)
@@ -809,6 +782,7 @@ if merge_files:
                     )
             except Exception as e:
                 st.error(f"❌ Error during merge: {e}")
+
 # ------------------ Section: Image to PDF ------------------
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 st.markdown('<a name="imagetopdf"></a>', unsafe_allow_html=True)
@@ -1092,10 +1066,10 @@ if dashboard_file:
             else:
                 analysis_report.append("ℹ️ No monthly columns detected for trend/forecast analysis.")
 
-            # Display report
+            # Display report as READ-ONLY MARKDOWN (no editing)
             full_report = "\n\n".join(analysis_report)
             with st.expander("🧠 Smart Analytics Report (Click to Expand)", expanded=True):
-                st.text_area("Insights Summary", full_report, height=200, key="smart_report")
+                st.markdown(full_report)  # ✅ No text_area — read-only
                 if figs_to_show:
                     st.markdown("### 📈 Visual Insights")
                     for fig in figs_to_show:
