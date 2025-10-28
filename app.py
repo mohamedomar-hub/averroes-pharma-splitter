@@ -29,8 +29,14 @@ from streamlit_lottie import st_lottie
 import requests
 import json
 
-def load_lottie_url(url: str):
-"""تحميل Lottie JSON من رابط خارجي"""
+def load_lottie_url(url):
+    """تحميل Lottie JSON من رابط خارجي"""
+    import requests
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
+
 try:
     r = requests.get(url, timeout=8)
     if r.status_code == 200:
@@ -1236,6 +1242,7 @@ st.info("📤 Please upload an Excel or CSV file for dashboard generation.")
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
 
 
 
