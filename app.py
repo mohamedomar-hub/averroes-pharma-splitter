@@ -893,6 +893,7 @@ if dashboard_file:
     # ==================== 🧠 Smart Insights (AI Quick Analysis) ====================
     st.markdown("### 🧠 Smart Insights (AI Quick Analysis)")
     if st.button("🔍 Analyze Smartly"):
+         with st.spinner("Analyzing data...")
         try:
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             cat_cols = [c for c in df0.columns if df0[c].dtype == "object"]
@@ -1244,4 +1245,5 @@ else:
 
 # ------------------ End of App ------------------
 # ✅ لا يوجد قسم Contact في الأسفل
+
 
