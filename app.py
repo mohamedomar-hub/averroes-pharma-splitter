@@ -46,7 +46,7 @@ if 'clear_counter' not in st.session_state:
 # ------------------ Page Setup ------------------
 st.set_page_config(
     page_title="Tricks For Excel| File Splitter & Dashboard",
-    page_icon="📊",  # ✅ تم تغيير الأيقونة إلى Excel
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -347,21 +347,15 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# ------------------ Tabs (Hidden but Anchors Work) ------------------
-# We keep the tab structure for organization, but hide the tab UI
-# and rely on the top navbar for navigation.
-
 # ------------------ Section: Split & Merge ------------------
 st.markdown('<a name="split"></a>', unsafe_allow_html=True)
 st.markdown("<h2 style='color:#FFD700;'>✂ Split Excel/CSV File</h2>", unsafe_allow_html=True)
-
 uploaded_file = st.file_uploader(
     "📂 Upload Excel or CSV File (Splitter/Merge)",
     type=["xlsx", "csv"],
     accept_multiple_files=False,
     key=f"split_uploader_{st.session_state.clear_counter}"
 )
-
 if uploaded_file:
     display_uploaded_files([uploaded_file], "Excel/CSV")
     if st.button("🗑️ Clear All Split Files", key="clear_split"):
@@ -604,19 +598,16 @@ if uploaded_file:
         st.error(f"❌ Error processing file: {e}")
 else:
     st.info("📤 Please upload an Excel or CSV file to start splitting.")
-
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 
 # ------------------ Section: Merge ------------------
 st.markdown("<h2 style='color:#FFD700;'>🔄 Merge Excel/CSV Files</h2>", unsafe_allow_html=True)
-
 merge_files = st.file_uploader(
     "📤 Upload Excel or CSV Files to Merge",
     type=["xlsx", "csv"],
     accept_multiple_files=True,
     key=f"merge_uploader_{st.session_state.clear_counter}"
 )
-
 if merge_files:
     display_uploaded_files(merge_files, "Excel/CSV")
     if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
@@ -763,19 +754,16 @@ if merge_files:
                     )
             except Exception as e:
                 st.error(f"❌ Error during merge: {e}")
-
 # ------------------ Section: Image to PDF ------------------
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 st.markdown('<a name="imagetopdf"></a>', unsafe_allow_html=True)
 st.markdown("<h2 style='color:#FFD700;'>📷 Convert Images to PDF</h2>", unsafe_allow_html=True)
-
 uploaded_images = st.file_uploader(
     "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
     type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
     key=f"image_uploader_{st.session_state.clear_counter}"
 )
-
 if uploaded_images:
     display_uploaded_files(uploaded_images, "Image")
     if st.button("🗑️ Clear All Images", key="clear_images"):
@@ -806,7 +794,6 @@ if uploaded_images:
                 bordered = np.clip(bordered, 0, 255).astype(np.uint8)
             result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
             return Image.fromarray(result)
-
         if st.button("🖨️ Create PDF (CamScanner Style)"):
             with st.spinner("Enhancing images for PDF..."):
                 if LOTTIE_IMAGE:
@@ -857,13 +844,11 @@ else:
 st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
 st.markdown('<a name="dashboard"></a>', unsafe_allow_html=True)
 st.markdown("<h2 style='color:#FFD700;'>📊 Interactive Auto Dashboard Generator</h2>", unsafe_allow_html=True)
-
 dashboard_file = st.file_uploader(
     "📊 Upload Excel or CSV File for Dashboard (Auto)",
     type=["xlsx", "csv"],
     key=f"dashboard_uploader_{st.session_state.clear_counter}"
 )
-
 if dashboard_file:
     display_uploaded_files([dashboard_file], "Excel/CSV")
     if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
@@ -890,6 +875,119 @@ if dashboard_file:
         st.markdown("### 🔍 Data Preview (original)")
         st.dataframe(df0.head(), use_container_width=True)
 
+        # === Smart Analytics Button ===
+        if st.button("🧠 Smart Analytics"):
+            analysis_report = []
+
+            # Find representative column
+            rep_col = _find_col(df0, ["rep", "representative", "salesman", "employee", "name", "mr", "agent"])
+            measure_col = None
+            numeric_cols = df0.select_dtypes(include='number').columns.tolist()
+            if numeric_cols:
+                measure_col = numeric_cols[0]  # fallback to first numeric
+
+            # Try to find best measure column (sales-like)
+            for col in numeric_cols:
+                if any(kw in col.lower() for kw in ["sale", "revenue", "amount", "value", "total"]):
+                    measure_col = col
+                    break
+
+            # === Top/Bottom Performer ===
+            if rep_col and measure_col and rep_col in df0.columns and measure_col in df0.columns:
+                df0_clean = df0.dropna(subset=[rep_col, measure_col])
+                if not df0_clean.empty:
+                    sales_by_rep = df0_clean.groupby(rep_col)[measure_col].sum().sort_values(ascending=False)
+                    if not sales_by_rep.empty:
+                        top_rep = sales_by_rep.index[0]
+                        top_val = sales_by_rep.iloc[0]
+                        bottom_rep = sales_by_rep.index[-1]
+                        bottom_val = sales_by_rep.iloc[-1]
+                        analysis_report.append(f"✅ **Top Performer**: {top_rep} with {top_val:,.0f} {measure_col}")
+                        analysis_report.append(f"⚠️ **Lowest Performer**: {bottom_rep} with {bottom_val:,.0f} {measure_col}")
+                    else:
+                        analysis_report.append("⚠️ Could not calculate top/bottom performers (insufficient data).")
+                else:
+                    analysis_report.append("⚠️ Missing data in representative or measure column.")
+            else:
+                analysis_report.append("ℹ️ Representative or sales column not detected. Skipping performer analysis.")
+
+            # === Period Growth (e.g., 2023 vs 2024) ===
+            period_comparison = None
+            numeric_cols = df0.select_dtypes(include='number').columns.tolist()
+            base_names = {}
+            for col in numeric_cols:
+                match = re.search(r'(.+?)[_\s\-](\d{4}|Q[1-4])$', col.strip())
+                if match:
+                    base = match.group(1).strip()
+                    period = match.group(2)
+                    if base not in base_names:
+                        base_names[base] = []
+                    base_names[base].append((col, period))
+            for base, cols in base_names.items():
+                if len(cols) >= 2:
+                    cols_sorted = sorted(cols, key=lambda x: x[1])
+                    col1, p1 = cols_sorted[-2]
+                    col2, p2 = cols_sorted[-1]
+                    total1 = df0[col1].sum()
+                    total2 = df0[col2].sum()
+                    if total1 != 0:
+                        growth = ((total2 - total1) / total1) * 100
+                        analysis_report.append(f"📈 **Growth ({p1} → {p2})**: {growth:.1f}% (from {total1:,.0f} to {total2:,.0f})")
+                    else:
+                        analysis_report.append(f"ℹ️ **Growth ({p1} → {p2})**: Cannot calculate (base period is zero).")
+                    period_comparison = True
+                    break
+            if not period_comparison:
+                analysis_report.append("ℹ️ No yearly/quarterly columns detected for growth analysis.")
+
+            # === Monthly Trend & Forecast ===
+            month_names = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+            month_cols = []
+            for col in df0.columns:
+                col_clean = col.strip().lower()
+                for m in month_names:
+                    if m in col_clean or col_clean == m:
+                        month_cols.append((col, m))
+                        break
+            if month_cols:
+                # Sort by month order
+                month_order = {m: i for i, m in enumerate(month_names)}
+                month_cols_sorted = sorted(month_cols, key=lambda x: month_order.get(x[1], 99))
+                cols_only = [c[0] for c in month_cols_sorted]
+                monthly_totals = df0[cols_only].sum()
+                months = [c[1].capitalize() for c in month_cols_sorted]
+
+                # Monthly growth rate
+                if len(monthly_totals) > 1:
+                    growth_rates = []
+                    for i in range(1, len(monthly_totals)):
+                        prev = monthly_totals.iloc[i-1]
+                        curr = monthly_totals.iloc[i]
+                        if prev != 0:
+                            gr = ((curr - prev) / prev) * 100
+                            growth_rates.append(gr)
+                    if growth_rates:
+                        avg_growth = np.mean(growth_rates)
+                        analysis_report.append(f"📊 **Average Monthly Growth Rate**: {avg_growth:.1f}%")
+
+                # Forecast next 3 months using Linear Regression
+                if len(monthly_totals) >= 3:
+                    X = np.arange(len(monthly_totals)).reshape(-1, 1)
+                    y = monthly_totals.values
+                    model = LinearRegression().fit(X, y)
+                    next_3 = model.predict(np.arange(len(monthly_totals), len(monthly_totals)+3).reshape(-1, 1))
+                    forecast_str = ", ".join([f"{v:,.0f}" for v in next_3])
+                    analysis_report.append(f"🔮 **Forecast (Next 3 Months)**: {forecast_str}")
+                else:
+                    analysis_report.append("ℹ️ Not enough monthly data for forecasting.")
+            else:
+                analysis_report.append("ℹ️ No monthly columns detected for trend/forecast analysis.")
+
+            # Display report
+            full_report = "\n\n".join(analysis_report)
+            st.text_area("🧠 Smart Analytics Report", full_report, height=300, key="smart_report")
+
+        # === Rest of Dashboard Logic ===
         numeric_cols = df0.select_dtypes(include='number').columns.tolist()
         period_cols = []
         base_names = {}
@@ -916,7 +1014,6 @@ if dashboard_file:
             period_comparison = {'col1': col1, 'col2': col2, 'period1': period1, 'period2': period2, 'base': base_key}
             st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
         update_progress(50, "Processing filters")
-
         month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
         potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
         if potential_months:
@@ -929,7 +1026,6 @@ if dashboard_file:
             numeric_cols = df0.select_dtypes(include='number').columns.tolist()
             measure_col = numeric_cols[0] if numeric_cols else None
             df_long = df0.copy()
-
         numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
         if numeric_cols_in_long:
             user_measure_col = st.selectbox(
@@ -940,13 +1036,11 @@ if dashboard_file:
             kpi_measure_col = user_measure_col
         else:
             kpi_measure_col = measure_col
-
         cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
         for c in df_long.columns:
             if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
                 cat_cols.append(c)
         cat_cols = [c for c in cat_cols if c is not None]
-
         st.sidebar.header("🔍 Dynamic Filters")
         primary_filter_col = None
         if len(cat_cols) > 0:
@@ -962,7 +1056,6 @@ if dashboard_file:
                 pass
             primary_values = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
         other_filter_cols = st.sidebar.multiselect("Additional filter columns", [c for c in cat_cols if c != primary_filter_col], default=[])
-
         active_filters = {}
         for fc in other_filter_cols:
             opts = df_long[fc].dropna().astype(str).unique().tolist()
@@ -972,7 +1065,6 @@ if dashboard_file:
                 pass
             sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
             active_filters[fc] = sel
-
         filtered = df_long.copy()
         if primary_filter_col and primary_values is not None and len(primary_values) > 0:
             filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
@@ -980,7 +1072,6 @@ if dashboard_file:
             if sel is not None and len(sel) > 0:
                 filtered = filtered[filtered[fc].astype(str).isin(sel)]
         update_progress(70, "Building KPIs")
-
         rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
         performance_group_col = None
         filtered_with_group = filtered.copy()
@@ -1001,15 +1092,12 @@ if dashboard_file:
                         return "Medium Performer"
                 filtered_with_group['Performance Group'] = filtered_with_group[rep_col].apply(assign_group)
                 performance_group_col = 'Performance Group'
-
         final_df = filtered_with_group
-
         found_dims = {}
         for dim_key, aliases in {"area": ["area", "region"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
             col = _find_col(final_df, aliases)
             if col:
                 found_dims[dim_key] = col
-
         kpi_values = {}
         if kpi_measure_col and kpi_measure_col in final_df.columns:
             kpi_values['total'] = final_df[kpi_measure_col].sum()
@@ -1022,10 +1110,8 @@ if dashboard_file:
         else:
             kpi_values['total'] = None
             kpi_values['avg_per_date'] = None
-
         for dim_key, col_name in found_dims.items():
             kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
-
         if period_comparison and '__pct_change__' in final_df.columns:
             col1_sum = final_df[period_comparison['col1']].sum()
             col2_sum = final_df[period_comparison['col2']].sum()
@@ -1034,7 +1120,6 @@ if dashboard_file:
             else:
                 growth_pct = 0
             kpi_values['growth_pct'] = growth_pct
-
         kpi_cards = []
         if kpi_values.get('total') is not None:
             kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
@@ -1052,7 +1137,6 @@ if dashboard_file:
         if performance_group_col:
             num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
             kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
-
         st.markdown("### 🚀 KPIs")
         cols = st.columns(min(6, len(kpi_cards)))
         for i, card in enumerate(kpi_cards[:6]):
@@ -1063,11 +1147,9 @@ if dashboard_file:
                     <div class='kpi-value'>{card['value']}</div>
                 </div>
                 """, unsafe_allow_html=True)
-
         update_progress(90, "Rendering charts")
         charts_buffers = []
         plotly_figs = []
-
         if performance_group_col:
             try:
                 group_total = final_df.groupby('Performance Group')[kpi_measure_col].sum().reset_index()
@@ -1079,7 +1161,6 @@ if dashboard_file:
                 plotly_figs.append((fig, "Performance Groups"))
             except Exception as e:
                 st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
-
         if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
             rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
             if len(rep_data) >= 10:
@@ -1097,7 +1178,6 @@ if dashboard_file:
                 fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
                 fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
                 plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
-
         possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
         chosen_dim = None
         for alias in ["area", "region", "branch", "product", "item"]:
@@ -1107,7 +1187,6 @@ if dashboard_file:
                 break
         if not chosen_dim and possible_dims:
             chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
-
         if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
             try:
                 series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
@@ -1120,7 +1199,6 @@ if dashboard_file:
                 plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
             except Exception as e:
                 st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
-
         st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
         plotly_figs = plotly_figs[:6]
         while len(plotly_figs) < 6:
@@ -1136,10 +1214,8 @@ if dashboard_file:
                             st.plotly_chart(fig, use_container_width=True, theme="streamlit")
                             st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
                             st.markdown('</div>', unsafe_allow_html=True)
-
         update_progress(100, "Dashboard ready!")
         st.success("🎉 Dashboard generated successfully!")
-
         excel_buffer = BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             final_df.to_excel(writer, index=False, sheet_name='Filtered_Data')
@@ -1150,7 +1226,6 @@ if dashboard_file:
             file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
         if st.button("📥 Generate Dashboard PDF (charts only)"):
             with st.spinner("Generating Dashboard PDF..."):
                 if LOTTIE_PDF:
@@ -1166,10 +1241,8 @@ if dashboard_file:
                     )
                 except Exception as e:
                     st.error(f"❌ PDF generation failed: {e}")
-
         progress_bar.empty()
         status_text.empty()
-
     except Exception as e:
         st.error(f"❌ Error generating dashboard: {e}")
         if 'progress_bar' in locals():
@@ -1179,5 +1252,3 @@ else:
     st.info("📤 Please upload an Excel or CSV file for dashboard generation.")
 
 # ------------------ End of App ------------------
-# ✅ لا يوجد قسم Contact في الأسفل
-
