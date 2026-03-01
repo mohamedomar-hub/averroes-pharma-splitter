@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+"""
+Streamlit App — Simplified per user request
+- Keep: Split & Merge, Image→PDF (Original)
+- Add: Excel Processor (rename/delete/reorder columns) from Edit 1
+- Add: Folder Images → single PDF (Edit 2 logic adapted)
+- Remove: Dashboard section & CamScanner enhancement
+"""
+
 import streamlit as st
 import pandas as pd
 from io import BytesIO
@@ -6,31 +14,24 @@ from zipfile import ZipFile
 import re
 import os
 import base64
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+
+from openpyxl.styles import Font, PatternFill, Border, Alignment
 from openpyxl import load_workbook, Workbook
-# ====== Dashboard & Reporting ======
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image as RLImage, Spacer, PageBreak
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
-import plotly.express as px
-import plotly.graph_objects as go
-from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
+from openpyxl.utils import get_column_letter
 from PIL import Image
-from sklearn.linear_model import LinearRegression
-import numpy as np
-# === Lottie animation support ===
-from streamlit_lottie import st_lottie
-import requests
-import json
+
+# ====== Lottie animation (optional; safe if requests not available) ======
+try:
+    from streamlit_lottie import st_lottie  # type: ignore
+    import requests  # type: ignore
+except Exception:  # pragma: no cover
+    st_lottie = None
+    requests = None
+
 
 def load_lottie_url(url: str):
-    """تحميل Lottie JSON من رابط خارجي"""
+    if not requests:
+        return None
     try:
         r = requests.get(url, timeout=8)
         if r.status_code == 200:
@@ -39,283 +40,31 @@ def load_lottie_url(url: str):
         return None
     return None
 
-# Initialize session state
-if 'clear_counter' not in st.session_state:
-    st.session_state.clear_counter = 0
-if 'show_guide' not in st.session_state:
-    st.session_state.show_guide = False
-
 # ------------------ Page Setup ------------------
 st.set_page_config(
-    page_title="Tricks For Excel| File Splitter & Dashboard",
+    page_title="Tricks For Excel — Split/Merge & PDF Tools",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
 LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")
 LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")
-LOTTIE_IMAGE = load_lottie_url("https://assets2.lottiefiles.com/private_files/lf30_cgfdhxgx.json")
-LOTTIE_DASH  = load_lottie_url("https://assets8.lottiefiles.com/packages/lf20_tno6cg2w.json")
 LOTTIE_PDF   = load_lottie_url("https://assets1.lottiefiles.com/packages/lf20_zyu0ct3i.json")
 
-# Hide default Streamlit elements
-hide_default = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_default, unsafe_allow_html=True)
-
-# ------------------ Custom CSS ------------------
-custom_css = """
-    <style>
-    .stApp {
-        background-color: #001f3f;
-        color: white;
-        font-family: 'Cairo', sans-serif;
-    }
-    .top-nav {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 30px;
-        background: linear-gradient(90deg, #001a33, #00264d);
-        border-bottom: 2px solid #FFD700;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    .nav-logo {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .nav-logo img {
-        width: 120px;
-        height: auto;
-        border-radius: 8px;
-        border: 1px solid #FFD700;
-    }
-    .nav-links {
-        display: flex;
-        gap: 20px;
-    }
-    .nav-link {
-        color: #FFD700;
-        text-decoration: none;
-        font-weight: bold;
-        font-size: 16px;
-        padding: 8px 16px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-    }
-    .nav-link:hover {
-        background-color: #FFD700;
-        color: black;
-        transform: translateY(-2px);
-    }
-    label, .stSelectbox label, .stFileUploader label {
-        color: #FFD700 !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-    }
-    .stButton>button, .stDownloadButton>button {
-        background-color: #FFD700 !important;
-        color: black !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-        border-radius: 12px !important;
-        padding: 12px 24px !important;
-        border: none !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
-        transition: all 0.3s ease !important;
-        margin-top: 10px !important;
-    }
-    .stButton>button:hover, .stDownloadButton>button:hover {
-        background-color: #FFC107 !important;
-        transform: scale(1.08);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.4) !important;
-    }
-    .kpi-card {
-        padding: 16px;
-        border-radius: 12px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.3);
-        font-weight: 700;
-        margin: 8px;
-    }
-    .kpi-title { font-size: 14px; opacity: 0.9; }
-    .kpi-value { font-size: 22px; margin-top:6px; }
-    hr.divider-dashed {
-        border: 1px dashed #FFD700;
-        opacity: 0.7;
-        margin: 25px 0;
-    }
-    .stDataFrame {
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        border-radius: 12px;
-        overflow: hidden;
-        margin: 10px 0;
-    }
-    .stFileUploader {
-        border: 2px dashed #FFD700;
-        border-radius: 10px;
-        padding: 15px;
-        background-color: rgba(255, 215, 0, 0.1);
-    }
-    .guide-title {
-        color: #FFD700;
-        font-weight: bold;
-        font-size: 20px;
-    }
-    .chart-card {
-        background-color: #00264d;
-        border: 1px solid #FFD700;
-        border-radius: 12px;
-        padding: 12px;
-        margin: 10px 0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    </style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
-
 # ------------------ Helper Functions ------------------
+
 def display_uploaded_files(file_list, file_type="Excel/CSV"):
     if file_list:
-        st.markdown("### 📁 Uploaded Files:")
+        st.markdown("### 📁 الملفات المرفوعة:")
         for i, f in enumerate(file_list):
-            st.markdown(
-                f"<div style='background:#003366; color:white; padding:4px 8px; border-radius:4px; margin:2px 0; display:inline-block;'>"
-                f"{i+1}. {f.name} ({f.size//1024} KB)</div>",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"**{i+1}.** {f.name} — {f.size//1024} KB")
+
 
 def _safe_name(s):
-    return re.sub(r'[^A-Za-z0-9_-]+', '_', str(s))
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", str(s))
 
-def _find_col(df, aliases):
-    lowered = {c.lower(): c for c in df.columns}
-    for a in aliases:
-        if a.lower() in lowered:
-            return lowered[a.lower()]
-    for c in df.columns:
-        name = c.strip().lower()
-        for a in aliases:
-            if a.lower() in name:
-                return c
-    return None
 
-def _format_millions(x, pos=None):
-    try:
-        x = float(x)
-    except:
-        return str(x)
-    if abs(x) >= 1_000_000:
-        return f"{x/1_000_000:.1f}M"
-    if abs(x) >= 1_000:
-        return f"{x/1_000:.0f}K"
-    return f"{x:.0f}"
-
-def build_pdf(sheet_title, charts_buffers, include_table=False, filtered_df=None, max_table_rows=200):
-    buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
-    styles = getSampleStyleSheet()
-    elements = []
-    elements.append(Paragraph(f"<para align='center'><b>{sheet_title} Report</b></para>", styles['Title']))
-    elements.append(Spacer(1,12))
-    elements.append(Paragraph("<para align='center'>Tricks For Excel - Auto Generated Dashboard</para>", styles['Heading3']))
-    elements.append(Spacer(1,18))
-    for img_buf, caption in charts_buffers:
-        try:
-            img_buf.seek(0)
-            img = RLImage(img_buf, width=760, height=360)
-            elements.append(img)
-            elements.append(Spacer(1,6))
-            elements.append(Paragraph(f"<para align='center'>{caption}</para>", styles['Normal']))
-            elements.append(Spacer(1,12))
-        except Exception:
-            pass
-    if include_table and (filtered_df is not None):
-        table_df = filtered_df.copy().fillna("")
-        if len(table_df) > max_table_rows:
-            table_df = table_df.head(max_table_rows)
-            elements.append(Paragraph(f"Showing first {max_table_rows} rows of filtered data", styles['Normal']))
-            elements.append(Spacer(1,6))
-        table_data = [table_df.columns.tolist()] + table_df.astype(str).values.tolist()
-        tbl = Table(table_data, hAlign='CENTER')
-        tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#FFD700")),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.black),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('GRID', (0,0), (-1,-1), 0.3, colors.grey),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ]))
-        elements.append(tbl)
-    doc.build(elements)
-    buf.seek(0)
-    return buf
-
-def build_pptx(sheet_title, charts_buffers):
-    prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[0])
-    title = slide.shapes.title
-    title.text = f"{sheet_title} Dashboard"
-    subtitle = slide.placeholders[1]
-    subtitle.text = "Auto-generated by Tricks For Excel"
-    for img_buf, caption in charts_buffers:
-        try:
-            img_buf.seek(0)
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
-            left = Inches(0.5)
-            top = Inches(0.8)
-            width = Inches(9)
-            height = Inches(5)
-            slide.shapes.add_picture(img_buf, left, top, width=width, height=height)
-            txBox = slide.shapes.add_textbox(left, top + height + Inches(0.1), width, Inches(0.5))
-            tf = txBox.text_frame
-            p = tf.paragraphs[0]
-            p.text = caption
-            p.font.size = Pt(14)
-            p.font.color.rgb = RGBColor(0, 0, 0)
-            p.alignment = PP_ALIGN.CENTER
-        except Exception:
-            pass
-    pptx_buffer = BytesIO()
-    prs.save(pptx_buffer)
-    pptx_buffer.seek(0)
-    return pptx_buffer
-
-# ------------------ User Guide Button & Sidebar ------------------
-if st.button("📘 User Guide"):
-    st.session_state.show_guide = not st.session_state.show_guide
-
-if st.session_state.show_guide:
-    with st.sidebar:
-        st.markdown("## 📘 User Guide")
-        st.markdown("""
-        ### 📂 Split & Merge
-        - **Split**: Upload Excel/CSV → Choose column → Split into files.
-        - **Merge**: Upload multiple files → Click "Merge".
-
-        ### 📷 Image to PDF
-        - Upload images → Choose "CamScanner" or "Original" → Download PDF.
-
-        ### 📊 Auto Dashboard
-        - Upload file → Select sheet → Choose measure column → Apply filters.
-        - Use **Smart Analytics** for AI-powered insights.
-
-        ### 🧠 Smart Analytics
-        - Click after uploading dashboard file.
-        - Get: Top/Bottom performers, growth, forecast, category insights.
-        """)
-        if st.button("❌ Close Guide"):
-            st.session_state.show_guide = False
-            st.rerun()
-
-# ------------------ Navigation & Logo ------------------
 def get_image_as_base64(image_path):
     try:
         with open(image_path, "rb") as img_file:
@@ -323,110 +72,86 @@ def get_image_as_base64(image_path):
     except Exception:
         return None
 
+
+# ------------------ Header / Branding ------------------
 logo_b64 = get_image_as_base64("logo.png")
 if logo_b64:
     st.markdown(
-        f'<div style="text-align:center; margin:20px 0;"><img src="data:image/png;base64,{logo_b64}" width="200" style="border-radius:8px; border:1px solid #FFD700;"></div>',
-        unsafe_allow_html=True
+        f'<div style="display:flex;align-items:center;gap:10px">\n'
+        f'<img src="data:image/png;base64,{logo_b64}" width="40"/>\n'
+        f'<h2 style="margin:0">Tricks For Excel</h2></div>',
+        unsafe_allow_html=True,
     )
 else:
-    st.markdown(
-        '<div style="text-align:center; margin:20px 0; color:#FFD700; font-size:20px;">Tricks For Excel</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown("## Tricks For Excel")
 
-# Navbar
-navbar_html = """
-<div class="top-nav">
-    <div class="nav-logo">
-        <div style="color:#FFD700; font-weight:bold; font-size:18px;">Menu</div>
-    </div>
-    <div class="nav-links">
-        <a class="nav-link" href="#home">Home</a>
-        <a class="nav-link" href="#split">Split & Merge</a>
-        <a class="nav-link" href="#imagetopdf">Image to PDF</a>
-        <a class="nav-link" href="#dashboard">Auto Dashboard</a>
-        <a class="nav-link" href="https://wa.me/01554694554" target="_blank">Contact</a>
-    </div>
-</div>
-<script>
-document.querySelectorAll('.nav-link:not([href*="wa.me"])').forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const targetId = this.getAttribute('href');
-        const targetElement = document.querySelector(targetId);
-        if (targetElement) {
-            window.scrollTo({
-                top: targetElement.offsetTop - 70,
-                behavior: 'smooth'
-            });
-        }
-    });
-});
-</script>
-"""
-st.markdown(navbar_html, unsafe_allow_html=True)
+st.markdown(
+    """
+    **الأدوات المتاحة:**
+    - ✂️ تقسيم ودمج ملفات Excel/CSV
+    - 🧰 معالج Excel (إعادة تسمية/حذف/ترتيب أعمدة)
+    - 🖼️ تحويل الصور إلى PDF (جودة أصلية) + خيار مجلد محلي → PDF
+    """
+)
 
-# ------------------ Header / Hero ------------------
-st.markdown('<a name="home"></a>', unsafe_allow_html=True)
-st.markdown("""
-    <div style='text-align:center; margin-top:20px;'>
-        <h1 style='color:#FFD700; font-size:38px; margin:8px 0;'>📊 Tricks Excel File Splitter & Dashboard</h1>
-        <div style='color:white; font-size:16px;'>✂ Split, Merge, Image-to-PDF & Auto Dashboard Generator</div>
-    </div>
-""", unsafe_allow_html=True)
+# Keep a counter to allow clearing uploaders
+if 'clear_counter' not in st.session_state:
+    st.session_state.clear_counter = 0
 
-# ------------------ Section: Split & Merge ------------------
-st.markdown('<a name="split"></a>', unsafe_allow_html=True)
-st.markdown("<h2 style='color:#FFD700;'>✂ Split Excel/CSV File</h2>", unsafe_allow_html=True)
+# ===================== Section: Split =====================
+st.markdown("---")
+st.markdown("### ✂️ Split Excel/CSV File")
+
 uploaded_file = st.file_uploader(
-    "📂 Upload Excel or CSV File (Splitter/Merge)",
+    "📂 ارفع ملف Excel أو CSV (للتقسيم)",
     type=["xlsx", "csv"],
     accept_multiple_files=False,
-    key=f"split_uploader_{st.session_state.clear_counter}"
+    key=f"split_uploader_{st.session_state.clear_counter}",
 )
+
 if uploaded_file:
     display_uploaded_files([uploaded_file], "Excel/CSV")
-    if st.button("🗑️ Clear All Split Files", key="clear_split"):
+    if st.button("🧹 مسح ملفات التقسيم", key="clear_split"):
         st.session_state.clear_counter += 1
         st.rerun()
+
     try:
-        file_ext = uploaded_file.name.split('.')[-1].lower()
+        file_ext = uploaded_file.name.split(".")[-1].lower()
         if file_ext == "csv":
             df = pd.read_csv(uploaded_file)
             sheet_names = ["Sheet1"]
             selected_sheet = "Sheet1"
-            st.success("✅ CSV file uploaded successfully.")
+            st.success("✅ تم رفع ملف CSV بنجاح")
         else:
             input_bytes = uploaded_file.getvalue()
             original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
             sheet_names = original_wb.sheetnames
-            st.success(f"✅ Excel file uploaded successfully. Number of sheets: {len(sheet_names)}")
-            selected_sheet = st.selectbox("Select Sheet (for Split)", sheet_names)
+            st.success(f"✅ تم رفع ملف Excel بنجاح — عدد الشيتات: {len(sheet_names)}")
+            selected_sheet = st.selectbox("اختر الشيت للتقسيم", sheet_names)
             df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
-        st.markdown(f"### 📊 Data View – {selected_sheet}")
+
+        st.markdown(f"#### 👀 معاينة البيانات — {selected_sheet}")
         st.dataframe(df, use_container_width=True)
-        st.markdown("### ✂ Select Column to Split")
-        col_to_split = st.selectbox(
-            "Split by Column",
-            df.columns,
-            help="Select the column to split by, such as 'Brick' or 'Area Manager'"
-        )
-        st.markdown("### ⚙️ Split Options")
+
+        col_to_split = st.selectbox("اختر العمود للتقسيم", df.columns)
+
         split_option = st.radio(
-            "Choose split method:",
+            "طريقة التقسيم:",
             ["Split by Column Values", "Split Each Sheet into Separate File"],
-            index=0
+            index=0,
         )
-        if st.button("🚀 Start Split"):
-            with st.spinner("Splitting process in progress..."):
-                if LOTTIE_SPLIT:
+
+        if st.button("🚀 ابدأ التقسيم"):
+            with st.spinner("جاري التقسيم..."):
+                if st_lottie and LOTTIE_SPLIT:
                     st_lottie(LOTTIE_SPLIT, height=140, key="lottie_split_main")
-                def clean_name(name):
+
+                def clean_name(name: str) -> str:
                     name = str(name).strip()
-                    invalid_chars = r'[\\/*?:\[\]|<>"]'
-                    cleaned = re.sub(invalid_chars, '_', name)
+                    invalid_chars = r'[\\/*?:\[\]\n<>"\']'
+                    cleaned = re.sub(invalid_chars, "_", name)
                     return cleaned[:30] if cleaned else "Sheet"
+
                 if file_ext == "csv":
                     unique_values = df[col_to_split].dropna().unique()
                     zip_buffer = BytesIO()
@@ -439,12 +164,12 @@ if uploaded_file:
                             file_name = f"{clean_name(value)}.csv"
                             zip_file.writestr(file_name, csv_buffer.read())
                     zip_buffer.seek(0)
-                    st.success("🎉 Splitting completed successfully!")
+                    st.success("🎉 تم التقسيم بنجاح!")
                     st.download_button(
-                        label="📥 Download Split Files (ZIP)",
+                        label="⬇️ تحميل الملفات (ZIP)",
                         data=zip_buffer.getvalue(),
                         file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                        mime="application/zip"
+                        mime="application/zip",
                     )
                 else:
                     if split_option == "Split by Column Values":
@@ -458,98 +183,82 @@ if uploaded_file:
                                 default_ws = new_wb.active
                                 new_wb.remove(default_ws)
                                 new_ws = new_wb.create_sheet(title=clean_name(value))
+
+                                # copy header row w/ simple styling
                                 for cell in ws[1]:
-                                    dst_cell = new_ws.cell(1, cell.column, cell.value)
+                                    dst = new_ws.cell(1, cell.column, cell.value)
                                     if cell.has_style:
                                         try:
                                             if cell.font:
-                                                dst_cell.font = Font(
-                                                    name=cell.font.name,
-                                                    size=cell.font.size,
-                                                    bold=cell.font.bold,
-                                                    italic=cell.font.italic,
-                                                    color=cell.font.color
-                                                )
+                                                dst.font = Font(name=cell.font.name, size=cell.font.size,
+                                                                bold=cell.font.bold, italic=cell.font.italic,
+                                                                color=cell.font.color)
                                             if cell.fill and cell.fill.fill_type:
-                                                dst_cell.fill = PatternFill(
-                                                    fill_type=cell.fill.fill_type,
-                                                    start_color=cell.fill.start_color,
-                                                    end_color=cell.fill.end_color
-                                                )
+                                                dst.fill = PatternFill(fill_type=cell.fill.fill_type,
+                                                                       start_color=cell.fill.start_color,
+                                                                       end_color=cell.fill.end_color)
                                             if cell.border:
-                                                dst_cell.border = Border(
-                                                    left=cell.border.left,
-                                                    right=cell.border.right,
-                                                    top=cell.border.top,
-                                                    bottom=cell.border.bottom
-                                                )
+                                                dst.border = Border(left=cell.border.left, right=cell.border.right,
+                                                                    top=cell.border.top, bottom=cell.border.bottom)
                                             if cell.alignment:
-                                                dst_cell.alignment = Alignment(
-                                                    horizontal=cell.alignment.horizontal,
-                                                    vertical=cell.alignment.vertical,
-                                                    wrap_text=cell.alignment.wrap_text
-                                                )
-                                            dst_cell.number_format = cell.number_format
+                                                dst.alignment = Alignment(horizontal=cell.alignment.horizontal,
+                                                                          vertical=cell.alignment.vertical,
+                                                                          wrap_text=cell.alignment.wrap_text)
+                                            dst.number_format = cell.number_format
                                         except Exception:
                                             pass
-                                row_idx = 2
+
+                                # copy matching rows
+                                row_out = 2
                                 for row in ws.iter_rows(min_row=2):
-                                    cell_in_col = row[col_idx - 1]
-                                    if cell_in_col.value == value:
-                                        for src_cell in row:
-                                            dst_cell = new_ws.cell(row_idx, src_cell.column, src_cell.value)
-                                            if src_cell.has_style:
+                                    if row[col_idx - 1].value == value:
+                                        for src in row:
+                                            dst = new_ws.cell(row_out, src.column, src.value)
+                                            if src.has_style:
                                                 try:
-                                                    if src_cell.font:
-                                                        dst_cell.font = Font(
-                                                            name=src_cell.font.name,
-                                                            size=src_cell.font.size,
-                                                            bold=src_cell.font.bold,
-                                                            italic=src_cell.font.italic,
-                                                            color=src_cell.font.color
-                                                        )
-                                                    if src_cell.fill and src_cell.fill.fill_type:
-                                                        dst_cell.fill = PatternFill(
-                                                            fill_type=src_cell.fill.fill_type,
-                                                            start_color=src_cell.fill.start_color,
-                                                            end_color=src_cell.fill.end_color
-                                                        )
-                                                    if src_cell.border:
-                                                        dst_cell.border = Border(
-                                                            left=src_cell.border.left,
-                                                            right=src_cell.border.right,
-                                                            top=src_cell.border.top,
-                                                            bottom=src_cell.border.bottom
-                                                        )
-                                                    if src_cell.alignment:
-                                                        dst_cell.alignment = Alignment(
-                                                            horizontal=src_cell.alignment.horizontal,
-                                                            vertical=src_cell.alignment.vertical,
-                                                            wrap_text=src_cell.alignment.wrap_text
-                                                        )
-                                                    dst_cell.number_format = src_cell.number_format
+                                                    if src.font:
+                                                        dst.font = Font(name=src.font.name, size=src.font.size,
+                                                                        bold=src.font.bold, italic=src.font.italic,
+                                                                        color=src.font.color)
+                                                    if src.fill and src.fill.fill_type:
+                                                        dst.fill = PatternFill(fill_type=src.fill.fill_type,
+                                                                               start_color=src.fill.start_color,
+                                                                               end_color=src.fill.end_color)
+                                                    if src.border:
+                                                        dst.border = Border(left=src.border.left, right=src.border.right,
+                                                                            top=src.border.top, bottom=src.border.bottom)
+                                                    if src.alignment:
+                                                        dst.alignment = Alignment(horizontal=src.alignment.horizontal,
+                                                                                  vertical=src.alignment.vertical,
+                                                                                  wrap_text=src.alignment.wrap_text)
+                                                    dst.number_format = src.number_format
                                                 except Exception:
                                                     pass
-                                        row_idx += 1
+                                        row_out += 1
+
+                                # copy column widths
                                 try:
                                     for col_letter in ws.column_dimensions:
-                                        new_ws.column_dimensions[col_letter].width = ws.column_dimensions[col_letter].width
+                                        width = ws.column_dimensions[col_letter].width
+                                        if width:
+                                            new_ws.column_dimensions[col_letter].width = width
                                 except Exception:
                                     pass
+
                                 file_buffer = BytesIO()
                                 new_wb.save(file_buffer)
                                 file_buffer.seek(0)
                                 file_name = f"{clean_name(value)}.xlsx"
                                 zip_file.writestr(file_name, file_buffer.read())
                         zip_buffer.seek(0)
-                        st.success("🎉 Splitting completed successfully!")
+                        st.success("🎉 تم التقسيم بنجاح!")
                         st.download_button(
-                            label="📥 Download Split Files (ZIP)",
+                            label="⬇️ تحميل الملفات (ZIP)",
                             data=zip_buffer.getvalue(),
                             file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                            mime="application/zip"
+                            mime="application/zip",
                         )
-                    elif split_option == "Split Each Sheet into Separate File":
+                    else:  # Split Each Sheet into Separate File
                         zip_buffer = BytesIO()
                         with ZipFile(zip_buffer, "w") as zip_file:
                             for sheet_name in original_wb.sheetnames:
@@ -560,90 +269,72 @@ if uploaded_file:
                                 src_ws = original_wb[sheet_name]
                                 for row in src_ws.iter_rows():
                                     for src_cell in row:
-                                        dst_cell = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
+                                        dst = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
                                         if src_cell.has_style:
                                             try:
                                                 if src_cell.font:
-                                                    dst_cell.font = Font(
-                                                        name=src_cell.font.name,
-                                                        size=src_cell.font.size,
-                                                        bold=src_cell.font.bold,
-                                                        italic=src_cell.font.italic,
-                                                        color=src_cell.font.color
-                                                    )
+                                                    dst.font = Font(name=src_cell.font.name, size=src_cell.font.size,
+                                                                    bold=src_cell.font.bold, italic=src_cell.font.italic,
+                                                                    color=src_cell.font.color)
                                                 if src_cell.fill and src_cell.fill.fill_type:
-                                                    dst_cell.fill = PatternFill(
-                                                        fill_type=src_cell.fill.fill_type,
-                                                        start_color=src_cell.fill.start_color,
-                                                        end_color=src_cell.fill.end_color
-                                                    )
+                                                    dst.fill = PatternFill(fill_type=src_cell.fill.fill_type,
+                                                                           start_color=src_cell.fill.start_color,
+                                                                           end_color=src_cell.fill.end_color)
                                                 if src_cell.border:
-                                                    dst_cell.border = Border(
-                                                        left=src_cell.border.left,
-                                                        right=src_cell.border.right,
-                                                        top=src_cell.border.top,
-                                                        bottom=src_cell.border.bottom
-                                                    )
+                                                    dst.border = Border(left=src_cell.border.left, right=src_cell.border.right,
+                                                                        top=src_cell.border.top, bottom=src_cell.border.bottom)
                                                 if src_cell.alignment:
-                                                    dst_cell.alignment = Alignment(
-                                                        horizontal=src_cell.alignment.horizontal,
-                                                        vertical=src_cell.alignment.vertical,
-                                                        wrap_text=src_cell.alignment.wrap_text,
-                                                        indent=src_cell.alignment.indent
-                                                    )
-                                                dst_cell.number_format = src_cell.number_format
+                                                    dst.alignment = Alignment(horizontal=src_cell.alignment.horizontal,
+                                                                              vertical=src_cell.alignment.vertical,
+                                                                              wrap_text=src_cell.alignment.wrap_text)
+                                                dst.number_format = src_cell.number_format
                                             except Exception:
                                                 pass
-                                if src_ws.merged_cells.ranges:
-                                    for merged_range in src_ws.merged_cells.ranges:
-                                        new_ws.merge_cells(str(merged_range))
-                                        top_left_cell = src_ws.cell(merged_range.min_row, merged_range.min_col)
-                                        merged_value = top_left_cell.value
-                                        new_ws.cell(merged_range.min_row, merged_range.min_col, merged_value)
                                 try:
                                     for col_letter in src_ws.column_dimensions:
                                         if src_ws.column_dimensions[col_letter].width:
                                             new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                                    for row_idx in src_ws.row_dimensions:
-                                        if src_ws.row_dimensions[row_idx].height:
-                                            new_ws.row_dimensions[row_idx].height = src_ws.row_dimensions[row_idx].height
                                 except Exception:
                                     pass
                                 file_buffer = BytesIO()
                                 new_wb.save(file_buffer)
                                 file_buffer.seek(0)
-                                file_name = f"{clean_name(sheet_name)}.xlsx"
+                                file_name = f"{_safe_name(sheet_name)}.xlsx"
                                 zip_file.writestr(file_name, file_buffer.read())
                         zip_buffer.seek(0)
-                        st.success("🎉 Splitting completed successfully!")
+                        st.success("🎉 تم التقسيم بنجاح!")
                         st.download_button(
-                            label="📥 Download Split Files (ZIP)",
+                            label="⬇️ تحميل الملفات (ZIP)",
                             data=zip_buffer.getvalue(),
                             file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
-                            mime="application/zip"
+                            mime="application/zip",
                         )
     except Exception as e:
-        st.error(f"❌ Error processing file: {e}")
+        st.error(f"❌ حدث خطأ أثناء التقسيم: {e}")
 else:
-    st.info("📤 Please upload an Excel or CSV file to start splitting.")
-st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
+    st.info("⬆️ ارفع ملفًا للبدء في التقسيم")
 
-# ------------------ Section: Merge ------------------
-st.markdown("<h2 style='color:#FFD700;'>🔄 Merge Excel/CSV Files</h2>", unsafe_allow_html=True)
+
+# ===================== Section: Merge =====================
+st.markdown("---")
+st.markdown("### 🔁 Merge Excel/CSV Files")
+
 merge_files = st.file_uploader(
-    "📤 Upload Excel or CSV Files to Merge",
+    "📂 ارفع ملفات Excel/CSV للدمج",
     type=["xlsx", "csv"],
     accept_multiple_files=True,
-    key=f"merge_uploader_{st.session_state.clear_counter}"
+    key=f"merge_uploader_{st.session_state.clear_counter}",
 )
+
 if merge_files:
     display_uploaded_files(merge_files, "Excel/CSV")
-    if st.button("🗑️ Clear All Merged Files", key="clear_merge"):
+    if st.button("🧹 مسح ملفات الدمج", key="clear_merge"):
         st.session_state.clear_counter += 1
         st.rerun()
-    if st.button("✨ Merge Files"):
-        with st.spinner("Merging files..."):
-            if LOTTIE_MERGE:
+
+    if st.button("✨ دمج الملفات"):
+        with st.spinner("جاري الدمج..."):
+            if st_lottie and LOTTIE_MERGE:
                 st_lottie(LOTTIE_MERGE, height=140, key="lottie_merge_main")
             try:
                 all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
@@ -657,691 +348,305 @@ if merge_files:
                         src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                         src_ws = src_wb.active
                         if idx == 0:
+                            # header
                             for row in src_ws.iter_rows(min_row=1, max_row=1):
                                 for cell in row:
-                                    dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
+                                    dst = merged_ws.cell(current_row, cell.column, cell.value)
                                     if cell.has_style:
                                         try:
                                             if cell.font:
-                                                dst_cell.font = Font(
-                                                    name=cell.font.name,
-                                                    size=cell.font.size,
-                                                    bold=cell.font.bold,
-                                                    italic=cell.font.italic,
-                                                    color=cell.font.color
-                                                )
+                                                dst.font = Font(name=cell.font.name, size=cell.font.size,
+                                                                bold=cell.font.bold, italic=cell.font.italic,
+                                                                color=cell.font.color)
                                             if cell.fill and cell.fill.fill_type:
-                                                dst_cell.fill = PatternFill(
-                                                    fill_type=cell.fill.fill_type,
-                                                    start_color=cell.fill.start_color,
-                                                    end_color=cell.fill.end_color
-                                                )
+                                                dst.fill = PatternFill(fill_type=cell.fill.fill_type,
+                                                                       start_color=cell.fill.start_color,
+                                                                       end_color=cell.fill.end_color)
                                             if cell.border:
-                                                dst_cell.border = Border(
-                                                    left=cell.border.left,
-                                                    right=cell.border.right,
-                                                    top=cell.border.top,
-                                                    bottom=cell.border.bottom
-                                                )
+                                                dst.border = Border(left=cell.border.left, right=cell.border.right,
+                                                                    top=cell.border.top, bottom=cell.border.bottom)
                                             if cell.alignment:
-                                                dst_cell.alignment = Alignment(
-                                                    horizontal=cell.alignment.horizontal,
-                                                    vertical=cell.alignment.vertical,
-                                                    wrap_text=cell.alignment.wrap_text,
-                                                    indent=cell.alignment.indent
-                                                )
-                                            dst_cell.number_format = cell.number_format
+                                                dst.alignment = Alignment(horizontal=cell.alignment.horizontal,
+                                                                          vertical=cell.alignment.vertical,
+                                                                          wrap_text=cell.alignment.wrap_text)
+                                            dst.number_format = cell.number_format
                                         except Exception:
                                             pass
                             current_row += 1
                         for row in src_ws.iter_rows(min_row=2):
                             for cell in row:
-                                dst_cell = merged_ws.cell(current_row, cell.column, cell.value)
+                                dst = merged_ws.cell(current_row, cell.column, cell.value)
                                 if cell.has_style:
                                     try:
                                         if cell.font:
-                                            dst_cell.font = Font(
-                                                name=cell.font.name,
-                                                size=cell.font.size,
-                                                bold=cell.font.bold,
-                                                italic=cell.font.italic,
-                                                color=cell.font.color
-                                            )
+                                            dst.font = Font(name=cell.font.name, size=cell.font.size,
+                                                            bold=cell.font.bold, italic=cell.font.italic,
+                                                            color=cell.font.color)
                                         if cell.fill and cell.fill.fill_type:
-                                            dst_cell.fill = PatternFill(
-                                                fill_type=cell.fill.fill_type,
-                                                start_color=cell.fill.start_color,
-                                                end_color=cell.fill.end_color
-                                            )
+                                            dst.fill = PatternFill(fill_type=cell.fill.fill_type,
+                                                                   start_color=cell.fill.start_color,
+                                                                   end_color=cell.fill.end_color)
                                         if cell.border:
-                                            dst_cell.border = Border(
-                                                left=cell.border.left,
-                                                right=cell.border.right,
-                                                top=cell.border.top,
-                                                bottom=cell.border.bottom
-                                            )
+                                            dst.border = Border(left=cell.border.left, right=cell.border.right,
+                                                                top=cell.border.top, bottom=cell.border.bottom)
                                         if cell.alignment:
-                                            dst_cell.alignment = Alignment(
-                                                horizontal=cell.alignment.horizontal,
-                                                vertical=cell.alignment.vertical,
-                                                wrap_text=cell.alignment.wrap_text,
-                                                indent=cell.alignment.indent
-                                            )
-                                        dst_cell.number_format = cell.number_format
+                                            dst.alignment = Alignment(horizontal=cell.alignment.horizontal,
+                                                                      vertical=cell.alignment.vertical,
+                                                                      wrap_text=cell.alignment.wrap_text)
+                                        dst.number_format = cell.number_format
                                     except Exception:
                                         pass
                             current_row += 1
+
+                        # carry over column widths from latest file
                         try:
                             for col_letter in src_ws.column_dimensions:
-                                if src_ws.column_dimensions[col_letter].width:
-                                    merged_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
+                                width = src_ws.column_dimensions[col_letter].width
+                                if width:
+                                    merged_ws.column_dimensions[col_letter].width = width
                         except Exception:
                             pass
-                        if src_ws.merged_cells.ranges:
-                            for merged_range in src_ws.merged_cells.ranges:
-                                min_col = merged_range.min_col
-                                max_col = merged_range.max_col
-                                min_row_src = merged_range.min_row
-                                max_row_src = merged_range.max_row
-                                offset = current_row - len(list(src_ws.iter_rows(min_row=2))) - 1
-                                new_min_row = min_row_src + offset
-                                new_max_row = max_row_src + offset
-                                new_range = f"{merged_range.min_col_letter}{new_min_row}:{merged_range.max_col_letter}{new_max_row}"
-                                merged_ws.merge_cells(new_range)
-                                top_left = src_ws.cell(min_row_src, min_col)
-                                merged_ws.cell(new_min_row, min_col).value = top_left.value
+
                     output_buffer = BytesIO()
                     merged_wb.save(output_buffer)
                     output_buffer.seek(0)
-                    st.success("✅ Merged successfully with original formatting preserved!")
+                    st.success("✅ تم الدمج مع المحافظة على التنسيقات")
                     st.download_button(
-                        label="📥 Download Merged File (Formatted)",
+                        label="⬇️ تحميل الملف المدمج (Excel)",
                         data=output_buffer.getvalue(),
                         file_name="Merged_Consolidated_Formatted.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
                 else:
+                    # Mixed or CSV — merge with pandas (formatting not preserved)
                     all_dfs = []
                     for file in merge_files:
-                        ext = file.name.split('.')[-1].lower()
-                        if ext == "csv":
-                            df = pd.read_csv(file)
-                        else:
-                            df = pd.read_excel(file)
+                        ext = file.name.split(".")[-1].lower()
+                        df = pd.read_csv(file) if ext == "csv" else pd.read_excel(file)
                         all_dfs.append(df)
                     merged_df = pd.concat(all_dfs, ignore_index=True)
                     output_buffer = BytesIO()
                     merged_df.to_excel(output_buffer, index=False, engine='openpyxl')
                     output_buffer.seek(0)
-                    st.success("✅ Merged successfully (formatting not preserved for CSV/mixed files).")
+                    st.success("✅ تم الدمج (قد لا تُحفظ التنسيقات لملفات CSV/مختلطة)")
                     st.download_button(
-                        label="📥 Download Merged File (Excel)",
+                        label="⬇️ تحميل الملف المدمج (Excel)",
                         data=output_buffer.getvalue(),
                         file_name="Merged_Consolidated.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
             except Exception as e:
-                st.error(f"❌ Error during merge: {e}")
+                st.error(f"❌ خطأ أثناء الدمج: {e}")
+else:
+    st.info("⬆️ ارفع ملفات للدمج")
 
-# ------------------ Section: Image to PDF ------------------
-st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-st.markdown('<a name="imagetopdf"></a>', unsafe_allow_html=True)
-st.markdown("<h2 style='color:#FFD700;'>📷 Convert Images to PDF</h2>", unsafe_allow_html=True)
+
+# ===================== Section: Excel Processor (from Edit 1) =====================
+st.markdown("---")
+st.markdown("### 🧰 معالج Excel (إعادة تسمية/حذف/ترتيب أعمدة)")
+
+proc_file = st.file_uploader(
+    "📂 ارفع ملف Excel للمعالجة (xlsx/xlsm)",
+    type=["xlsx", "xlsm"],
+    accept_multiple_files=False,
+    key=f"processor_uploader_{st.session_state.clear_counter}",
+)
+
+# Settings replicated from Edit 1
+COLUMNS_TO_DELETE = [
+    "Status","Status Date","Assigned To","Employees Count","Attendees Count",
+    "Not Listed Invitees Count","Cost Per Person","Governorate","Accomodation Type",
+    "CSR Enabled","Early Bird Due Date","Reservation Type","Meal Type","Meal Title",
+    "Delivery Type","Start Date","End Date","Budget Date","Delivery Date","Invoice Date",
+    "Actual Cost","Deduct","Net Amount","Other Professionals","Customers","Reps",
+    "Items\\Brands","Created At","Request Professional Classifications",
+    "Request Professional Ids","Segments","Accounts","Account Professionals","Category",
+    "Type","Request Serial Number","Shared","Updated","L5 Emp Name",
+    "Sponsored Company Name","Item Type","Item Brand","Promotional Code","Venue",
+    "Restaurant","Business Type","Highlighted","Link Details",
+]
+
+COLUMN_RENAME_MAP = {
+    "L1 Emp Name": "MR",
+    "L2 Emp Name": "DM",
+    "L3 Emp Name": "AM",
+}
+
+FINAL_COLUMN_ORDER = [
+    "Tracking Number","MR","DM","AM","bum","Line","Activity","Description",
+    "Account Number","Vendor","Bank","Cost","Bricks","Professionl Accounts",
+    "Request Professionals","Specialities","Request Date",
+]
+
+if proc_file:
+    st.write("**الملف:**", proc_file.name)
+    if st.button("⚙️ تنفيذ المعالجة"):
+        try:
+            wb = load_workbook(proc_file, data_only=False)
+            ws = wb.active
+
+            # Read headers
+            header_row = 1
+            headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)]
+            header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
+
+            # Rename
+            st.write("🔤 جاري إعادة تسمية الأعمدة...")
+            for old_name, new_name in COLUMN_RENAME_MAP.items():
+                if old_name in header_to_idx:
+                    cidx = header_to_idx[old_name]
+                    ws.cell(header_row, cidx).value = new_name
+                    headers[cidx-1] = new_name
+                    header_to_idx[new_name] = cidx
+                    del header_to_idx[old_name]
+                    st.write(f"✔️ تم تغيير `{old_name}` → `{new_name}`")
+
+            # Delete unwanted columns
+            st.write("🧽 جاري حذف الأعمدة غير المطلوبة...")
+            # Delete from right to left to keep indices stable
+            to_delete_indices = [header_to_idx[c] for c in COLUMNS_TO_DELETE if c in header_to_idx]
+            to_delete_indices.sort(reverse=True)
+            for cidx in to_delete_indices:
+                ws.delete_cols(cidx)
+            st.write(f"🗑️ تم حذف {len(to_delete_indices)} عمودًا")
+
+            # Rebuild headers & mapping
+            headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)]
+            header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
+
+            # Reorder into a new workbook (preserving simple style)
+            st.write("📐 جاري إعادة ترتيب الأعمدة...")
+            col_mapping = []
+            for name in FINAL_COLUMN_ORDER:
+                if name in header_to_idx:
+                    col_mapping.append(header_to_idx[name])
+                    st.write(f"➕ تضمين `{name}`")
+                else:
+                    col_mapping.append(None)
+                    st.warning(f"⚠️ العمود `{name}` غير موجود")
+
+            new_wb = Workbook()
+            new_ws = new_wb.active
+
+            for row_idx in range(1, ws.max_row + 1):
+                for new_col_idx, old_col_idx in enumerate(col_mapping, start=1):
+                    if old_col_idx is None:
+                        continue
+                    old_cell = ws.cell(row_idx, old_col_idx)
+                    new_cell = new_ws.cell(row_idx, new_col_idx)
+                    new_cell.value = old_cell.value
+                    if old_cell.has_style:
+                        try:
+                            if old_cell.font:
+                                new_cell.font = Font(name=old_cell.font.name, size=old_cell.font.size,
+                                                     bold=old_cell.font.bold, italic=old_cell.font.italic,
+                                                     color=old_cell.font.color)
+                            if old_cell.fill and old_cell.fill.fill_type:
+                                new_cell.fill = PatternFill(fill_type=old_cell.fill.fill_type,
+                                                            start_color=old_cell.fill.start_color,
+                                                            end_color=old_cell.fill.end_color)
+                            if old_cell.border:
+                                new_cell.border = old_cell.border
+                            if old_cell.alignment:
+                                new_cell.alignment = Alignment(horizontal=old_cell.alignment.horizontal,
+                                                               vertical=old_cell.alignment.vertical,
+                                                               wrap_text=old_cell.alignment.wrap_text)
+                            new_cell.number_format = old_cell.number_format
+                        except Exception:
+                            pass
+
+            # Set uniform column widths
+            for c in range(1, len(FINAL_COLUMN_ORDER) + 1):
+                new_ws.column_dimensions[get_column_letter(c)].width = 15
+
+            out_buf = BytesIO()
+            new_wb.save(out_buf)
+            out_buf.seek(0)
+            st.success("✅ تم إتمام المعالجة بنجاح")
+            base = os.path.splitext(proc_file.name)[0]
+            st.download_button(
+                label="⬇️ تحميل الملف المعالج",
+                data=out_buf.getvalue(),
+                file_name=f"{_safe_name(base)}_processed.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        except Exception as e:
+            st.error(f"❌ خطأ أثناء المعالجة: {e}")
+else:
+    st.info("⬆️ ارفع ملف Excel لبدء المعالجة")
+
+
+# ===================== Section: Images → PDF =====================
+st.markdown("---")
+st.markdown("### 🖼️ تحويل الصور إلى PDF (جودة أصلية)")
+
 uploaded_images = st.file_uploader(
-    "📤 Upload JPG/JPEG/PNG Images to Convert to PDF",
+    "📂 ارفع صور JPG/PNG للتحويل إلى PDF (يمكن تحديد عدة صور)",
     type=["jpg", "jpeg", "png"],
     accept_multiple_files=True,
-    key=f"image_uploader_{st.session_state.clear_counter}"
+    key=f"image_uploader_{st.session_state.clear_counter}",
 )
+
 if uploaded_images:
     display_uploaded_files(uploaded_images, "Image")
-    if st.button("🗑️ Clear All Images", key="clear_images"):
+    if st.button("🧹 مسح الصور", key="clear_images"):
         st.session_state.clear_counter += 1
         st.rerun()
-    try:
-        import cv2
-        import numpy as np
-        def enhance_image_for_pdf(image_pil):
-            image = np.array(image_pil)
-            if image.shape[2] == 4:
-                image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-            enhanced = clahe.apply(gray)
-            border_size = 20
-            bordered = cv2.copyMakeBorder(
-                enhanced,
-                top=border_size,
-                bottom=border_size,
-                left=border_size,
-                right=border_size,
-                borderType=cv2.BORDER_CONSTANT,
-                value=[255, 255, 255]
-            )
-            if bordered.dtype != np.uint8:
-                bordered = np.clip(bordered, 0, 255).astype(np.uint8)
-            result = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
-            return Image.fromarray(result)
-        if st.button("🖨️ Create PDF (CamScanner Style)"):
-            with st.spinner("Enhancing images for PDF..."):
-                if LOTTIE_IMAGE:
-                    st_lottie(LOTTIE_IMAGE, height=140, key="lottie_image_enhance")
-                try:
-                    first_image = Image.open(uploaded_images[0])
-                    first_image_enhanced = enhance_image_for_pdf(first_image)
-                    other_images = []
-                    for img_file in uploaded_images[1:]:
-                        img = Image.open(img_file)
-                        enhanced_img = enhance_image_for_pdf(img)
-                        other_images.append(enhanced_img.convert("RGB"))
-                    pdf_buffer = BytesIO()
-                    first_image_enhanced.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
-                    pdf_buffer.seek(0)
-                    st.success("✅ Enhanced PDF created successfully!")
-                    st.download_button(
-                        label="📥 Download Enhanced PDF",
-                        data=pdf_buffer.getvalue(),
-                        file_name="Enhanced_Images_CamScanner.pdf",
-                        mime="application/pdf"
-                    )
-                except Exception as e:
-                    st.error(f"❌ Error creating enhanced PDF: {e}")
-    except ImportError:
-        st.warning("⚠️ CamScanner effect requires 'opencv-python'. Install it to enable this feature.")
-    if st.button("🖨️ Create PDF (Original Quality)"):
-        with st.spinner("Converting images to PDF..."):
+
+    if st.button("🖨️ إنشاء PDF (جودة أصلية)"):
+        with st.spinner("جاري إنشاء ملف PDF..."):
             try:
-                first_image = Image.open(uploaded_images[0]).convert("RGB")
-                other_images = [Image.open(x).convert("RGB") for x in uploaded_images[1:]]
+                first = Image.open(uploaded_images[0]).convert("RGB")
+                others = [Image.open(x).convert("RGB") for x in uploaded_images[1:]]
                 pdf_buffer = BytesIO()
-                first_image.save(pdf_buffer, format="PDF", save_all=True, append_images=other_images)
+                first.save(pdf_buffer, format="PDF", save_all=True, append_images=others)
                 pdf_buffer.seek(0)
-                st.success("✅ PDF created successfully!")
+                st.success("✅ تم إنشاء ملف PDF بنجاح")
                 st.download_button(
-                    label="📥 Download Original PDF",
+                    label="⬇️ تحميل ملف PDF",
                     data=pdf_buffer.getvalue(),
                     file_name="Images_Combined.pdf",
-                    mime="application/pdf"
+                    mime="application/pdf",
                 )
             except Exception as e:
-                st.error(f"❌ Error creating PDF: {e}")
+                st.error(f"❌ خطأ أثناء إنشاء PDF: {e}")
 else:
-    st.info("📤 Please upload one or more JPG/JPEG/PNG images to convert them into a single PDF file.")
+    st.info("⬆️ ارفع صورًا للتحويل إلى PDF")
 
-# ------------------ Section: Dashboard ------------------
-st.markdown("<hr class='divider-dashed'>", unsafe_allow_html=True)
-st.markdown('<a name="dashboard"></a>', unsafe_allow_html=True)
-st.markdown("<h2 style='color:#FFD700;'>📊 Interactive Auto Dashboard Generator</h2>", unsafe_allow_html=True)
-dashboard_file = st.file_uploader(
-    "📊 Upload Excel or CSV File for Dashboard (Auto)",
-    type=["xlsx", "csv"],
-    key=f"dashboard_uploader_{st.session_state.clear_counter}"
-)
-if dashboard_file:
-    display_uploaded_files([dashboard_file], "Excel/CSV")
-    if st.button("🗑️ Clear Dashboard File", key="clear_dashboard"):
-        st.session_state.clear_counter += 1
-        st.rerun()
+# ---- Optional: Folder path → PDF (Edit 2 logic) ----
+st.markdown("#### 🗂️ تحويل مجلد صور محلي إلى PDF (اختياري)")
+folder_path = st.text_input("📁 مسار المجلد (على جهازك المحلي)", value="")
+if st.button("🖨️ إنشاء PDF من مجلد محلي"):
     try:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        def update_progress(pct, msg=""):
-            progress_bar.progress(pct)
-            status_text.text(f"🔄 {msg}... {pct}%")
-        update_progress(10, "Loading file")
-        file_ext = dashboard_file.name.split('.')[-1].lower()
-        if file_ext == "csv":
-            df0 = pd.read_csv(dashboard_file)
-            sheet_title = "CSV Data"
+        if not folder_path or not os.path.exists(folder_path):
+            st.error("المسار غير صحيح أو غير موجود")
         else:
-            df_dict = pd.read_excel(dashboard_file, sheet_name=None)
-            sheet_names = list(df_dict.keys())
-            selected_sheet_dash = st.selectbox("Select Sheet for Dashboard", sheet_names, key="sheet_dash")
-            df0 = df_dict[selected_sheet_dash].copy()
-            sheet_title = selected_sheet_dash
-        update_progress(30, "Analyzing data")
-        st.markdown("### 🔍 Data Preview (original)")
-        st.dataframe(df0.head(), use_container_width=True)
-
-        # === Smart Analytics Button ===
-        if st.button("🧠 Smart Analytics"):
-            analysis_report = []
-            figs_to_show = []
-
-            # Find representative column
-            rep_col = _find_col(df0, ["rep", "representative", "salesman", "employee", "name", "mr", "agent"])
-            measure_col = None
-            numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-            if numeric_cols:
-                measure_col = numeric_cols[0]  # fallback to first numeric
-
-            # Try to find best measure column (sales-like)
-            for col in numeric_cols:
-                if any(kw in col.lower() for kw in ["sale", "revenue", "amount", "value", "total"]):
-                    measure_col = col
-                    break
-
-            # === Top/Bottom Performer ===
-            if rep_col and measure_col and rep_col in df0.columns and measure_col in df0.columns:
-                df0_clean = df0.dropna(subset=[rep_col, measure_col])
-                if not df0_clean.empty:
-                    sales_by_rep = df0_clean.groupby(rep_col)[measure_col].sum().sort_values(ascending=False)
-                    if not sales_by_rep.empty:
-                        top_rep = sales_by_rep.index[0]
-                        top_val = sales_by_rep.iloc[0]
-                        bottom_rep = sales_by_rep.index[-1]
-                        bottom_val = sales_by_rep.iloc[-1]
-                        analysis_report.append(f"✅ **Top Performer**: {top_rep} with {top_val:,.0f} {measure_col}")
-                        analysis_report.append(f"⚠️ **Lowest Performer**: {bottom_rep} with {bottom_val:,.0f} {measure_col}")
-
-                        # Top/Bottom Chart
-                        top_bottom_df = pd.DataFrame({
-                            'Employee': [top_rep, bottom_rep],
-                            'Sales': [top_val, bottom_val]
-                        })
-                        fig_tb = px.bar(top_bottom_df, x='Employee', y='Sales', title="Top vs Bottom Performer",
-                                        color='Employee', color_discrete_sequence=['#28a745', '#dc3545'])
-                        figs_to_show.append(fig_tb)
-                    else:
-                        analysis_report.append("⚠️ Could not calculate top/bottom performers (insufficient data).")
-                else:
-                    analysis_report.append("⚠️ Missing data in representative or measure column.")
+            image_files = [f for f in os.listdir(folder_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+            if not image_files:
+                st.warning("لا توجد صور في هذا المجلد")
             else:
-                analysis_report.append("ℹ️ Representative or sales column not detected. Skipping performer analysis.")
-
-            # === Category Analysis (Area, Product, etc.) ===
-            cat_col = None
-            for alias in ["area", "region", "product", "item", "branch", "category"]:
-                col = _find_col(df0, [alias])
-                if col and measure_col and col in df0.columns and measure_col in df0.columns:
-                    cat_col = col
-                    break
-            if cat_col:
-                cat_sales = df0.groupby(cat_col)[measure_col].sum().sort_values(ascending=False)
-                if len(cat_sales) >= 2:
-                    top_cat = cat_sales.index[0]
-                    top_cat_val = cat_sales.iloc[0]
-                    bottom_cat = cat_sales.index[-1]
-                    bottom_cat_val = cat_sales.iloc[-1]
-                    analysis_report.append(f"🏆 **Top Category ({cat_col})**: {top_cat} ({top_cat_val:,.0f})")
-                    analysis_report.append(f"🔻 **Lowest Category ({cat_col})**: {bottom_cat} ({bottom_cat_val:,.0f})")
-
-                    # Category Chart
-                    cat_df = cat_sales.head(5).reset_index()
-                    fig_cat = px.bar(cat_df, x=cat_col, y=measure_col, title=f"Top 5 by {cat_col}")
-                    figs_to_show.append(fig_cat)
-
-            # === Period Growth (e.g., 2023 vs 2024) ===
-            period_comparison = None
-            numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-            base_names = {}
-            for col in numeric_cols:
-                match = re.search(r'(.+?)[_\s\-](\d{4}|Q[1-4])$', col.strip())
-                if match:
-                    base = match.group(1).strip()
-                    period = match.group(2)
-                    if base not in base_names:
-                        base_names[base] = []
-                    base_names[base].append((col, period))
-            for base, cols in base_names.items():
-                if len(cols) >= 2:
-                    cols_sorted = sorted(cols, key=lambda x: x[1])
-                    col1, p1 = cols_sorted[-2]
-                    col2, p2 = cols_sorted[-1]
-                    total1 = df0[col1].sum()
-                    total2 = df0[col2].sum()
-                    if total1 != 0:
-                        growth = ((total2 - total1) / total1) * 100
-                        analysis_report.append(f"📈 **Growth ({p1} → {p2})**: {growth:.1f}% (from {total1:,.0f} to {total2:,.0f})")
-                        # Smart Alert
-                        if growth < -10:
-                            st.warning(f"⚠️ Sales dropped by {abs(growth):.1f}% compared to last period!")
-                        elif growth > 20:
-                            st.success(f"✅ Strong growth: +{growth:.1f}% compared to last period!")
-                    else:
-                        analysis_report.append(f"ℹ️ **Growth ({p1} → {p2})**: Cannot calculate (base period is zero).")
-                    period_comparison = True
-                    break
-            if not period_comparison:
-                analysis_report.append("ℹ️ No yearly/quarterly columns detected for growth analysis.")
-
-            # === Monthly Trend & Forecast ===
-            month_names = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
-            month_cols = []
-            for col in df0.columns:
-                col_clean = col.strip().lower()
-                for m in month_names:
-                    if m in col_clean or col_clean == m:
-                        month_cols.append((col, m))
-                        break
-            if month_cols:
-                # Sort by month order
-                month_order = {m: i for i, m in enumerate(month_names)}
-                month_cols_sorted = sorted(month_cols, key=lambda x: month_order.get(x[1], 99))
-                cols_only = [c[0] for c in month_cols_sorted]
-                monthly_totals = df0[cols_only].sum()
-                months = [c[1].capitalize() for c in month_cols_sorted]
-
-                # Monthly chart
-                monthly_df = pd.DataFrame({'Month': months, 'Sales': monthly_totals.values})
-                fig_month = px.line(monthly_df, x='Month', y='Sales', title="Monthly Sales Trend", markers=True)
-                figs_to_show.append(fig_month)
-
-                # Monthly growth rate
-                if len(monthly_totals) > 1:
-                    growth_rates = []
-                    for i in range(1, len(monthly_totals)):
-                        prev = monthly_totals.iloc[i-1]
-                        curr = monthly_totals.iloc[i]
-                        if prev != 0:
-                            gr = ((curr - prev) / prev) * 100
-                            growth_rates.append(gr)
-                    if growth_rates:
-                        avg_growth = np.mean(growth_rates)
-                        analysis_report.append(f"📊 **Average Monthly Growth Rate**: {avg_growth:.1f}%")
-
-                # Forecast next 3 months using Linear Regression
-                if len(monthly_totals) >= 3:
-                    X = np.arange(len(monthly_totals)).reshape(-1, 1)
-                    y = monthly_totals.values
-                    model = LinearRegression().fit(X, y)
-                    next_3_x = np.arange(len(monthly_totals), len(monthly_totals)+3).reshape(-1, 1)
-                    next_3 = model.predict(next_3_x)
-                    forecast_str = ", ".join([f"{v:,.0f}" for v in next_3])
-                    analysis_report.append(f"🔮 **Forecast (Next 3 Months)**: {forecast_str}")
-
-                    # Add forecast to chart
-                    forecast_df = pd.DataFrame({
-                        'Month': months + [f"Forecast {i+1}" for i in range(3)],
-                        'Sales': list(monthly_totals.values) + list(next_3),
-                        'Type': ['Actual']*len(months) + ['Forecast']*3
-                    })
-                    fig_forecast = px.line(forecast_df, x='Month', y='Sales', color='Type',
-                                           title="Sales Forecast (Next 3 Months)",
-                                           color_discrete_map={'Actual': '#1f77b4', 'Forecast': '#ff7f0e'})
-                    figs_to_show.append(fig_forecast)
-                else:
-                    analysis_report.append("ℹ️ Not enough monthly data for forecasting.")
-            else:
-                analysis_report.append("ℹ️ No monthly columns detected for trend/forecast analysis.")
-
-            # Display report as READ-ONLY MARKDOWN (no editing)
-            full_report = "\n\n".join(analysis_report)
-            with st.expander("🧠 Smart Analytics Report (Click to Expand)", expanded=True):
-                st.markdown(full_report)  # ✅ No text_area — read-only
-                if figs_to_show:
-                    st.markdown("### 📈 Visual Insights")
-                    for fig in figs_to_show:
-                        st.plotly_chart(fig, use_container_width=True)
-
-        # === Rest of Dashboard Logic ===
-        numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-        period_cols = []
-        base_names = {}
-        for col in numeric_cols:
-            match = re.search(r'(.+?)[_\s\-](\d{4}|Q[1-4]|[A-Za-z]+_\d{4})$', col.strip())
-            if match:
-                base = match.group(1).strip()
-                period = match.group(2)
-                if base not in base_names:
-                    base_names[base] = []
-                base_names[base].append((col, period))
-        valid_periods = {}
-        for base, cols in base_names.items():
-            if len(cols) >= 2:
-                valid_periods[base] = sorted(cols, key=lambda x: x[1])
-        period_comparison = None
-        if valid_periods:
-            base_key = list(valid_periods.keys())[0]
-            cols_info = valid_periods[base_key]
-            col1, period1 = cols_info[-2]
-            col2, period2 = cols_info[-1]
-            df0['__abs_change__'] = df0[col2] - df0[col1]
-            df0['__pct_change__'] = df0['__abs_change__'] / df0[col1].replace(0, pd.NA)
-            period_comparison = {'col1': col1, 'col2': col2, 'period1': period1, 'period2': period2, 'base': base_key}
-            st.success(f"✅ Detected period comparison: {period1} vs {period2} for '{base_key}'")
-        update_progress(50, "Processing filters")
-        month_names = ["jan","feb","mar","apr","may","jun","jul","aug","sep","sept","oct","nov","dec"]
-        potential_months = [c for c in df0.columns if c.strip().lower() in month_names]
-        if potential_months:
-            id_vars = [c for c in df0.columns if c not in potential_months]
-            value_vars = potential_months
-            df_long = df0.melt(id_vars=id_vars, value_vars=value_vars, var_name="Month", value_name="Value")
-            df_long["Month"] = df_long["Month"].astype(str)
-            measure_col = "Value"
-        else:
-            numeric_cols = df0.select_dtypes(include='number').columns.tolist()
-            measure_col = numeric_cols[0] if numeric_cols else None
-            df_long = df0.copy()
-        numeric_cols_in_long = df_long.select_dtypes(include='number').columns.tolist()
-        if numeric_cols_in_long:
-            user_measure_col = st.selectbox(
-                "🎯 Select Sales/Value Column (for KPIs & Charts)",
-                numeric_cols_in_long,
-                index=numeric_cols_in_long.index(measure_col) if measure_col in numeric_cols_in_long else 0
-            )
-            kpi_measure_col = user_measure_col
-        else:
-            kpi_measure_col = measure_col
-        cat_cols = [c for c in df_long.columns if df_long[c].dtype == "object" or df_long[c].dtype.name.startswith("category")]
-        for c in df_long.columns:
-            if c not in cat_cols and df_long[c].nunique(dropna=True) <= 100 and df_long[c].dtype not in ["float64", "int64"]:
-                cat_cols.append(c)
-        cat_cols = [c for c in cat_cols if c is not None]
-        st.sidebar.header("🔍 Dynamic Filters")
-        primary_filter_col = None
-        if len(cat_cols) > 0:
-            primary_filter_col = st.sidebar.selectbox("Primary Filter Column", ["-- None --"] + cat_cols, index=0)
-            if primary_filter_col == "-- None --":
-                primary_filter_col = None
-        primary_values = None
-        if primary_filter_col:
-            vals = df_long[primary_filter_col].dropna().astype(str).unique().tolist()
-            try:
-                vals = sorted(vals)
-            except:
-                pass
-            primary_values = st.sidebar.multiselect(f"Filter values for {primary_filter_col}", vals, default=vals)
-        other_filter_cols = st.sidebar.multiselect("Additional filter columns", [c for c in cat_cols if c != primary_filter_col], default=[])
-        active_filters = {}
-        for fc in other_filter_cols:
-            opts = df_long[fc].dropna().astype(str).unique().tolist()
-            try:
-                opts = sorted(opts)
-            except:
-                pass
-            sel = st.sidebar.multiselect(f"Filter: {fc}", opts, default=opts)
-            active_filters[fc] = sel
-        filtered = df_long.copy()
-        if primary_filter_col and primary_values is not None and len(primary_values) > 0:
-            filtered = filtered[filtered[primary_filter_col].astype(str).isin(primary_values)]
-        for fc, sel in active_filters.items():
-            if sel is not None and len(sel) > 0:
-                filtered = filtered[filtered[fc].astype(str).isin(sel)]
-        update_progress(70, "Building KPIs")
-        rep_col = _find_col(filtered, ["rep", "representative", "salesman", "employee", "name", "mr"])
-        performance_group_col = None
-        filtered_with_group = filtered.copy()
-        if rep_col and kpi_measure_col and rep_col in filtered.columns and kpi_measure_col in filtered.columns:
-            sales_by_rep = filtered.groupby(rep_col)[kpi_measure_col].sum().sort_values(ascending=False)
-            total_reps = len(sales_by_rep)
-            if total_reps >= 5:
-                high_idx = int(0.2 * total_reps)
-                low_idx = int(0.8 * total_reps)
-                high_reps = set(sales_by_rep.index[:high_idx])
-                low_reps = set(sales_by_rep.index[low_idx:])
-                def assign_group(rep):
-                    if rep in high_reps:
-                        return "High Performer"
-                    elif rep in low_reps:
-                        return "Needs Support"
-                    else:
-                        return "Medium Performer"
-                filtered_with_group['Performance Group'] = filtered_with_group[rep_col].apply(assign_group)
-                performance_group_col = 'Performance Group'
-        final_df = filtered_with_group
-        found_dims = {}
-        for dim_key, aliases in {"area": ["area", "region"], "branch": ["branch", "location"], "rep": ["rep", "representative"]}.items():
-            col = _find_col(final_df, aliases)
-            if col:
-                found_dims[dim_key] = col
-        kpi_values = {}
-        if kpi_measure_col and kpi_measure_col in final_df.columns:
-            kpi_values['total'] = final_df[kpi_measure_col].sum()
-            date_cols = [c for c in final_df.columns if any(d in c.lower() for d in ["date", "month", "year", "day"])]
-            if date_cols:
-                unique_dates = final_df[date_cols[0]].nunique()
-                kpi_values['avg_per_date'] = kpi_values['total'] / unique_dates if unique_dates > 0 else None
-            else:
-                kpi_values['avg_per_date'] = None
-        else:
-            kpi_values['total'] = None
-            kpi_values['avg_per_date'] = None
-        for dim_key, col_name in found_dims.items():
-            kpi_values[f'unique_{dim_key}'] = final_df[col_name].nunique()
-        if period_comparison and '__pct_change__' in final_df.columns:
-            col1_sum = final_df[period_comparison['col1']].sum()
-            col2_sum = final_df[period_comparison['col2']].sum()
-            if col1_sum != 0:
-                growth_pct = ((col2_sum - col1_sum) / col1_sum) * 100
-            else:
-                growth_pct = 0
-            kpi_values['growth_pct'] = growth_pct
-            # Smart Alert for overall dashboard
-            if growth_pct < -10:
-                st.warning(f"⚠️ Overall sales dropped by {abs(growth_pct):.1f}% compared to last period!")
-            elif growth_pct > 20:
-                st.success(f"✅ Overall sales grew by {growth_pct:.1f}% — excellent performance!")
-        kpi_cards = []
-        if kpi_values.get('total') is not None:
-            kpi_cards.append({'title': f'Total {kpi_measure_col}', 'value': f"{kpi_values['total']:,.0f}", 'color': 'linear-gradient(135deg, #28a745, #85e085)', 'icon': '📈'})
-        if kpi_values.get('avg_per_date') is not None:
-            kpi_cards.append({'title': 'Monthly Avg', 'value': f"{kpi_values['avg_per_date']:,.0f}", 'color': 'linear-gradient(135deg, #17a2b8, #66d9b3)', 'icon': '📅'})
-        if kpi_values.get('growth_pct') is not None:
-            color = 'linear-gradient(135deg, #28a745, #85e085)' if kpi_values['growth_pct'] >= 0 else 'linear-gradient(135deg, #dc3545, #ff6b6b)'
-            kpi_cards.append({'title': 'Growth', 'value': f"{kpi_values['growth_pct']:.1f}%", 'color': color, 'icon': '↗️' if kpi_values['growth_pct'] >= 0 else '↘️'})
-        if kpi_values.get('unique_area') is not None:
-            kpi_cards.append({'title': 'Number of Areas', 'value': f"{kpi_values['unique_area']}", 'color': 'linear-gradient(135deg, #6f42c1, #a779e9)', 'icon': '🌍'})
-        if kpi_values.get('unique_rep') is not None:
-            kpi_cards.append({'title': 'Number of Reps', 'value': f"{kpi_values['unique_rep']}", 'color': 'linear-gradient(135deg, #ffc107, #ff8a00)', 'icon': '👥'})
-        if kpi_values.get('unique_branch') is not None:
-            kpi_cards.append({'title': 'Number of Branches', 'value': f"{kpi_values['unique_branch']}", 'color': 'linear-gradient(135deg, #20c997, #66d9b3)', 'icon': '🏢'})
-        if performance_group_col:
-            num_needs_support = len(final_df[final_df['Performance Group'] == 'Needs Support'][rep_col].unique())
-            kpi_cards.append({'title': 'Needs Support', 'value': f"{num_needs_support}", 'color': 'linear-gradient(135deg, #dc3545, #ff6b6b)', 'icon': '🆘'})
-        st.markdown("### 🚀 KPIs")
-        cols = st.columns(min(6, len(kpi_cards)))
-        for i, card in enumerate(kpi_cards[:6]):
-            with cols[i]:
-                st.markdown(f"""
-                <div class='kpi-card' style='background:{card['color']};'>
-                    <div class='kpi-title'>{card['icon']} {card['title']}</div>
-                    <div class='kpi-value'>{card['value']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-        update_progress(90, "Rendering charts")
-        charts_buffers = []
-        plotly_figs = []
-        if performance_group_col:
-            try:
-                group_total = final_df.groupby('Performance Group')[kpi_measure_col].sum().reset_index()
-                color_map = {'High Performer': '#28a745', 'Medium Performer': '#ffc107', 'Needs Support': '#dc3545'}
-                fig = px.bar(group_total, x='Performance Group', y=kpi_measure_col, title="📊 Performance Groups - Total Sales",
-                             color='Performance Group', color_discrete_map=color_map, text=kpi_measure_col)
-                fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                fig.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                plotly_figs.append((fig, "Performance Groups"))
-            except Exception as e:
-                st.warning(f"⚠️ Could not generate Performance Groups chart: {e}")
-        if rep_col and kpi_measure_col and rep_col in final_df.columns and kpi_measure_col in final_df.columns:
-            rep_data = final_df.groupby(rep_col)[kpi_measure_col].sum()
-            if len(rep_data) >= 10:
-                top10 = rep_data.sort_values(ascending=False).head(10)
-                df_top = top10.reset_index().rename(columns={kpi_measure_col: "value"})
-                df_top[rep_col] = df_top[rep_col].astype(str).str.strip()
-                fig_top = px.bar(df_top, x=rep_col, y="value", title="🥇 Top 10 Employees", text="value")
-                fig_top.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                fig_top.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                plotly_figs.append((fig_top, "Top 10 Employees"))
-                bottom10 = rep_data.sort_values(ascending=True).head(10)
-                df_bottom = bottom10.reset_index().rename(columns={kpi_measure_col: "value"})
-                df_bottom[rep_col] = df_bottom[rep_col].astype(str).str.strip()
-                fig_bottom = px.bar(df_bottom, x=rep_col, y="value", title="📉 Bottom 10 Employees", text="value")
-                fig_bottom.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                fig_bottom.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                plotly_figs.append((fig_bottom, "Bottom 10 Employees"))
-        possible_dims = [c for c in final_df.columns if c != kpi_measure_col and c not in date_cols and c != rep_col]
-        chosen_dim = None
-        for alias in ["area", "region", "branch", "product", "item"]:
-            col = _find_col(final_df, [alias])
-            if col:
-                chosen_dim = col
-                break
-        if not chosen_dim and possible_dims:
-            chosen_dim = min(possible_dims, key=lambda x: final_df[x].nunique(dropna=True))
-        if chosen_dim and kpi_measure_col and chosen_dim in final_df.columns:
-            try:
-                series = final_df.groupby(chosen_dim)[kpi_measure_col].sum().sort_values(ascending=False).head(10)
-                df_series = series.reset_index().rename(columns={kpi_measure_col: "value"})
-                df_series[chosen_dim] = df_series[chosen_dim].astype(str).str.strip()
-                fig_bar = px.bar(df_series, x=chosen_dim, y="value", title=f"Top by {chosen_dim}", text="value")
-                fig_bar.update_xaxes(type='category')
-                fig_bar.update_layout(margin=dict(t=40,b=20,l=10,r=10), template="plotly_white")
-                fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-                plotly_figs.append((fig_bar, f"Top by {chosen_dim}"))
-            except Exception as e:
-                st.warning(f"⚠️ Could not generate chart for {chosen_dim}: {e}")
-        st.markdown("#### Dashboard — Charts (3 columns × up to 2 rows)")
-        plotly_figs = plotly_figs[:6]
-        while len(plotly_figs) < 6:
-            plotly_figs.append((None, None))
-        for i in range(0, 6, 3):
-            cols = st.columns(3)
-            for j in range(3):
-                if i+j < len(plotly_figs):
-                    fig, caption = plotly_figs[i+j]
-                    with cols[j]:
-                        if fig is not None:
-                            st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-                            st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-                            st.markdown(f'<div style="text-align:center; color:#FFD700; font-size:14px; margin-top:4px;">{caption}</div>', unsafe_allow_html=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
-        update_progress(100, "Dashboard ready!")
-        st.success("🎉 Dashboard generated successfully!")
-        excel_buffer = BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            final_df.to_excel(writer, index=False, sheet_name='Filtered_Data')
-        excel_data = excel_buffer.getvalue()
-        st.download_button(
-            label="⬇️ Download Filtered Data (Excel)",
-            data=excel_data,
-            file_name=f"{_safe_name(sheet_title)}_Filtered.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        if st.button("📥 Generate Dashboard PDF (charts only)"):
-            with st.spinner("Generating Dashboard PDF..."):
-                if LOTTIE_PDF:
-                    st_lottie(LOTTIE_PDF, height=140, key="lottie_dashboard_pdf")
-                try:
-                    pdf_buffer = build_pdf(sheet_title, charts_buffers, include_table=False)
-                    st.success("✅ Dashboard PDF ready.")
-                    st.download_button(
-                        label="⬇️ Download Dashboard PDF",
-                        data=pdf_buffer.getvalue(),
-                        file_name=f"{_safe_name(sheet_title)}_Dashboard.pdf",
-                        mime="application/pdf"
-                    )
-                except Exception as e:
-                    st.error(f"❌ PDF generation failed: {e}")
-        progress_bar.empty()
-        status_text.empty()
+                # Sort to ensure consistent order
+                image_files.sort()
+                first_path = os.path.join(folder_path, image_files[0])
+                first_img = Image.open(first_path).convert("RGB")
+                others = []
+                for f in image_files[1:]:
+                    p = os.path.join(folder_path, f)
+                    img = Image.open(p).convert("RGB")
+                    others.append(img)
+                pdf_buffer = BytesIO()
+                first_img.save(pdf_buffer, format="PDF", save_all=True, append_images=others)
+                pdf_buffer.seek(0)
+                st.success("✅ تم إنشاء PDF من المجلد")
+                st.download_button(
+                    label="⬇️ تحميل PDF المجلد",
+                    data=pdf_buffer.getvalue(),
+                    file_name="Folder_Images.pdf",
+                    mime="application/pdf",
+                )
     except Exception as e:
-        st.error(f"❌ Error generating dashboard: {e}")
-        if 'progress_bar' in locals():
-            progress_bar.empty()
-            status_text.empty()
-else:
-    st.info("📤 Please upload an Excel or CSV file for dashboard generation.")
+        st.error(f"❌ خطأ: {e}")
 
-# ------------------ End of App ------------------
+
+st.markdown("---")
+st.markdown("#### 📞 تواصل: [WhatsApp](https://wa.me/01554694554)")
