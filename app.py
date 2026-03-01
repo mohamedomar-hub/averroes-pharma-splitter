@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Streamlit App — Polished UI per user request
-Changes vs previous revision:
-- Removed: "Folder Images → PDF (optional)" section completely
-- Added: custom modern UI theme (dark-friendly) via CSS
-- Tweaks: section cards, colored headers, buttons, containers
-- Kept: Split, Merge, Excel Processor, Images→PDF (original quality)
+Streamlit App — Light Theme Refresh
+- Default: Light, clean palette (blue/teal accents)
+- Optional: Dark mode toggle in sidebar
+- Kept: Split / Merge / Excel Processor / Images→PDF (original quality)
+- Removed: Folder Images → PDF
 """
 
 import streamlit as st
@@ -52,74 +51,103 @@ st.set_page_config(
 LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")
 LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")
 
-# ------------------ Custom CSS (polished UI) ------------------
+# =================== THEME TOGGLE (optional) ===================
+# Default Light; you can switch to Dark from sidebar.
+if 'ui_theme' not in st.session_state:
+    st.session_state.ui_theme = 'Light'
+
+with st.sidebar:
+    st.markdown("### 🎨 المظهر")
+    st.session_state.ui_theme = st.radio("اختر النمط", ["Light", "Dark"], index=0)
+
+is_dark = st.session_state.ui_theme == 'Dark'
+
+# ------------------ Custom CSS (Light-first) ------------------
+colors_light = {
+    'primary': '#2d72d9',      # Blue
+    'primary2': '#4fb3f6',     # Light blue
+    'accent': '#10b981',       # Teal/Green
+    'bg': '#f7f9fc',           # App background
+    'card': '#ffffff',         # Card
+    'card2': '#f0f4fa',        # Sub Card
+    'text': '#0f172a',         # Text
+    'muted': '#64748b',        # Muted
+    'border': '#e5eaf0',       # Border
+}
+colors_dark = {
+    'primary': '#6c5ce7',
+    'primary2': '#a29bfe',
+    'accent': '#00d1b2',
+    'bg': '#0d1117',
+    'card': '#111418',
+    'card2': '#0c0f13',
+    'text': '#e8ebee',
+    'muted': '#9aa3ad',
+    'border': '#222830',
+}
+C = colors_dark if is_dark else colors_light
+
+# NOTE: We use a normal string (not f-string) then .format to avoid braces issues
 custom_css = """
 <style>
-:root {
-  --primary: #6c5ce7;         /* Purple */
-  --primary-2: #a29bfe;       /* Soft purple */
-  --accent: #00d1b2;          /* Teal */
-  --bg-elev: #111418;         /* Card bg (dark) */
-  --bg-elev-2: #0c0f13;       /* Header bg */
-  --text: #e8ebee;            /* Main text */
-  --muted: #9aa3ad;           /* Muted */
-  --border: #232a33;          /* Border */
-}
-/* Light theme fallback */
-@media (prefers-color-scheme: light){
-  :root {
-    --bg-elev: #ffffff;
-    --bg-elev-2: #f7f8fa;
-    --text: #202530;
-    --muted: #5b6570;
-    --border: #e8edf3;
-  }
-}
+:root {{
+  --primary: {primary};
+  --primary-2: {primary2};
+  --accent: {accent};
+  --app-bg: {bg};
+  --bg-elev: {card};
+  --bg-elev-2: {card2};
+  --text: {text};
+  --muted: {muted};
+  --border: {border};
+}}
 
-/* Base */
-html, body, [class^="css"]  { font-family: 'Segoe UI', system-ui, -apple-system, Cairo, Tahoma, sans-serif; }
+html, body {{ background: var(--app-bg) !important; }}
+section.main > div {{ padding-top: 10px; }}
+html, body, [class^="css"]  {{ font-family: 'Segoe UI', system-ui, -apple-system, Cairo, Tahoma, sans-serif; color: var(--text); }}
 
-/* App wide background harmony */
-section.main > div { padding-top: 10px; }
-
-/* Title row */
-.app-header {
+/* Header */
+.app-header {{
   display:flex; align-items:center; gap:12px; padding:14px 18px;
-  background: linear-gradient(135deg, var(--bg-elev-2), transparent);
+  background: linear-gradient(135deg, var(--bg-elev-2), #ffffff00);
   border: 1px solid var(--border); border-radius: 14px;
-}
-.app-title { margin:0; font-weight:800; letter-spacing:.3px; color: var(--text); }
-.app-sub { margin:2px 0 0; color: var(--muted); font-size: 14px; }
+}}
+.app-title {{ margin:0; font-weight:800; letter-spacing:.2px; color: var(--text); }}
+.app-sub {{ margin:2px 0 0; color: var(--muted); font-size: 14px; }}
 
 /* Section card */
-.card { border:1px solid var(--border); border-radius:16px; padding:18px 18px 8px; background: var(--bg-elev); margin: 8px 0 18px; }
-.card h3 { margin-top:0; display:flex; align-items:center; gap:8px; color: var(--text);}
-.card .hint { color: var(--muted); font-size: 13px; margin-top:-8px; margin-bottom:10px; }
+.card {{ border:1px solid var(--border); border-radius:16px; padding:18px 18px 8px; background: var(--bg-elev); margin: 8px 0 18px; box-shadow: 0 2px 12px rgba(17,24,39,.06); }}
+.card h3 {{ margin-top:0; display:flex; align-items:center; gap:8px; color: var(--text); }}
+.card .hint {{ color: var(--muted); font-size: 13px; margin-top:-8px; margin-bottom:10px; }}
 
 /* Buttons */
-.stButton > button {
+.stButton > button {{
   border-radius:12px; padding:10px 14px; font-weight:600; border:1px solid transparent;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:#fff; box-shadow: 0 3px 10px rgba(108,92,231,.25);
-}
-.stButton > button:hover { filter:brightness(1.06); transform: translateY(-1px); }
-.stButton > button:active { transform: translateY(0); }
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:#fff; box-shadow: 0 4px 14px rgba(45,114,217,.25);
+}}
+.stButton > button:hover {{ filter:brightness(1.06); transform: translateY(-1px); }}
+.stButton > button:active {{ transform: translateY(0); }}
 
 /* File uploader */
-[data-testid="stFileUploader"] { background: rgba(255,255,255,.02); padding:10px; border-radius: 12px; border:1px dashed var(--border); }
+[data-testid="stFileUploader"] {{ background: var(--bg-elev-2); padding:10px; border-radius: 12px; border:1px dashed var(--border); }}
 
 /* Download buttons */
-.stDownloadButton > button { border-radius:10px; border:1px solid var(--border); background: var(--bg-elev-2); color: var(--text); }
+.stDownloadButton > button {{ border-radius:10px; border:1px solid var(--border); background: var(--bg-elev-2); color: var(--text); }}
 
 /* Dataframe wrapper */
-.css-1m1b9qw, .stDataFrame { border-radius: 10px; overflow:hidden; border:1px solid var(--border); }
+.css-1m1b9qw, .stDataFrame {{ border-radius: 10px; overflow:hidden; border:1px solid var(--border); }}
 
 /* Divider */
-hr { border: none; height: 1px; background: var(--border); margin: 14px 0; }
+hr {{ border: none; height: 1px; background: var(--border); margin: 14px 0; }}
 
-.badge { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background: rgba(0,209,178,.12); color:#28d6bd; font-weight:600; border:1px solid rgba(0,209,178,.25); font-size:12px }
+/* Accent badge */
+.badge {{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background: rgba(16,185,129,.12); color:#059669; font-weight:600; border:1px solid rgba(16,185,129,.25); font-size:12px }}
 
+/* Force app background containers */
+[data-testid="stAppViewContainer"] > .main {{ background: var(--app-bg); }}
+[data-testid="stHeader"] {{ background: var(--app-bg); }}
 </style>
-"""
+""".format(**C)
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ------------------ Small helpers ------------------
@@ -198,7 +226,7 @@ with st.container():
             if st.button("🚀 ابدأ التقسيم"):
                 with st.spinner("جاري التقسيم..."):
                     if st_lottie and LOTTIE_SPLIT:
-                        st_lottie(LOTTIE_SPLIT, height=120, key="lottie_split")
+                        st_lottie(LOTTIE_SPLIT, height=110, key="lottie_split")
 
                     def clean_name(name: str) -> str:
                         name = str(name).strip()
@@ -334,7 +362,7 @@ with st.container():
             if st.button("✨ دمج الملفات"):
                 with st.spinner("جاري الدمج..."):
                     if st_lottie and LOTTIE_MERGE:
-                        st_lottie(LOTTIE_MERGE, height=110, key="lottie_merge")
+                        st_lottie(LOTTIE_MERGE, height=100, key="lottie_merge")
                     try:
                         all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                         if all_excel:
