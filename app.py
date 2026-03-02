@@ -14,6 +14,7 @@ import re
 import os
 import base64
 import requests
+from datetime import datetime
 
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl import load_workbook, Workbook
@@ -233,13 +234,6 @@ def copy_cell_style(src_cell, dst_cell):
             dst_cell.number_format = src_cell.number_format
         except Exception:
             pass
-
-def copy_row_style(src_ws, dst_ws, src_row, dst_row, max_col):
-    """نسخ تنسيق الصف بالكامل"""
-    for col in range(1, max_col + 1):
-        src_cell = src_ws.cell(src_row, col)
-        dst_cell = dst_ws.cell(dst_row, col)
-        copy_cell_style(src_cell, dst_cell)
 
 def copy_column_widths(src_ws, dst_ws):
     """نسخ عرض الأعمدة"""
@@ -580,7 +574,7 @@ with st.container():
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### 🧰 Excel Processor with BUM Mapping")
-    st.markdown('<span class="hint">Process Excel file: Add BUM column based on MR name, add CRM Interval Date, and preserve all formatting.</span>', unsafe_allow_html=True)
+    st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
 
     proc_file = st.file_uploader(
         "📂 Upload Excel file to process (xlsx/xlsm)",
@@ -596,7 +590,7 @@ with st.container():
         bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
     else:
         bum_dict = {}
-        st.warning("⚠️ Could not load BUM mapping. BUM column will be empty.")
+        st.warning("⚠️ Could not load BUM mapping. BUM column will remain as original L4 Emp Name.")
 
     COLUMNS_TO_DELETE = [
         "Status","Status Date","Assigned To","Employees Count","Attendees Count",
@@ -611,15 +605,20 @@ with st.container():
         "Restaurant","Business Type","Highlighted","Link Details",
     ]
 
-    COLUMN_RENAME_MAP = { "L1 Emp Name": "MR", "L2 Emp Name": "DM", "L3 Emp Name": "AM" }
+    COLUMN_RENAME_MAP = { 
+        "L1 Emp Name": "MR", 
+        "L2 Emp Name": "DM", 
+        "L3 Emp Name": "AM",
+        "L4 Emp Name": "BUM"  # تم تغيير L4 Emp Name إلى BUM
+    }
 
     FINAL_COLUMN_ORDER = [
-        "CRM Interval Date",
+        "CRM Interval Date",  # هننقلها للبداية
         "Tracking Number",
         "MR",
         "DM",
         "AM",
-        "BUM",
+        "BUM",  # دي هي L4 Emp Name بعد التعديل
         "Line",
         "Activity",
         "Description",
@@ -637,9 +636,6 @@ with st.container():
     if proc_file:
         st.write("**File:**", proc_file.name)
         
-        # Option to add custom CRM Interval Date
-        crm_interval_date = st.date_input("📅 Select CRM Interval Date")
-        
         if st.button("⚙️ Start processing"):
             try:
                 # Load the workbook
@@ -656,55 +652,83 @@ with st.container():
                 new_ws = new_wb.active
                 new_ws.title = "Processed_Data"
                 
-                # Find MR column index
+                # Find important column indices
                 mr_col_idx = None
+                bum_col_idx = None
+                crm_interval_idx = None
+                
                 for old_name, new_name in COLUMN_RENAME_MAP.items():
                     if old_name in header_to_idx:
-                        mr_col_idx = header_to_idx[old_name]
+                        if new_name == "MR":
+                            mr_col_idx = header_to_idx[old_name]
+                        elif new_name == "BUM":
+                            bum_col_idx = header_to_idx[old_name]
                 
-                # Prepare final columns list with their original indices
+                # Find CRM Interval Date column
+                for col_name in headers:
+                    if col_name and "CRM Interval Date" in str(col_name):
+                        crm_interval_idx = header_to_idx[col_name]
+                        break
+                
+                # Prepare final columns list
                 final_cols_info = []
                 
-                # Add CRM Interval Date (new column)
-                final_cols_info.append({
-                    'name': 'CRM Interval Date',
-                    'type': 'new',
-                    'value': crm_interval_date.strftime('%Y-%m-%d') if crm_interval_date else ''
-                })
+                # 1. CRM Interval Date (move to beginning)
+                if crm_interval_idx:
+                    final_cols_info.append({
+                        'name': 'CRM Interval Date',
+                        'type': 'existing',
+                        'source_col': crm_interval_idx,
+                        'original_name': headers[crm_interval_idx - 1]
+                    })
+                else:
+                    # If not found, create empty column
+                    final_cols_info.append({
+                        'name': 'CRM Interval Date',
+                        'type': 'new',
+                        'value': ''
+                    })
                 
-                # Add existing columns in order
+                # 2. Add remaining columns in order
                 for col_name in FINAL_COLUMN_ORDER[1:]:  # Skip CRM Interval Date as we already added it
-                    if col_name == "BUM":
-                        # BUM is a new column
+                    if col_name == "BUM" and bum_col_idx:
+                        # BUM column - will be updated based on MR
                         final_cols_info.append({
                             'name': 'BUM',
                             'type': 'bum',
-                            'source_col': mr_col_idx
+                            'source_col': bum_col_idx,
+                            'mr_col': mr_col_idx
                         })
-                    elif col_name in header_to_idx:
-                        # Check if this column should be renamed
-                        original_name = col_name
-                        for old, new in COLUMN_RENAME_MAP.items():
-                            if col_name == new:  # This is a renamed column
-                                # Find the original column name
-                                for h in headers:
-                                    if h == old:
-                                        original_name = old
-                                        break
+                    else:
+                        # Find original column name considering renaming
+                        found = False
+                        for old_name, new_name in COLUMN_RENAME_MAP.items():
+                            if col_name == new_name and old_name in header_to_idx:
+                                final_cols_info.append({
+                                    'name': col_name,
+                                    'type': 'existing',
+                                    'source_col': header_to_idx[old_name],
+                                    'original_name': old_name
+                                })
+                                found = True
+                                break
                         
-                        final_cols_info.append({
-                            'name': col_name,
-                            'type': 'existing',
-                            'source_col': header_to_idx.get(original_name, header_to_idx.get(col_name))
-                        })
+                        if not found:
+                            # Check if column exists with the same name
+                            if col_name in header_to_idx:
+                                final_cols_info.append({
+                                    'name': col_name,
+                                    'type': 'existing',
+                                    'source_col': header_to_idx[col_name],
+                                    'original_name': col_name
+                                })
                 
-                # Copy and transform data
-                # First, write headers
+                # Copy headers with styles
                 for col_idx, col_info in enumerate(final_cols_info, start=1):
+                    # Write header name
                     new_ws.cell(1, col_idx, col_info['name'])
-                
-                # Copy styles for headers from original file where applicable
-                for col_idx, col_info in enumerate(final_cols_info, start=1):
+                    
+                    # Copy header style if available
                     if col_info.get('source_col'):
                         src_cell = ws.cell(1, col_info['source_col'])
                         dst_cell = new_ws.cell(1, col_idx)
@@ -714,32 +738,37 @@ with st.container():
                 for row_idx in range(2, ws.max_row + 1):
                     for col_idx, col_info in enumerate(final_cols_info, start=1):
                         if col_info['type'] == 'new':
-                            # New column with fixed value
-                            new_ws.cell(row_idx, col_idx, col_info['value'])
+                            # New empty column
+                            new_ws.cell(row_idx, col_idx, '')
                         
                         elif col_info['type'] == 'bum':
-                            # BUM column - lookup from mapping
-                            if mr_col_idx:
-                                mr_value = ws.cell(row_idx, mr_col_idx).value
-                                if mr_value and str(mr_value).strip() in bum_dict:
-                                    bum_value = bum_dict[str(mr_value).strip()]
-                                    new_ws.cell(row_idx, col_idx, bum_value)
+                            # BUM column - update based on MR if mapping exists
+                            src_cell = ws.cell(row_idx, col_info['source_col'])
                             
-                            # Copy style from original cell if available
-                            if mr_col_idx:
-                                src_cell = ws.cell(row_idx, mr_col_idx)
-                                dst_cell = new_ws.cell(row_idx, col_idx)
-                                copy_cell_style(src_cell, dst_cell)
+                            # Get MR value to find BUM from mapping
+                            if col_info.get('mr_col'):
+                                mr_value = ws.cell(row_idx, col_info['mr_col']).value
+                                if mr_value and str(mr_value).strip() in bum_dict:
+                                    # Update BUM value from mapping
+                                    new_value = bum_dict[str(mr_value).strip()]
+                                    dst_cell = new_ws.cell(row_idx, col_idx, new_value)
+                                else:
+                                    # Keep original value if no mapping found
+                                    dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
+                            else:
+                                dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
+                            
+                            # Copy style from original cell
+                            copy_cell_style(src_cell, dst_cell)
                         
                         else:
                             # Existing column - copy value and style
                             src_col = col_info['source_col']
-                            if src_col:
-                                src_cell = ws.cell(row_idx, src_col)
-                                dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
-                                copy_cell_style(src_cell, dst_cell)
+                            src_cell = ws.cell(row_idx, src_col)
+                            dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
+                            copy_cell_style(src_cell, dst_cell)
                 
-                # Copy column widths where applicable
+                # Copy column widths
                 for col_idx, col_info in enumerate(final_cols_info, start=1):
                     if col_info.get('source_col'):
                         src_col_letter = get_column_letter(col_info['source_col'])
@@ -756,7 +785,7 @@ with st.container():
                 new_wb.save(out_buf)
                 out_buf.seek(0)
                 
-                st.success("✅ Processing completed with BUM mapping and preserved formatting")
+                st.success("✅ Processing completed: BUM column updated and CRM Interval Date moved to beginning")
                 base = os.path.splitext(proc_file.name)[0]
                 st.download_button(
                     "⬇️ Download processed file",
