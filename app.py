@@ -13,24 +13,22 @@ from zipfile import ZipFile
 import re
 import os
 import base64
+import requests
 
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import NamedStyle
 from PIL import Image
 
 # Optional animations
 try:
     from streamlit_lottie import st_lottie  # type: ignore
-    import requests  # type: ignore
 except Exception:
     st_lottie = None
-    requests = None
 
 
 def load_lottie_url(url: str):
-    if not requests:
-        return None
     try:
         r = requests.get(url, timeout=8)
         if r.status_code == 200:
@@ -190,6 +188,105 @@ def get_image_as_base64(image_path):
     except Exception:
         return None
 
+def copy_cell_style(src_cell, dst_cell):
+    """نسخ كل التنسيقات من خلية لأخرى"""
+    if src_cell.has_style:
+        try:
+            if src_cell.font:
+                dst_cell.font = Font(
+                    name=src_cell.font.name,
+                    size=src_cell.font.size,
+                    bold=src_cell.font.bold,
+                    italic=src_cell.font.italic,
+                    vertAlign=src_cell.font.vertAlign,
+                    underline=src_cell.font.underline,
+                    strike=src_cell.font.strike,
+                    color=src_cell.font.color
+                )
+            if src_cell.fill and src_cell.fill.fill_type:
+                dst_cell.fill = PatternFill(
+                    fill_type=src_cell.fill.fill_type,
+                    start_color=src_cell.fill.start_color,
+                    end_color=src_cell.fill.end_color
+                )
+            if src_cell.alignment:
+                dst_cell.alignment = Alignment(
+                    horizontal=src_cell.alignment.horizontal,
+                    vertical=src_cell.alignment.vertical,
+                    text_rotation=src_cell.alignment.text_rotation,
+                    wrap_text=src_cell.alignment.wrap_text,
+                    shrink_to_fit=src_cell.alignment.shrink_to_fit,
+                    indent=src_cell.alignment.indent
+                )
+            if src_cell.border:
+                dst_cell.border = Border(
+                    left=src_cell.border.left,
+                    right=src_cell.border.right,
+                    top=src_cell.border.top,
+                    bottom=src_cell.border.bottom,
+                    diagonal=src_cell.border.diagonal,
+                    diagonal_direction=src_cell.border.diagonal_direction,
+                    outline=src_cell.border.outline,
+                    vertical=src_cell.border.vertical,
+                    horizontal=src_cell.border.horizontal
+                )
+            dst_cell.number_format = src_cell.number_format
+        except Exception:
+            pass
+
+def copy_row_style(src_ws, dst_ws, src_row, dst_row, max_col):
+    """نسخ تنسيق الصف بالكامل"""
+    for col in range(1, max_col + 1):
+        src_cell = src_ws.cell(src_row, col)
+        dst_cell = dst_ws.cell(dst_row, col)
+        copy_cell_style(src_cell, dst_cell)
+
+def copy_column_widths(src_ws, dst_ws):
+    """نسخ عرض الأعمدة"""
+    try:
+        for col_letter in src_ws.column_dimensions:
+            col_width = src_ws.column_dimensions[col_letter].width
+            if col_width:
+                dst_ws.column_dimensions[col_letter].width = col_width
+    except Exception:
+        pass
+
+def load_bum_mapping():
+    """تحميل ملف BUM من Google Sheets"""
+    try:
+        url = "https://docs.google.com/spreadsheets/d/1XQnQNDFHDKrWYn23ROAeFS2cELNbKurC/export?format=xlsx"
+        response = requests.get(url)
+        if response.status_code == 200:
+            wb = load_workbook(filename=BytesIO(response.content))
+            ws = wb.active
+            
+            # قراءة البيانات
+            data = []
+            headers = [cell.value for cell in ws[1]]
+            mr_idx = None
+            bum_idx = None
+            
+            for i, header in enumerate(headers):
+                if header and "MR" in str(header):
+                    mr_idx = i + 1
+                elif header and "BUM" in str(header):
+                    bum_idx = i + 1
+            
+            if mr_idx and bum_idx:
+                for row in range(2, ws.max_row + 1):
+                    mr_value = ws.cell(row, mr_idx).value
+                    bum_value = ws.cell(row, bum_idx).value
+                    if mr_value and bum_value:
+                        data.append({
+                            'MR': str(mr_value).strip(),
+                            'BUM': str(bum_value).strip()
+                        })
+            
+            return pd.DataFrame(data)
+    except Exception as e:
+        st.warning(f"⚠️ Could not load BUM mapping: {e}")
+        return pd.DataFrame()
+
 
 # ------------------ Header ------------------
 logo_b64 = get_image_as_base64("logo.png")
@@ -284,53 +381,46 @@ with st.container():
                         if split_option == "Split by Column Values":
                             col_idx = df.columns.get_loc(col_to_split) + 1
                             unique_values = df[col_to_split].dropna().unique()
+                            
+                            # Progress bar
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
                             zip_buffer = BytesIO()
                             with ZipFile(zip_buffer, "w") as zip_file:
-                                for value in unique_values:
-                                    new_wb = Workbook(); default_ws = new_wb.active; new_wb.remove(default_ws)
+                                for i, value in enumerate(unique_values):
+                                    status_text.text(f"Processing: {clean_name(value)}")
+                                    progress_bar.progress((i + 1) / len(unique_values))
+                                    
+                                    new_wb = Workbook()
+                                    default_ws = new_wb.active
+                                    new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=clean_name(value))
-                                    # Header
+                                    
+                                    # Copy header with style
                                     for cell in ws[1]:
                                         dst = new_ws.cell(1, cell.column, cell.value)
-                                        if cell.has_style:
-                                            try:
-                                                if cell.font:
-                                                    dst.font = Font(name=cell.font.name, size=cell.font.size, bold=cell.font.bold, italic=cell.font.italic, color=cell.font.color)
-                                                if cell.fill and cell.fill.fill_type:
-                                                    dst.fill = PatternFill(fill_type=cell.fill.fill_type, start_color=cell.fill.start_color, end_color=cell.fill.end_color)
-                                                if cell.alignment:
-                                                    dst.alignment = Alignment(horizontal=cell.alignment.horizontal, vertical=cell.alignment.vertical, wrap_text=cell.alignment.wrap_text)
-                                                dst.number_format = cell.number_format
-                                            except Exception:
-                                                pass
-                                    # Rows
+                                        copy_cell_style(cell, dst)
+                                    
+                                    # Copy matching rows
                                     row_out = 2
                                     for row in ws.iter_rows(min_row=2):
                                         if row[col_idx - 1].value == value:
                                             for src in row:
                                                 dst = new_ws.cell(row_out, src.column, src.value)
-                                                if src.has_style:
-                                                    try:
-                                                        if src.font:
-                                                            dst.font = Font(name=src.font.name, size=src.font.size, bold=src.font.bold, italic=src.font.italic, color=src.font.color)
-                                                        if src.fill and src.fill.fill_type:
-                                                            dst.fill = PatternFill(fill_type=src.fill.fill_type, start_color=src.fill.start_color, end_color=src.fill.end_color)
-                                                        if src.alignment:
-                                                            dst.alignment = Alignment(horizontal=src.alignment.horizontal, vertical=src.alignment.vertical, wrap_text=src.alignment.wrap_text)
-                                                        dst.number_format = src.number_format
-                                                    except Exception:
-                                                        pass
+                                                copy_cell_style(src, dst)
                                             row_out += 1
-                                    # Column widths
-                                    try:
-                                        for col_letter in ws.column_dimensions:
-                                            width = ws.column_dimensions[col_letter].width
-                                            if width:
-                                                new_ws.column_dimensions[col_letter].width = width
-                                    except Exception:
-                                        pass
-                                    fb = BytesIO(); new_wb.save(fb); fb.seek(0)
+                                    
+                                    # Copy column widths
+                                    copy_column_widths(ws, new_ws)
+                                    
+                                    fb = BytesIO()
+                                    new_wb.save(fb)
+                                    fb.seek(0)
                                     zip_file.writestr(f"{clean_name(value)}.xlsx", fb.read())
+                            
+                            status_text.empty()
+                            progress_bar.empty()
                             zip_buffer.seek(0)
                             st.success("🎉 Split completed! ZIP is ready.")
                             st.download_button(
@@ -343,27 +433,23 @@ with st.container():
                             zip_buffer = BytesIO()
                             with ZipFile(zip_buffer, "w") as zip_file:
                                 for sheet_name in original_wb.sheetnames:
-                                    new_wb = Workbook(); default_ws = new_wb.active; new_wb.remove(default_ws)
+                                    new_wb = Workbook()
+                                    default_ws = new_wb.active
+                                    new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=sheet_name)
                                     src_ws = original_wb[sheet_name]
+                                    
+                                    # Copy all rows with styles
                                     for row in src_ws.iter_rows():
                                         for src_cell in row:
                                             dst = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
-                                            if src_cell.has_style:
-                                                try:
-                                                    if src_cell.font: dst.font = src_cell.font
-                                                    if src_cell.fill and src_cell.fill.fill_type: dst.fill = src_cell.fill
-                                                    if src_cell.alignment: dst.alignment = src_cell.alignment
-                                                    dst.number_format = src_cell.number_format
-                                                except Exception:
-                                                    pass
-                                    try:
-                                        for col_letter in src_ws.column_dimensions:
-                                            if src_ws.column_dimensions[col_letter].width:
-                                                new_ws.column_dimensions[col_letter].width = src_ws.column_dimensions[col_letter].width
-                                    except Exception:
-                                        pass
-                                    fb = BytesIO(); new_wb.save(fb); fb.seek(0)
+                                            copy_cell_style(src_cell, dst)
+                                    
+                                    copy_column_widths(src_ws, new_ws)
+                                    
+                                    fb = BytesIO()
+                                    new_wb.save(fb)
+                                    fb.seek(0)
                                     zip_file.writestr(f"{_safe_name(sheet_name)}.xlsx", fb.read())
                             zip_buffer.seek(0)
                             st.success("🎉 Split by sheets completed! ZIP is ready.")
@@ -382,7 +468,7 @@ with st.container():
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### 🔁 Merge Excel/CSV Files")
-    st.markdown('<span class="hint">Upload multiple files and they will be merged into one file (Excel formatting is preserved where possible).</span>', unsafe_allow_html=True)
+    st.markdown('<span class="hint">Upload multiple files and they will be merged into one file with preserved formatting.</span>', unsafe_allow_html=True)
 
     merge_files = st.file_uploader(
         "📂 Upload Excel/CSV files to merge",
@@ -405,79 +491,79 @@ with st.container():
                         st_lottie(LOTTIE_MERGE, height=100, key="lottie_merge")
                     try:
                         all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
+                        
                         if all_excel:
+                            # Create new workbook
                             merged_wb = Workbook()
                             merged_ws = merged_wb.active
                             merged_ws.title = "Merged_Data"
+                            
                             current_row = 1
-
+                            headers_copied = False
+                            
+                            # Progress bar
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
                             for idx, file in enumerate(merge_files):
+                                status_text.text(f"Processing: {file.name}")
+                                progress_bar.progress((idx + 1) / len(merge_files))
+                                
                                 file_bytes = file.getvalue()
                                 src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                                 src_ws = src_wb.active
-
-                                # Header from first file
-                                if idx == 0:
-                                    for row in src_ws.iter_rows(min_row=1, max_row=1):
-                                        for cell in row:
-                                            dst = merged_ws.cell(current_row, cell.column, cell.value)
-                                            if cell.has_style:
-                                                try:
-                                                    if cell.font: dst.font = cell.font
-                                                    if cell.fill and cell.fill.fill_type: dst.fill = cell.fill
-                                                    if cell.alignment: dst.alignment = cell.alignment
-                                                    dst.number_format = cell.number_format
-                                                except Exception:
-                                                    pass
+                                
+                                # Copy headers from first file only
+                                if not headers_copied:
+                                    for col, cell in enumerate(src_ws[1], start=1):
+                                        dst_cell = merged_ws.cell(current_row, col, cell.value)
+                                        copy_cell_style(cell, dst_cell)
                                     current_row += 1
-
-                                # Data rows
+                                    headers_copied = True
+                                
+                                # Copy data rows with their styles
                                 for row in src_ws.iter_rows(min_row=2):
-                                    for cell in row:
-                                        dst = merged_ws.cell(current_row, cell.column, cell.value)
-                                        if cell.has_style:
-                                            try:
-                                                if cell.font: dst.font = cell.font
-                                                if cell.fill and cell.fill.fill_type: dst.fill = cell.fill
-                                                if cell.alignment: dst.alignment = cell.alignment
-                                                dst.number_format = cell.number_format
-                                            except Exception:
-                                                pass
+                                    for col, cell in enumerate(row, start=1):
+                                        if cell.value is not None:  # Only copy non-empty cells
+                                            dst_cell = merged_ws.cell(current_row, col, cell.value)
+                                            copy_cell_style(cell, dst_cell)
                                     current_row += 1
-
-                                # Column widths
-                                try:
-                                    for col_letter in src_ws.column_dimensions:
-                                        width = src_ws.column_dimensions[col_letter].width
-                                        if width:
-                                            merged_ws.column_dimensions[col_letter].width = width
-                                except Exception:
-                                    pass
-
+                            
+                            # Copy column widths from the first file
+                            if merge_files:
+                                first_file_bytes = merge_files[0].getvalue()
+                                first_wb = load_workbook(filename=BytesIO(first_file_bytes), data_only=False)
+                                first_ws = first_wb.active
+                                copy_column_widths(first_ws, merged_ws)
+                            
+                            status_text.empty()
+                            progress_bar.empty()
+                            
+                            # Save merged workbook
                             out = BytesIO()
                             merged_wb.save(out)
                             out.seek(0)
-
-                            st.success("✅ Merge completed")
+                            
+                            st.success("✅ Merge completed with preserved formatting")
                             st.download_button(
-                                "⬇️ Download file",
+                                "⬇️ Download merged file",
                                 out.getvalue(),
                                 file_name="Merged_Consolidated_Formatted.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             )
                         else:
-                            # Merge CSVs / mix as DataFrames
+                            # Handle CSV files (simple merge without formatting)
                             all_dfs = []
                             for file in merge_files:
                                 ext = file.name.split(".")[-1].lower()
                                 df = pd.read_csv(file) if ext == "csv" else pd.read_excel(file)
                                 all_dfs.append(df)
                             merged_df = pd.concat(all_dfs, ignore_index=True)
-
+                            
                             out = BytesIO()
                             merged_df.to_excel(out, index=False, engine='openpyxl')
                             out.seek(0)
-
+                            
                             st.success("✅ Merge completed")
                             st.download_button(
                                 "⬇️ Download file",
@@ -493,8 +579,8 @@ with st.container():
 # ===================== Excel Processor Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🧰 Excel Processor")
-    st.markdown('<span class="hint">Apply your settings: Rename (MR/DM/AM) + Delete specific columns + Final column order.</span>', unsafe_allow_html=True)
+    st.markdown("### 🧰 Excel Processor with BUM Mapping")
+    st.markdown('<span class="hint">Process Excel file: Add BUM column based on MR name, add CRM Interval Date, and preserve all formatting.</span>', unsafe_allow_html=True)
 
     proc_file = st.file_uploader(
         "📂 Upload Excel file to process (xlsx/xlsm)",
@@ -502,6 +588,15 @@ with st.container():
         accept_multiple_files=False,
         key=f"processor_uploader_{st.session_state.clear_counter}",
     )
+
+    # Load BUM mapping
+    bum_df = load_bum_mapping()
+    if not bum_df.empty:
+        st.info(f"✅ Loaded BUM mapping with {len(bum_df)} entries")
+        bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
+    else:
+        bum_dict = {}
+        st.warning("⚠️ Could not load BUM mapping. BUM column will be empty.")
 
     COLUMNS_TO_DELETE = [
         "Status","Status Date","Assigned To","Employees Count","Attendees Count",
@@ -519,76 +614,157 @@ with st.container():
     COLUMN_RENAME_MAP = { "L1 Emp Name": "MR", "L2 Emp Name": "DM", "L3 Emp Name": "AM" }
 
     FINAL_COLUMN_ORDER = [
-        "Tracking Number","MR","DM","AM","bum","Line","Activity","Description",
-        "Account Number","Vendor","Bank","Cost","Bricks","Professionl Accounts",
-        "Request Professionals","Specialities","Request Date",
+        "CRM Interval Date",
+        "Tracking Number",
+        "MR",
+        "DM",
+        "AM",
+        "BUM",
+        "Line",
+        "Activity",
+        "Description",
+        "Account Number",
+        "Vendor",
+        "Bank",
+        "Cost",
+        "Bricks",
+        "Professionl Accounts",
+        "Request Professionals",
+        "Specialities",
+        "Request Date",
     ]
 
     if proc_file:
         st.write("**File:**", proc_file.name)
+        
+        # Option to add custom CRM Interval Date
+        crm_interval_date = st.date_input("📅 Select CRM Interval Date")
+        
         if st.button("⚙️ Start processing"):
             try:
+                # Load the workbook
                 wb = load_workbook(proc_file, data_only=False)
                 ws = wb.active
+                
+                # Get headers
                 header_row = 1
                 headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)]
                 header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
-
-                # Rename
-                for old_name, new_name in COLUMN_RENAME_MAP.items():
-                    if old_name in header_to_idx:
-                        cidx = header_to_idx[old_name]
-                        ws.cell(header_row, cidx).value = new_name
-                        headers[cidx-1] = new_name
-                        header_to_idx[new_name] = cidx
-                        del header_to_idx[old_name]
-
-                # Delete
-                to_delete_indices = [header_to_idx[c] for c in COLUMNS_TO_DELETE if c in header_to_idx]
-                to_delete_indices.sort(reverse=True)
-                for cidx in to_delete_indices:
-                    ws.delete_cols(cidx)
-
-                # Recompute
-                headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)]
-                header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
-
-                # Reorder into new workbook
-                col_mapping = [header_to_idx.get(name) for name in FINAL_COLUMN_ORDER]
+                
+                # Create a new workbook for the result
                 new_wb = Workbook()
                 new_ws = new_wb.active
-
-                for row_idx in range(1, ws.max_row + 1):
-                    for new_col_idx, old_col_idx in enumerate(col_mapping, start=1):
-                        if old_col_idx is None:
-                            continue
-                        old_cell = ws.cell(row_idx, old_col_idx)
-                        new_cell = new_ws.cell(row_idx, new_col_idx)
-                        new_cell.value = old_cell.value
-                        if old_cell.has_style:
-                            try:
-                                if old_cell.font: new_cell.font = old_cell.font
-                                if old_cell.fill and old_cell.fill.fill_type: new_cell.fill = old_cell.fill
-                                if old_cell.alignment: new_cell.alignment = old_cell.alignment
-                                new_cell.number_format = old_cell.number_format
-                            except Exception:
-                                pass
-
-                for c in range(1, len(FINAL_COLUMN_ORDER) + 1):
-                    new_ws.column_dimensions[get_column_letter(c)].width = 15
-
+                new_ws.title = "Processed_Data"
+                
+                # Find MR column index
+                mr_col_idx = None
+                for old_name, new_name in COLUMN_RENAME_MAP.items():
+                    if old_name in header_to_idx:
+                        mr_col_idx = header_to_idx[old_name]
+                
+                # Prepare final columns list with their original indices
+                final_cols_info = []
+                
+                # Add CRM Interval Date (new column)
+                final_cols_info.append({
+                    'name': 'CRM Interval Date',
+                    'type': 'new',
+                    'value': crm_interval_date.strftime('%Y-%m-%d') if crm_interval_date else ''
+                })
+                
+                # Add existing columns in order
+                for col_name in FINAL_COLUMN_ORDER[1:]:  # Skip CRM Interval Date as we already added it
+                    if col_name == "BUM":
+                        # BUM is a new column
+                        final_cols_info.append({
+                            'name': 'BUM',
+                            'type': 'bum',
+                            'source_col': mr_col_idx
+                        })
+                    elif col_name in header_to_idx:
+                        # Check if this column should be renamed
+                        original_name = col_name
+                        for old, new in COLUMN_RENAME_MAP.items():
+                            if col_name == new:  # This is a renamed column
+                                # Find the original column name
+                                for h in headers:
+                                    if h == old:
+                                        original_name = old
+                                        break
+                        
+                        final_cols_info.append({
+                            'name': col_name,
+                            'type': 'existing',
+                            'source_col': header_to_idx.get(original_name, header_to_idx.get(col_name))
+                        })
+                
+                # Copy and transform data
+                # First, write headers
+                for col_idx, col_info in enumerate(final_cols_info, start=1):
+                    new_ws.cell(1, col_idx, col_info['name'])
+                
+                # Copy styles for headers from original file where applicable
+                for col_idx, col_info in enumerate(final_cols_info, start=1):
+                    if col_info.get('source_col'):
+                        src_cell = ws.cell(1, col_info['source_col'])
+                        dst_cell = new_ws.cell(1, col_idx)
+                        copy_cell_style(src_cell, dst_cell)
+                
+                # Process data rows
+                for row_idx in range(2, ws.max_row + 1):
+                    for col_idx, col_info in enumerate(final_cols_info, start=1):
+                        if col_info['type'] == 'new':
+                            # New column with fixed value
+                            new_ws.cell(row_idx, col_idx, col_info['value'])
+                        
+                        elif col_info['type'] == 'bum':
+                            # BUM column - lookup from mapping
+                            if mr_col_idx:
+                                mr_value = ws.cell(row_idx, mr_col_idx).value
+                                if mr_value and str(mr_value).strip() in bum_dict:
+                                    bum_value = bum_dict[str(mr_value).strip()]
+                                    new_ws.cell(row_idx, col_idx, bum_value)
+                            
+                            # Copy style from original cell if available
+                            if mr_col_idx:
+                                src_cell = ws.cell(row_idx, mr_col_idx)
+                                dst_cell = new_ws.cell(row_idx, col_idx)
+                                copy_cell_style(src_cell, dst_cell)
+                        
+                        else:
+                            # Existing column - copy value and style
+                            src_col = col_info['source_col']
+                            if src_col:
+                                src_cell = ws.cell(row_idx, src_col)
+                                dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
+                                copy_cell_style(src_cell, dst_cell)
+                
+                # Copy column widths where applicable
+                for col_idx, col_info in enumerate(final_cols_info, start=1):
+                    if col_info.get('source_col'):
+                        src_col_letter = get_column_letter(col_info['source_col'])
+                        if src_col_letter in ws.column_dimensions:
+                            width = ws.column_dimensions[src_col_letter].width
+                            if width:
+                                new_ws.column_dimensions[get_column_letter(col_idx)].width = width
+                    else:
+                        # Set default width for new columns
+                        new_ws.column_dimensions[get_column_letter(col_idx)].width = 15
+                
+                # Save the processed workbook
                 out_buf = BytesIO()
                 new_wb.save(out_buf)
                 out_buf.seek(0)
-
-                st.success("✅ Processing completed")
+                
+                st.success("✅ Processing completed with BUM mapping and preserved formatting")
                 base = os.path.splitext(proc_file.name)[0]
                 st.download_button(
-                    "⬇️ Download file",
+                    "⬇️ Download processed file",
                     out_buf.getvalue(),
-                    file_name=f"{_safe_name(base)}_processed.xlsx",
+                    file_name=f"{_safe_name(base)}_processed_with_BUM.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+                
             except Exception as e:
                 st.error(f"❌ Error while processing: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -618,11 +794,30 @@ with st.container():
             if st.button("🖨️ Create PDF"):
                 with st.spinner("Creating PDF..."):
                     try:
-                        first = Image.open(uploaded_images[0]).convert("RGB")
-                        others = [Image.open(x).convert("RGB") for x in uploaded_images[1:]]
+                        # Progress bar for images
+                        progress_bar = st.progress(0)
+                        
+                        # Open and convert images
+                        images = []
+                        for i, img_file in enumerate(uploaded_images):
+                            img = Image.open(img_file)
+                            if img.mode != 'RGB':
+                                img = img.convert('RGB')
+                            images.append(img)
+                            progress_bar.progress((i + 1) / len(uploaded_images))
+                        
+                        # Create PDF
                         pdf_buffer = BytesIO()
-                        first.save(pdf_buffer, format="PDF", save_all=True, append_images=others)
+                        images[0].save(
+                            pdf_buffer,
+                            format="PDF",
+                            save_all=True,
+                            append_images=images[1:],
+                            quality=95
+                        )
                         pdf_buffer.seek(0)
+                        
+                        progress_bar.empty()
                         st.success("✅ PDF created successfully")
                         st.download_button(
                             "⬇️ Download PDF",
@@ -637,5 +832,3 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — Contact: WhatsApp 01554694554")
-
-
