@@ -254,7 +254,7 @@ with st.container():
                 horizontal=True,
             )
 
-            if st.button("🚀 Start):
+            if st.button("🚀 Start"):
                 with st.spinner("Processing..."):
                     if st_lottie and LOTTIE_SPLIT:
                         st_lottie(LOTTIE_SPLIT, height=110, key="lottie_split")
@@ -587,3 +587,4 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — Communication: WhatsApp 01554694554")
+
