@@ -174,7 +174,7 @@ logo_b64 = get_image_as_base64("logo.png")
 col_logo, col_title = st.columns([1,7])
 with col_logo:
     if logo_b64:
-        st.image(f"data:image/png;base64,{logo_b64}", width=80)
+        st.image(f"data:image/png;base64,{logo_b64}", width=100)
 with col_title:
     st.markdown('<div class="app-header"><div><h2 class="app-title">Tricks For Excel</h2><p class="app-sub">أدوات سريعة لملفات Excel والصور • Split • Merge • Processor • PDF</p></div></div>', unsafe_allow_html=True)
 
@@ -207,24 +207,24 @@ with st.container():
             if file_ext == "csv":
                 df = pd.read_csv(uploaded_file)
                 selected_sheet = "Sheet1"
-                st.success("✅ تم رفع ملف CSV بنجاح")
+                st.success("✅ Completed upload file sucessfully CSV")
             else:
                 input_bytes = uploaded_file.getvalue()
                 original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
                 sheet_names = original_wb.sheetnames
-                selected_sheet = st.selectbox("اختر الشيت للتقسيم", sheet_names)
+                selected_sheet = st.selectbox("Select Sheet to Spilit", sheet_names)
                 df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
 
             st.dataframe(df.head(200), use_container_width=True)
-            col_to_split = st.selectbox("اختر العمود للتقسيم", df.columns)
+            col_to_split = st.selectbox("Select Coulmn to spilit", df.columns)
             split_option = st.radio(
-                "طريقة التقسيم:",
+                "Spilit way:",
                 ["Split by Column Values", "Split Each Sheet into Separate File"],
                 horizontal=True,
             )
 
-            if st.button("🚀 ابدأ التقسيم"):
-                with st.spinner("جاري التقسيم..."):
+            if st.button("🚀Start"):
+                with st.spinner("Loading..."):
                     if st_lottie and LOTTIE_SPLIT:
                         st_lottie(LOTTIE_SPLIT, height=110, key="lottie_split")
 
@@ -245,8 +245,8 @@ with st.container():
                                 csv_buffer.seek(0)
                                 zip_file.writestr(f"{clean_name(value)}.csv", csv_buffer.read())
                         zip_buffer.seek(0)
-                        st.success("🎉 تم التقسيم بنجاح!")
-                        st.download_button("⬇️ تحميل (ZIP)", zip_buffer.getvalue(), file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
+                        st.success("🎉Completed Sucessfully!")
+                        st.download_button("⬇️ Download (ZIP)", zip_buffer.getvalue(), file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
                     else:
                         ws = original_wb[selected_sheet]
                         if split_option == "Split by Column Values":
@@ -300,8 +300,8 @@ with st.container():
                                     fb = BytesIO(); new_wb.save(fb); fb.seek(0)
                                     zip_file.writestr(f"{clean_name(value)}.xlsx", fb.read())
                             zip_buffer.seek(0)
-                            st.success("🎉 تم التقسيم بنجاح!")
-                            st.download_button("⬇️ تحميل (ZIP)", zip_buffer.getvalue(), file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
+                            st.success("🎉 Completed Sucessfully Spiliting!")
+                            st.download_button("⬇️ Download (ZIP)", zip_buffer.getvalue(), file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
                         else:
                             zip_buffer = BytesIO()
                             with ZipFile(zip_buffer, "w") as zip_file:
@@ -332,8 +332,8 @@ with st.container():
                                     fb = BytesIO(); new_wb.save(fb); fb.seek(0)
                                     zip_file.writestr(f"{_safe_name(sheet_name)}.xlsx", fb.read())
                             zip_buffer.seek(0)
-                            st.success("🎉 تم التقسيم بنجاح!")
-                            st.download_button("⬇️ تحميل (ZIP)", zip_buffer.getvalue(), file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
+                            st.success("🎉 Completed Sucessfully Spiliting!")
+                            st.download_button("⬇️ Download (ZIP)", zip_buffer.getvalue(), file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
         except Exception as e:
             st.error(f"❌ حدث خطأ أثناء التقسيم: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -345,7 +345,7 @@ with st.container():
     st.markdown('<div class="hint">ارفع عدّة ملفات وسيتم دمجها في ملف واحد مع الحفاظ على التنسيقات لملفات Excel</div>', unsafe_allow_html=True)
 
     merge_files = st.file_uploader(
-        "📂 ارفع ملفات Excel/CSV للدمج",
+        "📂 Upload Files Excel/CSV | Merge",
         type=["xlsx", "csv"],
         accept_multiple_files=True,
         key=f"merge_uploader_{st.session_state.clear_counter}",
@@ -355,12 +355,12 @@ with st.container():
         display_uploaded_files(merge_files)
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button("🧹 مسح الملفات", key="clear_merge"):
+            if st.button("🧹 Clear Files", key="clear_merge"):
                 st.session_state.clear_counter += 1
                 st.rerun()
         with c2:
-            if st.button("✨ دمج الملفات"):
-                with st.spinner("جاري الدمج..."):
+            if st.button("✨ Merge Files"):
+                with st.spinner("Loading Merge...."):
                     if st_lottie and LOTTIE_MERGE:
                         st_lottie(LOTTIE_MERGE, height=100, key="lottie_merge")
                     try:
@@ -404,8 +404,8 @@ with st.container():
                                             merged_ws.column_dimensions[col_letter].width = width
                                 except Exception: pass
                             out = BytesIO(); merged_wb.save(out); out.seek(0)
-                            st.success("✅ تم الدمج مع الحفاظ على التنسيق")
-                            st.download_button("⬇️ تحميل الملف المدمج", out.getvalue(), file_name="Merged_Consolidated_Formatted.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            st.success("✅Completed Merge")
+                            st.download_button("⬇️ Upload File", out.getvalue(), file_name="Merged_Consolidated_Formatted.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                         else:
                             all_dfs = []
                             for file in merge_files:
@@ -414,8 +414,8 @@ with st.container():
                                 all_dfs.append(df)
                             merged_df = pd.concat(all_dfs, ignore_index=True)
                             out = BytesIO(); merged_df.to_excel(out, index=False, engine='openpyxl'); out.seek(0)
-                            st.success("✅ تم الدمج (تنسيق CSV قد لا يُحفظ)")
-                            st.download_button("⬇️ تحميل الملف المدمج", out.getvalue(), file_name="Merged_Consolidated.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            st.success("✅ Sucessfully Merge")
+                            st.download_button("⬇️ Download File ", out.getvalue(), file_name="Merged_Consolidated.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                     except Exception as e:
                         st.error(f"❌ خطأ أثناء الدمج: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -423,11 +423,11 @@ with st.container():
 # ===================== Excel Processor Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🧰 معالج Excel (إعادة تسمية/حذف/ترتيب أعمدة)")
+    st.markdown("### 🧰 Service Excel Builider")
     st.markdown('<div class="hint">مطابق لإعداداتك: إعادة تسمية (MR/DM/AM) + حذف أعمدة محددة + ترتيب نهائي</div>', unsafe_allow_html=True)
 
     proc_file = st.file_uploader(
-        "📂 ارفع ملف Excel للمعالجة (xlsx/xlsm)",
+        "📂 Upload File Excel to process (xlsx/xlsm)",
         type=["xlsx", "xlsm"],
         accept_multiple_files=False,
         key=f"processor_uploader_{st.session_state.clear_counter}",
@@ -455,8 +455,8 @@ with st.container():
     ]
 
     if proc_file:
-        st.write("**الملف:**", proc_file.name)
-        if st.button("⚙️ تنفيذ المعالجة"):
+        st.write("**File:**", proc_file.name)
+        if st.button("⚙️ Start"):
             try:
                 wb = load_workbook(proc_file, data_only=False)
                 ws = wb.active
@@ -504,9 +504,9 @@ with st.container():
                     new_ws.column_dimensions[get_column_letter(c)].width = 15
 
                 out_buf = BytesIO(); new_wb.save(out_buf); out_buf.seek(0)
-                st.success("✅ تم إتمام المعالجة بنجاح")
+                st.success("✅ processed Sucessfully")
                 base = os.path.splitext(proc_file.name)[0]
-                st.download_button("⬇️ تحميل الملف المعالج", out_buf.getvalue(), file_name=f"{_safe_name(base)}_processed.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button("⬇️ Download File ", out_buf.getvalue(), file_name=f"{_safe_name(base)}_processed.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             except Exception as e:
                 st.error(f"❌ خطأ أثناء المعالجة: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -514,11 +514,11 @@ with st.container():
 # ===================== Images → PDF Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🖼️ تحويل الصور إلى PDF (جودة أصلية)")
-    st.markdown('<div class="hint">ارفع صورة أو أكثر وسيتم دمجها في ملف PDF واحد</div>', unsafe_allow_html=True)
+    st.markdown("### 🖼️ Convert images to PDF")
+    st.markdown('<div class="hint">Upload one or more images and they will be merged into a file PDF </div>', unsafe_allow_html=True)
 
     uploaded_images = st.file_uploader(
-        "📂 ارفع صور JPG/PNG",
+        "📂 upload Image JPG/PNG",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True,
         key=f"image_uploader_{st.session_state.clear_counter}",
@@ -528,24 +528,25 @@ with st.container():
         display_uploaded_files(uploaded_images, "Images")
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button("🧹 مسح الصور", key="clear_images"):
+            if st.button("🧹 Clear Images", key="clear_images"):
                 st.session_state.clear_counter += 1
                 st.rerun()
         with c2:
-            if st.button("🖨️ إنشاء PDF (جودة أصلية)"):
-                with st.spinner("جاري إنشاء ملف PDF..."):
+            if st.button("🖨️🖨️ Create PDF"):
+                with st.spinner("Creating a file PDF..."):
                     try:
                         first = Image.open(uploaded_images[0]).convert("RGB")
                         others = [Image.open(x).convert("RGB") for x in uploaded_images[1:]]
                         pdf_buffer = BytesIO(); first.save(pdf_buffer, format="PDF", save_all=True, append_images=others); pdf_buffer.seek(0)
-                        st.success("✅ تم إنشاء ملف PDF بنجاح")
-                        st.download_button("⬇️ تحميل ملف PDF", pdf_buffer.getvalue(), file_name="Images_Combined.pdf", mime="application/pdf")
+                        st.success("✅ File created PDF Successfully")
+                        st.download_button("⬇️ File Uploader PDF", pdf_buffer.getvalue(), file_name="Images_Combined.pdf", mime="application/pdf")
                     except Exception as e:
                         st.error(f"❌ خطأ أثناء إنشاء PDF: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
-st.caption("© Tricks For Excel — تواصل: WhatsApp 01554694554")
+st.caption("© Tricks For Excel — Communication: WhatsApp 01554694554")
+
 
 
