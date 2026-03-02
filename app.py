@@ -531,7 +531,8 @@ with st.container():
                 wb = load_workbook(proc_file, data_only=False)
                 ws = wb.active
                 header_row = 1
-                headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)erate(headers) if h is not None}
+                headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)]
+                header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
 
                 # Rename
                 for old_name, new_name in COLUMN_RENAME_MAP.items():
@@ -636,3 +637,4 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — Contact: WhatsApp 01554694554")
+
