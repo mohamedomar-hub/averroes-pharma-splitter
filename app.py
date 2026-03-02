@@ -586,11 +586,10 @@ with st.container():
     # Load BUM mapping
     bum_df = load_bum_mapping()
     if not bum_df.empty:
-        st.info(f"✅ Loaded BUM mapping with {len(bum_df)} entries")
         bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
     else:
         bum_dict = {}
-        st.warning("⚠️ Could not load BUM mapping. BUM column will remain as original L4 Emp Name.")
+        # No warning message - just continue silently
 
     COLUMNS_TO_DELETE = [
         "Status","Status Date","Assigned To","Employees Count","Attendees Count",
@@ -861,3 +860,4 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — Contact: WhatsApp 01554694554")
+
