@@ -64,15 +64,15 @@ is_dark = st.session_state.ui_theme == 'Dark'
 
 # ------------------ Custom CSS (Light-first) ------------------
 colors_light = {
-    'primary': '#2d72d9',      # Blue
-    'primary2': '#4fb3f6',     # Light blue
+    'primary': '#2563eb',      # Blue
+    'primary2': '#60a5fa',     # Light blue
     'accent': '#10b981',       # Teal/Green
-    'bg': '#f7f9fc',           # App background
+    'bg': '#ffffff',           # App background
     'card': '#ffffff',         # Card
-    'card2': '#f0f4fa',        # Sub Card
-    'text': '#0f172a',         # Text
+    'card2': '#e8eef7',        # Sub Card
+    'text': '#1e293b',         # Text
     'muted': '#64748b',        # Muted
-    'border': '#e5eaf0',       # Border
+    'border': '#d4d4d8',       # Border
 }
 colors_dark = {
     'primary': '#2563eb',
@@ -174,7 +174,7 @@ logo_b64 = get_image_as_base64("logo.png")
 col_logo, col_title = st.columns([1,7])
 with col_logo:
     if logo_b64:
-        st.image(f"data:image/png;base64,{logo_b64}", width=48)
+        st.image(f"data:image/png;base64,{logo_b64}", width=80)
 with col_title:
     st.markdown('<div class="app-header"><div><h2 class="app-title">Tricks For Excel</h2><p class="app-sub">أدوات سريعة لملفات Excel والصور • Split • Merge • Processor • PDF</p></div></div>', unsafe_allow_html=True)
 
@@ -547,4 +547,5 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — تواصل: WhatsApp 01554694554")
+
 
