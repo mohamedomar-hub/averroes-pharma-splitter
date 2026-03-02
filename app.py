@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Streamlit App — Light Theme Refresh (UI Polished)
+Streamlit App — Light Theme Refresh (UI Polished, English UI)
 - Default: Light, clean palette (subtle gray background)
 - Optional: Dark mode toggle in sidebar
-- Kept: Split / Merge / Excel Processor / Images→PDF (original quality)
+- Tools: Split / Merge / Excel Processor / Images → PDF
 """
 
 import streamlit as st
@@ -14,7 +14,7 @@ import re
 import os
 import base64
 
-from openpyxl.styles import Font, PatternFill, Border, Alignment
+from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils import get_column_letter
 from PIL import Image
@@ -39,6 +39,7 @@ def load_lottie_url(url: str):
         return None
     return None
 
+
 # ------------------ Page Setup ------------------
 st.set_page_config(
     page_title="Tricks For Excel — Split/Merge & PDF Tools",
@@ -50,138 +51,132 @@ st.set_page_config(
 LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")
 LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")
 
+
 # =================== THEME TOGGLE (optional) ===================
-# Default Light; you can switch to Dark from sidebar.
 if 'ui_theme' not in st.session_state:
     st.session_state.ui_theme = 'Light'
 
 with st.sidebar:
-    st.markdown("### 🎨 المظهر")
-    st.session_state.ui_theme = st.radio("اختر النمط", ["Light", "Dark"], index=0)
+    st.markdown("### 🎨 Theme")
+    st.session_state.ui_theme = st.radio("Choose theme", ["Light", "Dark"], index=0)
 
 is_dark = st.session_state.ui_theme == 'Dark'
 
+
 # ------------------ Custom CSS (Light-first) ------------------
 colors_light = {
-    'primary':  '#2563eb',  # أزرق واضح للعناصر الأساسية
-    'primary2': '#60a5fa',  # تدرّج أفتح
-    'accent':   '#22c55e',  # للتأكيد/الـBadges
-    'bg':       '#f5f6fa',  # خلفية التطبيق: رمادي فاتح جدًا
-    'card':     '#ffffff',  # كروت الأدوات
-    'card2':    '#eef2ff',  # مناطق ثانوية/هيدر رقيق
-    'text':     '#0f172a',  # نص أساسي
-    'muted':    '#475569',  # نص ثانوي
-    'border':   '#e5e7eb',  # حدود خفيفة
+    'primary':  '#2563eb',  # primary blue
+    'primary2': '#60a5fa',  # lighter blue gradient
+    'accent':   '#22c55e',  # accent green
+    'bg':       '#f5f6fa',  # very light gray app background
+    'card':     '#ffffff',  # cards
+    'card2':    '#eef2ff',  # subtle header tint
+    'text':     '#0f172a',  # dark text
+    'muted':    '#475569',  # secondary text
+    'border':   '#e5e7eb',  # light borders
 }
 colors_dark = {
     'primary':  '#60a5fa',
     'primary2': '#93c5fd',
     'accent':   '#34d399',
-    'bg':       '#0b1220',  # خلفية داكنة حقيقية
-    'card':     '#111827',  # كروت داكنة
-    'card2':    '#0f172a',  # هيدر داكن
-    'text':     '#e5e7eb',  # نص فاتح
-    'muted':    '#94a3b8',  # نص ثانوي فاتح
-    'border':   '#1f2937',  # حدود داكنة
+    'bg':       '#0b1220',
+    'card':     '#111827',
+    'card2':    '#0f172a',
+    'text':     '#e5e7eb',
+    'muted':    '#94a3b8',
+    'border':   '#1f2937',
 }
 C = colors_dark if is_dark else colors_light
 
-# NOTE: normal string + .format to avoid braces issues
 custom_css = """
 <style>
-:root {{
-  --primary: {primary};
-  --primary-2: {primary2};
-  --accent: {accent};
-  --app-bg: {bg};
-  --bg-elev: {card};
-  --bg-elev-2: {card2};
-  --text: {text};
-  --muted: {muted};
-  --border: {border};
-}}
+:root {
+  --primary: %(primary)s;
+  --primary-2: %(primary2)s;
+  --accent: %(accent)s;
+  --app-bg: %(bg)s;
+  --bg-elev: %(card)s;
+  --bg-elev-2: %(card2)s;
+  --text: %(text)s;
+  --muted: %(muted)s;
+  --border: %(border)s;
+}
 
-html, body {{ background: var(--app-bg) !important; }}
-section.main > div {{ padding-top: 10px; }}
-html, body, [class^="css"]  {{ font-family: 'Segoe UI', system-ui, -apple-system, Cairo, Tahoma, sans-serif; color: var(--text); }}
+html, body { background: var(--app-bg) !important; }
+section.main > div { padding-top: 10px; }
+html, body, [class^="css"]  { font-family: 'Segoe UI', system-ui, -apple-system, Cairo, Tahoma, sans-serif; color: var(--text); }
 
 /* Header */
-.app-header {{
+.app-header {
   display:flex; align-items:center; justify-content:center; gap:16px; padding:18px 20px;
   background: linear-gradient(135deg, var(--bg-elev-2), #ffffff10);
   border: 1px solid var(--border); border-radius: 16px;
   box-shadow: 0 6px 18px rgba(17,24,39,.06);
-}}
-.app-titlewrap {{ text-align:center; }}
-.app-title {{ margin:0; font-weight:800; letter-spacing:.2px; color: var(--text); }}
-.app-sub {{ margin:6px 0 0; color: var(--muted); font-size: 14.5px; }}
-.app-logo {{
+}
+.app-titlewrap { text-align:center; }
+.app-title { margin:0; font-weight:800; letter-spacing:.2px; color: var(--text); }
+.app-sub { margin:6px 0 0; color: var(--muted); font-size: 14.5px; }
+.app-logo {
   width: 170px; height: auto; border-radius: 12px;
   box-shadow: 0 8px 22px rgba(0,0,0,.12);
-}}
+}
 
 /* Section card */
-.card {{
+.card {
   border:1px solid var(--border); border-radius:16px; padding:18px 18px 10px; background: var(--bg-elev);
   margin: 10px 0 22px; box-shadow: 0 2px 12px rgba(17,24,39,.07);
-}}
-.card h3, .card h2, .card h4 {{ margin-top:0; display:flex; align-items:center; gap:8px; color: var(--text); }}
+}
+.card h3, .card h2, .card h4 { margin-top:0; display:flex; align-items:center; gap:8px; color: var(--text); }
 
-/* Hints - clearer & highlighted */
-.hint {{
+/* Hints - clear & highlighted */
+.hint {
   display:block;
-  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  background: var(--bg-elev-2);
   border-left: 4px solid var(--primary);
   color: var(--muted);
   font-size: 14.5px;
   padding: 10px 12px;
   border-radius: 10px;
   margin: -4px 0 10px 0;
-}}
+}
 
 /* Buttons */
-.stButton > button {{
+.stButton > button {
   border-radius:12px; padding:10px 14px; font-weight:600; border:1px solid transparent;
   background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:#fff; box-shadow: 0 4px 14px rgba(45,114,217,.25);
-}}
-.stButton > button:hover {{ filter:brightness(1.06); transform: translateY(-1px); }}
-.stButton > button:active {{ transform: translateY(0); }}
+}
+.stButton > button:hover { filter:brightness(1.06); transform: translateY(-1px); }
+.stButton > button:active { transform: translateY(0); }
 
 /* File uploader */
-[data-testid="stFileUploader"] {{
-  background: color-mix(in oklab, var(--bg-elev-2) 60%, var(--app-bg));
+[data-testid="stFileUploader"] {
+  background: var(--bg-elev-2);
   padding:12px; border-radius: 12px; border:1px dashed var(--border);
-}}
+}
 
 /* Download buttons */
-.stDownloadButton > button {{
+.stDownloadButton > button {
   border-radius:10px; border:1px solid var(--border); background: var(--bg-elev-2); color: var(--text);
-}}
+}
 
 /* Dataframe wrapper */
-.css-1m1b9qw, .stDataFrame {{ border-radius: 10px; overflow:hidden; border:1px solid var(--border); }}
+.css-1m1b9qw, .stDataFrame { border-radius: 10px; overflow:hidden; border:1px solid var(--border); }
 
 /* Divider */
-hr {{ border: none; height: 1px; background: var(--border); margin: 14px 0; }}
-
-/* Accent badge */
-.badge {{
-  display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px;
-  background: rgba(16,185,129,.12); color:#059669; font-weight:600; border:1px solid rgba(16,185,129,.25); font-size:12px
-}}
+hr { border: none; height: 1px; background: var(--border); margin: 14px 0; }
 
 /* Force app background containers */
-[data-testid="stAppViewContainer"] > .main {{ background: var(--app-bg); }}
-[data-testid="stHeader"] {{ background: var(--app-bg); border-bottom: 0; }}
+[data-testid="stAppViewContainer"] > .main { background: var(--app-bg); }
+[data-testid="stHeader"] { background: var(--app-bg); border-bottom: 0; }
 </style>
-""".format(**C)
+""" % C
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ------------------ Small helpers ------------------
 
+# ------------------ Helpers ------------------
 def display_uploaded_files(file_list, file_type="Files"):
     if file_list:
-        st.markdown("**Uploaded Files:**")
+        st.markdown("**Uploaded files:**")
         for i, f in enumerate(file_list):
             st.caption(f"{i+1}. {f.name} — {f.size//1024} KB")
 
@@ -195,15 +190,15 @@ def get_image_as_base64(image_path):
     except Exception:
         return None
 
+
 # ------------------ Header ------------------
 logo_b64 = get_image_as_base64("logo.png")
-
 header_html = f"""
 <div class="app-header">
-  {('<img class="app-logo" src="data:image/png;base64,' + logo_b64 + '" alt="logo" />') if logo_b64 else ''}
+  {('<img class="app-logo" src="data:image/png;base64,' + logo_b64 + '" alt="Logo" />') if logo_b64 else ''}
   <div class="app-titlewrap">
     <h2 class="app-title">Tricks For Excel</h2>
-    <p class="app-sub">Quick tools for Excel files and images • Split • Merge • Processor • PDF</p>
+    <p class="app-sub">Quick tools for Excel & Images • Split • Merge • Processor • PDF</p>
   </div>
 </div>
 """
@@ -212,14 +207,15 @@ st.markdown(header_html, unsafe_allow_html=True)
 if 'clear_counter' not in st.session_state:
     st.session_state.clear_counter = 0
 
+
 # ===================== Split Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### ✂️ Split a file Excel/CSV")
-    st.markdown('<span class="hint">Upload an Excel or CSV file, then choose a split column. A ZIP file will be created with separate files for each value.</span>', unsafe_allow_html=True)
+    st.markdown("### ✂️ Split Excel/CSV File")
+    st.markdown('<span class="hint">Upload an Excel or CSV file, then select the column to split by. A ZIP will be generated with one file per value.</span>', unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader(
-        "📂 Upload an Excel or CSV file",
+        "📂 Upload Excel or CSV",
         type=["xlsx", "csv"],
         accept_multiple_files=False,
         key=f"split_uploader_{st.session_state.clear_counter}",
@@ -229,7 +225,7 @@ with st.container():
         display_uploaded_files([uploaded_file])
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button("🧹 Clear File", key="clear_split"):
+            if st.button("🧹 Clear file", key="clear_split"):
                 st.session_state.clear_counter += 1
                 st.rerun()
 
@@ -238,18 +234,18 @@ with st.container():
             if file_ext == "csv":
                 df = pd.read_csv(uploaded_file)
                 selected_sheet = "Sheet1"
-                st.success("✅ CSV file loaded successfully")
+                st.success("✅ CSV file uploaded successfully")
             else:
                 input_bytes = uploaded_file.getvalue()
                 original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
                 sheet_names = original_wb.sheetnames
-                selected_sheet = st.selectbox("Choose the sheet to divide", sheet_names)
+                selected_sheet = st.selectbox("Select sheet to split", sheet_names)
                 df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
 
             st.dataframe(df.head(200), use_container_width=True)
-            col_to_split = st.selectbox("Select Spilit Column", df.columns)
+            col_to_split = st.selectbox("Select column to split by", df.columns)
             split_option = st.radio(
-                "Spilit Way:",
+                "Split method:",
                 ["Split by Column Values", "Split Each Sheet into Separate File"],
                 horizontal=True,
             )
@@ -276,8 +272,13 @@ with st.container():
                                 csv_buffer.seek(0)
                                 zip_file.writestr(f"{clean_name(value)}.csv", csv_buffer.read())
                         zip_buffer.seek(0)
-                        st.success("🎉 Spiliting and ZIP created successfully!")
-                        st.download_button("⬇️ Download (ZIP)", zip_buffer.getvalue(), file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
+                        st.success("🎉 Split completed! ZIP is ready.")
+                        st.download_button(
+                            "⬇️ Download (ZIP)",
+                            zip_buffer.getvalue(),
+                            file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                            mime="application/zip"
+                        )
                     else:
                         ws = original_wb[selected_sheet]
                         if split_option == "Split by Column Values":
@@ -297,8 +298,6 @@ with st.container():
                                                     dst.font = Font(name=cell.font.name, size=cell.font.size, bold=cell.font.bold, italic=cell.font.italic, color=cell.font.color)
                                                 if cell.fill and cell.fill.fill_type:
                                                     dst.fill = PatternFill(fill_type=cell.fill.fill_type, start_color=cell.fill.start_color, end_color=cell.fill.end_color)
-                                                if cell.border:
-                                                    dst.border = cell.border
                                                 if cell.alignment:
                                                     dst.alignment = Alignment(horizontal=cell.alignment.horizontal, vertical=cell.alignment.vertical, wrap_text=cell.alignment.wrap_text)
                                                 dst.number_format = cell.number_format
@@ -316,14 +315,13 @@ with st.container():
                                                             dst.font = Font(name=src.font.name, size=src.font.size, bold=src.font.bold, italic=src.font.italic, color=src.font.color)
                                                         if src.fill and src.fill.fill_type:
                                                             dst.fill = PatternFill(fill_type=src.fill.fill_type, start_color=src.fill.start_color, end_color=src.fill.end_color)
-                                                        if src.border:
-                                                            dst.border = src.border
                                                         if src.alignment:
                                                             dst.alignment = Alignment(horizontal=src.alignment.horizontal, vertical=src.alignment.vertical, wrap_text=src.alignment.wrap_text)
                                                         dst.number_format = src.number_format
                                                     except Exception:
                                                         pass
                                             row_out += 1
+                                    # Column widths
                                     try:
                                         for col_letter in ws.column_dimensions:
                                             width = ws.column_dimensions[col_letter].width
@@ -334,8 +332,13 @@ with st.container():
                                     fb = BytesIO(); new_wb.save(fb); fb.seek(0)
                                     zip_file.writestr(f"{clean_name(value)}.xlsx", fb.read())
                             zip_buffer.seek(0)
-                            st.success("🎉 Spiliting and ZIP created successfully!")
-                            st.download_button("⬇️ Download (ZIP)", zip_buffer.getvalue(), file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
+                            st.success("🎉 Split completed! ZIP is ready.")
+                            st.download_button(
+                                "⬇️ Download (ZIP)",
+                                zip_buffer.getvalue(),
+                                file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                                mime="application/zip"
+                            )
                         else:
                             zip_buffer = BytesIO()
                             with ZipFile(zip_buffer, "w") as zip_file:
@@ -348,14 +351,9 @@ with st.container():
                                             dst = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
                                             if src_cell.has_style:
                                                 try:
-                                                    if src_cell.font:
-                                                        dst.font = Font(name=src_cell.font.name, size=src_cell.font.size, bold=src_cell.font.bold, italic=src_cell.font.italic, color=src_cell.font.color)
-                                                    if src_cell.fill and src_cell.fill.fill_type:
-                                                        dst.fill = PatternFill(fill_type=src_cell.fill.fill_type, start_color=src_cell.fill.start_color, end_color=src_cell.fill.end_color)
-                                                    if src_cell.border:
-                                                        dst.border = src_cell.border
-                                                    if src_cell.alignment:
-                                                        dst.alignment = Alignment(horizontal=src_cell.alignment.horizontal, vertical=src_cell.alignment.vertical, wrap_text=src_cell.alignment.wrap_text)
+                                                    if src_cell.font: dst.font = src_cell.font
+                                                    if src_cell.fill and src_cell.fill.fill_type: dst.fill = src_cell.fill
+                                                    if src_cell.alignment: dst.alignment = src_cell.alignment
                                                     dst.number_format = src_cell.number_format
                                                 except Exception:
                                                     pass
@@ -368,20 +366,26 @@ with st.container():
                                     fb = BytesIO(); new_wb.save(fb); fb.seek(0)
                                     zip_file.writestr(f"{_safe_name(sheet_name)}.xlsx", fb.read())
                             zip_buffer.seek(0)
-                            st.success("🎉 Spiliting and ZIP created successfully!")
-                            st.download_button("⬇️ Download(ZIP)", zip_buffer.getvalue(), file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip", mime="application/zip")
+                            st.success("🎉 Split by sheets completed! ZIP is ready.")
+                            st.download_button(
+                                "⬇️ Download (ZIP)",
+                                zip_buffer.getvalue(),
+                                file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                                mime="application/zip"
+                            )
         except Exception as e:
-            st.error(f"❌ حدث خطأ أثناء التقسيم: {e}")
+            st.error(f"❌ Error while splitting: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 # ===================== Merge Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🔁 Merge Files Excel/CSV")
-    st.markdown('<span class="hint">Upload more than one file and it will be combined into one file while keeping the Excel format as much as possible.</span>', unsafe_allow_html=True)
+    st.markdown("### 🔁 Merge Excel/CSV Files")
+    st.markdown('<span class="hint">Upload multiple files and they will be merged into one file (Excel formatting is preserved where possible).</span>', unsafe_allow_html=True)
 
     merge_files = st.file_uploader(
-        "📂Upload Excel/CSV files for merging",
+        "📂 Upload Excel/CSV files to merge",
         type=["xlsx", "csv"],
         accept_multiple_files=True,
         key=f"merge_uploader_{st.session_state.clear_counter}",
@@ -391,23 +395,28 @@ with st.container():
         display_uploaded_files(merge_files)
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button("🧹Clear Files", key="clear_merge"):
+            if st.button("🧹 Clear files", key="clear_merge"):
                 st.session_state.clear_counter += 1
                 st.rerun()
         with c2:
             if st.button("✨ Merge files"):
-                with st.spinner("Integration..."):
+                with st.spinner("Merging..."):
                     if st_lottie and LOTTIE_MERGE:
                         st_lottie(LOTTIE_MERGE, height=100, key="lottie_merge")
                     try:
                         all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                         if all_excel:
-                            merged_wb = Workbook(); merged_ws = merged_wb.active; merged_ws.title = "Merged_Data"
+                            merged_wb = Workbook()
+                            merged_ws = merged_wb.active
+                            merged_ws.title = "Merged_Data"
                             current_row = 1
+
                             for idx, file in enumerate(merge_files):
                                 file_bytes = file.getvalue()
                                 src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                                 src_ws = src_wb.active
+
+                                # Header from first file
                                 if idx == 0:
                                     for row in src_ws.iter_rows(min_row=1, max_row=1):
                                         for cell in row:
@@ -416,12 +425,13 @@ with st.container():
                                                 try:
                                                     if cell.font: dst.font = cell.font
                                                     if cell.fill and cell.fill.fill_type: dst.fill = cell.fill
-                                                    if cell.border: dst.border = cell.border
                                                     if cell.alignment: dst.alignment = cell.alignment
                                                     dst.number_format = cell.number_format
                                                 except Exception:
                                                     pass
                                     current_row += 1
+
+                                # Data rows
                                 for row in src_ws.iter_rows(min_row=2):
                                     for cell in row:
                                         dst = merged_ws.cell(current_row, cell.column, cell.value)
@@ -429,12 +439,13 @@ with st.container():
                                             try:
                                                 if cell.font: dst.font = cell.font
                                                 if cell.fill and cell.fill.fill_type: dst.fill = cell.fill
-                                                if cell.border: dst.border = cell.border
                                                 if cell.alignment: dst.alignment = cell.alignment
                                                 dst.number_format = cell.number_format
                                             except Exception:
                                                 pass
                                     current_row += 1
+
+                                # Column widths
                                 try:
                                     for col_letter in src_ws.column_dimensions:
                                         width = src_ws.column_dimensions[col_letter].width
@@ -442,31 +453,51 @@ with st.container():
                                             merged_ws.column_dimensions[col_letter].width = width
                                 except Exception:
                                     pass
-e(out); out.seek(0)
-                            st.success("✅Merge Successfully")
-                            st.download_button("⬇️ Download the file", out.getvalue(), file_name="Merged_Consolidated_Formatted.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+                            out = BytesIO()
+                            merged_wb.save(out)
+                            out.seek(0)
+
+                            st.success("✅ Merge completed")
+                            st.download_button(
+                                "⬇️ Download file",
+                                out.getvalue(),
+                                file_name="Merged_Consolidated_Formatted.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
                         else:
+                            # Merge CSVs / mix as DataFrames
                             all_dfs = []
                             for file in merge_files:
                                 ext = file.name.split(".")[-1].lower()
                                 df = pd.read_csv(file) if ext == "csv" else pd.read_excel(file)
                                 all_dfs.append(df)
                             merged_df = pd.concat(all_dfs, ignore_index=True)
-                            out = BytesIO(); merged_df.to_excel(out, index=False, engine='openpyxl'); out.seek(0)
-                            st.success("✅ Merge Successfully")
-                            st.download_button("⬇️ Download the file", out.getvalue(), file_name="Merged_Consolidated.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+                            out = BytesIO()
+                            merged_df.to_excel(out, index=False, engine='openpyxl')
+                            out.seek(0)
+
+                            st.success("✅ Merge completed")
+                            st.download_button(
+                                "⬇️ Download file",
+                                out.getvalue(),
+                                file_name="Merged_Consolidated.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
                     except Exception as e:
-                        st.error(f"❌ خطأ أثناء الدمج: {e}")
+                        st.error(f"❌ Error while merging: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 # ===================== Excel Processor Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🧰Service app Builder")
-    st.markdown('<span class="hint">Adjusts columns to your settings.</span>', unsafe_allow_html=True)
+    st.markdown("### 🧰 Excel Processor")
+    st.markdown('<span class="hint">Apply your settings: Rename (MR/DM/AM) + Delete specific columns + Final column order.</span>', unsafe_allow_html=True)
 
     proc_file = st.file_uploader(
-        "📂Upload an Excel file for processing (xlsx/xlsm)",
+        "📂 Upload Excel file to process (xlsx/xlsm)",
         type=["xlsx", "xlsm"],
         accept_multiple_files=False,
         key=f"processor_uploader_{st.session_state.clear_counter}",
@@ -495,13 +526,12 @@ with st.container():
 
     if proc_file:
         st.write("**File:**", proc_file.name)
-        if st.button("⚙️ اThe processor started"):
+        if st.button("⚙️ Start processing"):
             try:
                 wb = load_workbook(proc_file, data_only=False)
                 ws = wb.active
                 header_row = 1
-                headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)]
-                header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
+                headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)erate(headers) if h is not None}
 
                 # Rename
                 for old_name, new_name in COLUMN_RENAME_MAP.items():
@@ -524,10 +554,13 @@ with st.container():
 
                 # Reorder into new workbook
                 col_mapping = [header_to_idx.get(name) for name in FINAL_COLUMN_ORDER]
-                new_wb = Workbook(); new_ws = new_wb.active
+                new_wb = Workbook()
+                new_ws = new_wb.active
+
                 for row_idx in range(1, ws.max_row + 1):
                     for new_col_idx, old_col_idx in enumerate(col_mapping, start=1):
-                        if old_col_idx is None: continue
+                        if old_col_idx is None:
+                            continue
                         old_cell = ws.cell(row_idx, old_col_idx)
                         new_cell = new_ws.cell(row_idx, new_col_idx)
                         new_cell.value = old_cell.value
@@ -535,30 +568,39 @@ with st.container():
                             try:
                                 if old_cell.font: new_cell.font = old_cell.font
                                 if old_cell.fill and old_cell.fill.fill_type: new_cell.fill = old_cell.fill
-                                if old_cell.border: new_cell.border = old_cell.border
                                 if old_cell.alignment: new_cell.alignment = old_cell.alignment
                                 new_cell.number_format = old_cell.number_format
                             except Exception:
                                 pass
+
                 for c in range(1, len(FINAL_COLUMN_ORDER) + 1):
                     new_ws.column_dimensions[get_column_letter(c)].width = 15
 
-                out_buf = BytesIO(); new_wb.save(out_buf); out_buf.seek(0)
-                st.success("✅ Successfully processed")
+                out_buf = BytesIO()
+                new_wb.save(out_buf)
+                out_buf.seek(0)
+
+                st.success("✅ Processing completed")
                 base = os.path.splitext(proc_file.name)[0]
-                st.download_button("⬇️ Download the file", out_buf.getvalue(), file_name=f"{_safe_name(base)}_processed.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button(
+                    "⬇️ Download file",
+                    out_buf.getvalue(),
+                    file_name=f"{_safe_name(base)}_processed.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
             except Exception as e:
-                st.error(f"❌ خطأ أثناء المعالجة: {e}")
+                st.error(f"❌ Error while processing: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 # ===================== Images → PDF Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🖼️ Convert images to PDF")
-    st.markdown('<span class="hint">Upload one or more images and they will be combined into a PDF file while maintaining the original quality.</span>', unsafe_allow_html=True)
+    st.markdown("### 🖼️ Convert Images to PDF")
+    st.markdown('<span class="hint">Upload one or more images and they will be combined into a single PDF file while preserving original quality.</span>', unsafe_allow_html=True)
 
     uploaded_images = st.file_uploader(
-        "📂 upload photos JPG/PNG",
+        "📂 Upload JPG/PNG images",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True,
         key=f"image_uploader_{st.session_state.clear_counter}",
@@ -568,23 +610,29 @@ with st.container():
         display_uploaded_files(uploaded_images, "Images")
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button("🧹 clear images", key="clear_images"):
+            if st.button("🧹 Clear images", key="clear_images"):
                 st.session_state.clear_counter += 1
                 st.rerun()
         with c2:
             if st.button("🖨️ Create PDF"):
-                with st.spinner("Creating a file PDF..."):
+                with st.spinner("Creating PDF..."):
                     try:
                         first = Image.open(uploaded_images[0]).convert("RGB")
                         others = [Image.open(x).convert("RGB") for x in uploaded_images[1:]]
-                        pdf_buffer = BytesIO(); first.save(pdf_buffer, format="PDF", save_all=True, append_images=others); pdf_buffer.seek(0)
-                        st.success("✅ PDF Created Successfully")
-                        st.download_button("⬇️Download PDF", pdf_buffer.getvalue(), file_name="Images_Combined.pdf", mime="application/pdf")
+                        pdf_buffer = BytesIO()
+                        first.save(pdf_buffer, format="PDF", save_all=True, append_images=others)
+                        pdf_buffer.seek(0)
+                        st.success("✅ PDF created successfully")
+                        st.download_button(
+                            "⬇️ Download PDF",
+                            pdf_buffer.getvalue(),
+                            file_name="Images_Combined.pdf",
+                            mime="application/pdf"
+                        )
                     except Exception as e:
-                        st.error(f"❌ خطأ أثناء إنشاء PDF: {e}")
+                        st.error(f"❌ Error while creating PDF: {e}")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
-st.caption("© Tricks For Excel — Communication: WhatsApp 01554694554")
-
+st.caption("© Tricks For Excel — Contact: WhatsApp 01554694554")
