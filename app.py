@@ -185,10 +185,10 @@ if 'clear_counter' not in st.session_state:
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### ✂️ Split Excel/CSV File")
-    st.markdown('<div class="hint">ارفع ملفًا ثم اختر عمود التقسيم، وسيُنشأ ملف ZIP للتحميل</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hint">Upload a file and then choose the partition column, and a ZIP file will be created for upload</div>', unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader(
-        "📂 ارفع ملف Excel أو CSV",
+        "📂 Upload an Excel or CSV file",
         type=["xlsx", "csv"],
         accept_multiple_files=False,
         key=f"split_uploader_{st.session_state.clear_counter}",
@@ -198,7 +198,7 @@ with st.container():
         display_uploaded_files([uploaded_file])
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button("🧹 مسح الملفات", key="clear_split"):
+            if st.button("🧹 Clear Files", key="clear_split"):
                 st.session_state.clear_counter += 1
                 st.rerun()
 
@@ -342,7 +342,7 @@ with st.container():
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### 🔁 Merge Excel/CSV Files")
-    st.markdown('<div class="hint">ارفع عدّة ملفات وسيتم دمجها في ملف واحد مع الحفاظ على التنسيقات لملفات Excel</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hint">Upload multiple files and they will be merged into one file while maintaining the formatting of theExcel</div>', unsafe_allow_html=True)
 
     merge_files = st.file_uploader(
         "📂 Upload Files Excel/CSV | Merge",
@@ -424,7 +424,7 @@ with st.container():
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### 🧰 Service Excel Builider")
-    st.markdown('<div class="hint">مطابق لإعداداتك: إعادة تسمية (MR/DM/AM) + حذف أعمدة محددة + ترتيب نهائي</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hint">Matching your settings: Rename (MR/DM/AM) + Delete specific columns + Final order</div>', unsafe_allow_html=True)
 
     proc_file = st.file_uploader(
         "📂 Upload File Excel to process (xlsx/xlsm)",
@@ -547,6 +547,7 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — Communication: WhatsApp 01554694554")
+
 
 
 
