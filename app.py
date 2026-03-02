@@ -75,15 +75,15 @@ colors_light = {
     'border': '#e5eaf0',       # Border
 }
 colors_dark = {
-    'primary': '#6c5ce7',
-    'primary2': '#a29bfe',
-    'accent': '#00d1b2',
-    'bg': '#0d1117',
-    'card': '#111418',
-    'card2': '#0c0f13',
-    'text': '#e8ebee',
-    'muted': '#9aa3ad',
-    'border': '#222830',
+    'primary': '#2563eb',
+    'primary2': '#60a5fa',
+    'accent': '#22c55e',
+    'bg': '#ffffff',
+    'card': '#f8fafc',
+    'card2': '#eef2ff',
+    'text': '#0b1324',
+    'muted': '#6b7280',
+    'border': '#e5e7eb',
 }
 C = colors_dark if is_dark else colors_light
 
@@ -547,3 +547,4 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — تواصل: WhatsApp 01554694554")
+
