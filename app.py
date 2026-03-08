@@ -573,7 +573,7 @@ with st.container():
 # ===================== Excel Processor Card =====================
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🧰 Excel Processor with BUM Mapping")
+    st.markdown("### 🧰 Excel Processor Service")
     st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
 
     proc_file = st.file_uploader(
@@ -860,4 +860,5 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — Contact: WhatsApp 01554694554")
+
 
