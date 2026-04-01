@@ -576,7 +576,7 @@ with st.container():
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### 🧰 Excel Processor Service")
-    st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, add ID Numbers from uploaded mapping file, and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
+    st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, add ID Numbers from uploaded mapping file (appears at the end), and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
     
     # إضافة تحميل ملف أرقام البطاقات
     st.markdown("#### 📇 ID Numbers Mapping File (Optional)")
@@ -589,39 +589,67 @@ with st.container():
         key=f"id_uploader_{st.session_state.clear_counter}",
     )
     
-    # Load ID mapping
+    # Load ID mapping with better name matching
     id_dict = {}
+    
     if id_file:
         try:
             id_wb = load_workbook(id_file, data_only=False)
             id_ws = id_wb.active
             
-            # Find Doctor Name and ID Number columns
-            headers = [id_ws.cell(1, col).value for col in range(1, id_ws.max_column + 1)]
+            # عرض عينة من البيانات للمساعدة في تحديد الأعمدة
+            st.info("📊 Preview of ID file (first 5 rows):")
+            preview_data = []
+            for row in range(1, min(6, id_ws.max_row + 1)):
+                row_data = []
+                for col in range(1, min(6, id_ws.max_column + 1)):
+                    row_data.append(id_ws.cell(row, col).value)
+                preview_data.append(row_data)
+            
+            # عرض المعاينة
+            preview_df = pd.DataFrame(preview_data)
+            st.dataframe(preview_df, use_container_width=True)
+            
+            # البحث عن أعمدة الأسماء وأرقام الهوية
+            headers = [str(id_ws.cell(1, col).value).lower() if id_ws.cell(1, col).value else "" for col in range(1, id_ws.max_column + 1)]
             
             doctor_col = None
             id_col = None
             
+            st.write("**Searching for columns:**")
             for i, header in enumerate(headers):
-                if header:
-                    header_str = str(header).lower()
-                    if any(keyword in header_str for keyword in ['doctor', 'name', 'اسم', 'الاسم', 'physician']):
-                        doctor_col = i + 1
-                    elif any(keyword in header_str for keyword in ['id', 'number', 'رقم', 'بطاقة', 'national']):
-                        id_col = i + 1
+                header_lower = header.lower()
+                if any(keyword in header_lower for keyword in ['doctor', 'name', 'اسم', 'الاسم', 'physician', 'dr', 'دكتور']):
+                    doctor_col = i + 1
+                    st.write(f"✅ Found doctor name column at position {doctor_col}: {headers[i]}")
+                elif any(keyword in header_lower for keyword in ['id', 'number', 'رقم', 'بطاقة', 'national', 'identification', 'هوية']):
+                    id_col = i + 1
+                    st.write(f"✅ Found ID number column at position {id_col}: {headers[i]}")
             
             if doctor_col and id_col:
+                # قراءة جميع البيانات
                 for row in range(2, id_ws.max_row + 1):
                     doctor_name = id_ws.cell(row, doctor_col).value
                     id_number = id_ws.cell(row, id_col).value
+                    
                     if doctor_name and id_number:
-                        id_dict[str(doctor_name).strip()] = str(id_number).strip()
-                st.success(f"✅ Loaded {len(id_dict)} doctor ID mappings")
+                        # تنظيف الاسم (إزالة المسافات الزائدة وتحويل لحالة موحدة)
+                        clean_name = str(doctor_name).strip()
+                        # تخزين الاسم الأصلي والنظيف للمقارنة
+                        id_dict[clean_name] = str(id_number).strip()
+                        # أيضاً تخزين بصيغة lowercase للمقارنة غير حساسة لحالة الأحرف
+                        id_dict[clean_name.lower()] = str(id_number).strip()
+                
+                st.success(f"✅ Loaded {len(id_dict)//2} doctor ID mappings")
             else:
-                st.warning("⚠️ Could not find Doctor Name or ID Number columns. Please ensure your file has columns with these names. ID Number column will not be added.")
+                st.warning(f"⚠️ Could not find Doctor Name or ID Number columns. Found headers: {headers}")
+                if not doctor_col:
+                    st.warning("Doctor name column not found. Please ensure column contains: Doctor, Name, اسم, etc.")
+                if not id_col:
+                    st.warning("ID number column not found. Please ensure column contains: ID, Number, رقم, etc.")
         except Exception as e:
             st.warning(f"⚠️ Error loading ID file: {e}")
-
+    
     proc_file = st.file_uploader(
         "📂 Upload Excel file to process (xlsx/xlsm)",
         type=["xlsx", "xlsm"],
@@ -635,35 +663,21 @@ with st.container():
         bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
     else:
         bum_dict = {}
-        # No warning message - just continue silently
-
-    COLUMNS_TO_DELETE = [
-        "Status","Status Date","Assigned To","Employees Count","Attendees Count",
-        "Not Listed Invitees Count","Cost Per Person","Governorate","Accomodation Type",
-        "CSR Enabled","Early Bird Due Date","Reservation Type","Meal Type","Meal Title",
-        "Delivery Type","Start Date","End Date","Budget Date","Delivery Date","Invoice Date",
-        "Actual Cost","Deduct","Net Amount","Other Professionals","Customers","Reps",
-        "Items\\Brands","Created At","Request Professional Classifications",
-        "Request Professional Ids","Segments","Accounts","Account Professionals","Category",
-        "Type","Request Serial Number","Shared","Updated","L5 Emp Name",
-        "Sponsored Company Name","Item Type","Item Brand","Promotional Code","Venue",
-        "Restaurant","Business Type","Highlighted","Link Details",
-    ]
 
     COLUMN_RENAME_MAP = { 
         "L1 Emp Name": "MR", 
         "L2 Emp Name": "DM", 
         "L3 Emp Name": "AM",
-        "L4 Emp Name": "BUM"  # تم تغيير L4 Emp Name إلى BUM
+        "L4 Emp Name": "BUM"
     }
 
     FINAL_COLUMN_ORDER = [
-        "CRM Interval Date",  # هننقلها للبداية
+        "CRM Interval Date",
         "Tracking Number",
         "MR",
         "DM",
         "AM",
-        "BUM",  # دي هي L4 Emp Name بعد التعديل
+        "BUM",
         "Line",
         "Activity",
         "Description",
@@ -681,6 +695,15 @@ with st.container():
     if proc_file:
         st.write("**File:**", proc_file.name)
         
+        # عرض عينة من البيانات للمساعدة
+        if id_dict:
+            st.info("📊 Preview of uploaded file (first 5 rows):")
+            try:
+                sample_df = pd.read_excel(proc_file, nrows=5)
+                st.dataframe(sample_df, use_container_width=True)
+            except:
+                pass
+        
         if st.button("⚙️ Start processing"):
             try:
                 # Load the workbook
@@ -688,8 +711,7 @@ with st.container():
                 ws = wb.active
                 
                 # Get headers
-                header_row = 1
-                headers = [ws.cell(header_row, col).value for col in range(1, ws.max_column + 1)]
+                headers = [ws.cell(1, col).value for col in range(1, ws.max_column + 1)]
                 header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
                 
                 # Create a new workbook for the result
@@ -701,7 +723,7 @@ with st.container():
                 mr_col_idx = None
                 bum_col_idx = None
                 crm_interval_idx = None
-                doctor_name_col_idx = None  # العمود اللي فيه اسم الدكتور
+                doctor_name_col_idx = None
                 
                 for old_name, new_name in COLUMN_RENAME_MAP.items():
                     if old_name in header_to_idx:
@@ -710,12 +732,13 @@ with st.container():
                         elif new_name == "BUM":
                             bum_col_idx = header_to_idx[old_name]
                 
-                # البحث عن عمود اسم الدكتور (MR أو أي عمود يحتوي على أسماء الدكاترة)
+                # البحث عن عمود اسم الدكتور (أي عمود يحتوي على أسماء)
                 for col_name in headers:
                     if col_name:
                         col_name_str = str(col_name).lower()
-                        if any(keyword in col_name_str for keyword in ['mr', 'doctor', 'name', 'اسم', 'physician']):
+                        if any(keyword in col_name_str for keyword in ['mr', 'doctor', 'name', 'اسم', 'physician', 'dr']):
                             doctor_name_col_idx = header_to_idx[col_name]
+                            st.write(f"✅ Found doctor name column: {col_name} at position {doctor_name_col_idx}")
                             break
                 
                 # Find CRM Interval Date column
@@ -724,7 +747,7 @@ with st.container():
                         crm_interval_idx = header_to_idx[col_name]
                         break
                 
-                # Prepare final columns list
+                # Prepare final columns list - نبدأ بقائمة فارغة
                 final_cols_info = []
                 
                 # 1. CRM Interval Date (move to beginning)
@@ -736,25 +759,15 @@ with st.container():
                         'original_name': headers[crm_interval_idx - 1]
                     })
                 else:
-                    # If not found, create empty column
                     final_cols_info.append({
                         'name': 'CRM Interval Date',
                         'type': 'new',
                         'value': ''
                     })
                 
-                # 2. Add ID Number column (if ID mapping exists and we have doctor name column)
-                if id_dict and doctor_name_col_idx:
-                    final_cols_info.append({
-                        'name': 'ID Number',
-                        'type': 'id_number',
-                        'doctor_col': doctor_name_col_idx
-                    })
-                
-                # 3. Add remaining columns in order
-                for col_name in FINAL_COLUMN_ORDER[1:]:  # Skip CRM Interval Date as we already added it
+                # 2. Add remaining columns from FINAL_COLUMN_ORDER
+                for col_name in FINAL_COLUMN_ORDER[1:]:
                     if col_name == "BUM" and bum_col_idx:
-                        # BUM column - will be updated based on MR
                         final_cols_info.append({
                             'name': 'BUM',
                             'type': 'bum',
@@ -762,7 +775,6 @@ with st.container():
                             'mr_col': mr_col_idx
                         })
                     else:
-                        # Find original column name considering renaming
                         found = False
                         for old_name, new_name in COLUMN_RENAME_MAP.items():
                             if col_name == new_name and old_name in header_to_idx:
@@ -775,72 +787,102 @@ with st.container():
                                 found = True
                                 break
                         
-                        if not found:
-                            # Check if column exists with the same name
-                            if col_name in header_to_idx:
-                                final_cols_info.append({
-                                    'name': col_name,
-                                    'type': 'existing',
-                                    'source_col': header_to_idx[col_name],
-                                    'original_name': col_name
-                                })
+                        if not found and col_name in header_to_idx:
+                            final_cols_info.append({
+                                'name': col_name,
+                                'type': 'existing',
+                                'source_col': header_to_idx[col_name],
+                                'original_name': col_name
+                            })
+                
+                # 3. Add ID Number column at the END (آخر الشيت)
+                if id_dict and doctor_name_col_idx:
+                    final_cols_info.append({
+                        'name': 'ID Number',
+                        'type': 'id_number',
+                        'doctor_col': doctor_name_col_idx
+                    })
+                    st.info(f"✅ ID Number column will be added at the end. Found {len(id_dict)//2} doctor IDs in mapping.")
                 
                 # Copy headers with styles
                 for col_idx, col_info in enumerate(final_cols_info, start=1):
-                    # Write header name
                     new_ws.cell(1, col_idx, col_info['name'])
-                    
-                    # Copy header style if available
                     if col_info.get('source_col'):
                         src_cell = ws.cell(1, col_info['source_col'])
                         dst_cell = new_ws.cell(1, col_idx)
                         copy_cell_style(src_cell, dst_cell)
                 
                 # Process data rows
+                matched_count = 0
+                unmatched_doctors = []
+                
                 for row_idx in range(2, ws.max_row + 1):
                     for col_idx, col_info in enumerate(final_cols_info, start=1):
                         if col_info['type'] == 'new':
-                            # New empty column
                             new_ws.cell(row_idx, col_idx, '')
                         
                         elif col_info['type'] == 'id_number':
-                            # ID Number column - fetch from mapping based on doctor name
+                            # ID Number column - fetch from mapping
                             if col_info.get('doctor_col'):
                                 doctor_name = ws.cell(row_idx, col_info['doctor_col']).value
-                                if doctor_name and str(doctor_name).strip() in id_dict:
-                                    new_value = id_dict[str(doctor_name).strip()]
-                                    new_ws.cell(row_idx, col_idx, new_value)
+                                if doctor_name:
+                                    clean_name = str(doctor_name).strip()
+                                    # البحث في الـ dict (الأسماء النظيفة والحساسية لحالة الأحرف)
+                                    found_id = None
+                                    
+                                    # البحث المباشر
+                                    if clean_name in id_dict:
+                                        found_id = id_dict[clean_name]
+                                    # البحث بالحروف الصغيرة
+                                    elif clean_name.lower() in id_dict:
+                                        found_id = id_dict[clean_name.lower()]
+                                    # البحث بتجاهل المسافات الزائدة
+                                    elif clean_name.replace(" ", "") in id_dict:
+                                        found_id = id_dict[clean_name.replace(" ", "")]
+                                    
+                                    if found_id:
+                                        new_ws.cell(row_idx, col_idx, found_id)
+                                        matched_count += 1
+                                    else:
+                                        new_ws.cell(row_idx, col_idx, '')
+                                        if clean_name not in unmatched_doctors:
+                                            unmatched_doctors.append(clean_name)
                                 else:
                                     new_ws.cell(row_idx, col_idx, '')
                             else:
                                 new_ws.cell(row_idx, col_idx, '')
                         
                         elif col_info['type'] == 'bum':
-                            # BUM column - update based on MR if mapping exists
                             src_cell = ws.cell(row_idx, col_info['source_col'])
-                            
-                            # Get MR value to find BUM from mapping
                             if col_info.get('mr_col'):
                                 mr_value = ws.cell(row_idx, col_info['mr_col']).value
                                 if mr_value and str(mr_value).strip() in bum_dict:
-                                    # Update BUM value from mapping
                                     new_value = bum_dict[str(mr_value).strip()]
                                     dst_cell = new_ws.cell(row_idx, col_idx, new_value)
                                 else:
-                                    # Keep original value if no mapping found
                                     dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
                             else:
                                 dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
-                            
-                            # Copy style from original cell
                             copy_cell_style(src_cell, dst_cell)
                         
                         else:
-                            # Existing column - copy value and style
                             src_col = col_info['source_col']
                             src_cell = ws.cell(row_idx, src_col)
                             dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
                             copy_cell_style(src_cell, dst_cell)
+                
+                # عرض إحصائيات المطابقة
+                if id_dict and doctor_name_col_idx:
+                    total_doctors = ws.max_row - 1
+                    if matched_count > 0:
+                        st.success(f"✅ Matched {matched_count} out of {total_doctors} doctors with ID numbers")
+                    else:
+                        st.warning(f"⚠️ No matches found! Checked {total_doctors} doctors. Sample of names in your file:")
+                        # عرض عينة من الأسماء غير المتطابقة
+                        sample_unmatched = unmatched_doctors[:10]
+                        for name in sample_unmatched:
+                            st.write(f"- '{name}'")
+                        st.info("Make sure the names in your ID file match exactly with these names (spaces, spelling).")
                 
                 # Copy column widths
                 for col_idx, col_info in enumerate(final_cols_info, start=1):
@@ -851,7 +893,6 @@ with st.container():
                             if width:
                                 new_ws.column_dimensions[get_column_letter(col_idx)].width = width
                     else:
-                        # Set default width for new columns
                         new_ws.column_dimensions[get_column_letter(col_idx)].width = 15
                 
                 # Save the processed workbook
@@ -859,12 +900,11 @@ with st.container():
                 new_wb.save(out_buf)
                 out_buf.seek(0)
                 
-                # Prepare success message based on what was processed
                 success_msg = "✅ Processing completed: "
                 if bum_dict:
                     success_msg += "BUM column updated, "
                 if id_dict:
-                    success_msg += "ID Numbers added, "
+                    success_msg += f"ID Numbers added ({matched_count} matched), "
                 success_msg += "and CRM Interval Date moved to beginning"
                 
                 st.success(success_msg)
@@ -878,6 +918,7 @@ with st.container():
                 
             except Exception as e:
                 st.error(f"❌ Error while processing: {e}")
+                st.exception(e)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
