@@ -439,8 +439,7 @@ with st.container():
                                             dst = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
                                             copy_cell_style(src_cell, dst)
                                     
-                                    
-            # ✅ Copy merged cells
+                                    # Copy merged cells
                                     for merged_range in src_ws.merged_cells.ranges:
                                         new_ws.merge_cells(str(merged_range))
                                     copy_column_widths(src_ws, new_ws)
@@ -577,7 +576,51 @@ with st.container():
 with st.container():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("### 🧰 Excel Processor Service")
-    st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
+    st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, add ID Numbers from uploaded mapping file, and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
+    
+    # إضافة تحميل ملف أرقام البطاقات
+    st.markdown("#### 📇 ID Numbers Mapping File (Optional)")
+    st.markdown('<span class="hint">Upload an Excel file containing doctor names and their ID numbers. The file should have columns like "Doctor Name" and "ID Number". If not uploaded, ID Number column will not be added.</span>', unsafe_allow_html=True)
+    
+    id_file = st.file_uploader(
+        "📂 Upload ID Numbers Excel file (xlsx/xlsm) - Optional",
+        type=["xlsx", "xlsm"],
+        accept_multiple_files=False,
+        key=f"id_uploader_{st.session_state.clear_counter}",
+    )
+    
+    # Load ID mapping
+    id_dict = {}
+    if id_file:
+        try:
+            id_wb = load_workbook(id_file, data_only=False)
+            id_ws = id_wb.active
+            
+            # Find Doctor Name and ID Number columns
+            headers = [id_ws.cell(1, col).value for col in range(1, id_ws.max_column + 1)]
+            
+            doctor_col = None
+            id_col = None
+            
+            for i, header in enumerate(headers):
+                if header:
+                    header_str = str(header).lower()
+                    if any(keyword in header_str for keyword in ['doctor', 'name', 'اسم', 'الاسم', 'physician']):
+                        doctor_col = i + 1
+                    elif any(keyword in header_str for keyword in ['id', 'number', 'رقم', 'بطاقة', 'national']):
+                        id_col = i + 1
+            
+            if doctor_col and id_col:
+                for row in range(2, id_ws.max_row + 1):
+                    doctor_name = id_ws.cell(row, doctor_col).value
+                    id_number = id_ws.cell(row, id_col).value
+                    if doctor_name and id_number:
+                        id_dict[str(doctor_name).strip()] = str(id_number).strip()
+                st.success(f"✅ Loaded {len(id_dict)} doctor ID mappings")
+            else:
+                st.warning("⚠️ Could not find Doctor Name or ID Number columns. Please ensure your file has columns with these names. ID Number column will not be added.")
+        except Exception as e:
+            st.warning(f"⚠️ Error loading ID file: {e}")
 
     proc_file = st.file_uploader(
         "📂 Upload Excel file to process (xlsx/xlsm)",
@@ -658,6 +701,7 @@ with st.container():
                 mr_col_idx = None
                 bum_col_idx = None
                 crm_interval_idx = None
+                doctor_name_col_idx = None  # العمود اللي فيه اسم الدكتور
                 
                 for old_name, new_name in COLUMN_RENAME_MAP.items():
                     if old_name in header_to_idx:
@@ -665,6 +709,14 @@ with st.container():
                             mr_col_idx = header_to_idx[old_name]
                         elif new_name == "BUM":
                             bum_col_idx = header_to_idx[old_name]
+                
+                # البحث عن عمود اسم الدكتور (MR أو أي عمود يحتوي على أسماء الدكاترة)
+                for col_name in headers:
+                    if col_name:
+                        col_name_str = str(col_name).lower()
+                        if any(keyword in col_name_str for keyword in ['mr', 'doctor', 'name', 'اسم', 'physician']):
+                            doctor_name_col_idx = header_to_idx[col_name]
+                            break
                 
                 # Find CRM Interval Date column
                 for col_name in headers:
@@ -691,7 +743,15 @@ with st.container():
                         'value': ''
                     })
                 
-                # 2. Add remaining columns in order
+                # 2. Add ID Number column (if ID mapping exists and we have doctor name column)
+                if id_dict and doctor_name_col_idx:
+                    final_cols_info.append({
+                        'name': 'ID Number',
+                        'type': 'id_number',
+                        'doctor_col': doctor_name_col_idx
+                    })
+                
+                # 3. Add remaining columns in order
                 for col_name in FINAL_COLUMN_ORDER[1:]:  # Skip CRM Interval Date as we already added it
                     if col_name == "BUM" and bum_col_idx:
                         # BUM column - will be updated based on MR
@@ -743,6 +803,18 @@ with st.container():
                             # New empty column
                             new_ws.cell(row_idx, col_idx, '')
                         
+                        elif col_info['type'] == 'id_number':
+                            # ID Number column - fetch from mapping based on doctor name
+                            if col_info.get('doctor_col'):
+                                doctor_name = ws.cell(row_idx, col_info['doctor_col']).value
+                                if doctor_name and str(doctor_name).strip() in id_dict:
+                                    new_value = id_dict[str(doctor_name).strip()]
+                                    new_ws.cell(row_idx, col_idx, new_value)
+                                else:
+                                    new_ws.cell(row_idx, col_idx, '')
+                            else:
+                                new_ws.cell(row_idx, col_idx, '')
+                        
                         elif col_info['type'] == 'bum':
                             # BUM column - update based on MR if mapping exists
                             src_cell = ws.cell(row_idx, col_info['source_col'])
@@ -787,12 +859,20 @@ with st.container():
                 new_wb.save(out_buf)
                 out_buf.seek(0)
                 
-                st.success("✅ Processing completed: BUM column updated and CRM Interval Date moved to beginning")
+                # Prepare success message based on what was processed
+                success_msg = "✅ Processing completed: "
+                if bum_dict:
+                    success_msg += "BUM column updated, "
+                if id_dict:
+                    success_msg += "ID Numbers added, "
+                success_msg += "and CRM Interval Date moved to beginning"
+                
+                st.success(success_msg)
                 base = os.path.splitext(proc_file.name)[0]
                 st.download_button(
                     "⬇️ Download processed file",
                     out_buf.getvalue(),
-                    file_name=f"{_safe_name(base)}_processed_with_BUM.xlsx",
+                    file_name=f"{_safe_name(base)}_processed.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
                 
@@ -863,5 +943,3 @@ with st.container():
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
 st.caption("© Tricks For Excel — Contact: WhatsApp 01554694554")
-
-
