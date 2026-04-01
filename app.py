@@ -64,15 +64,15 @@ is_dark = st.session_state.ui_theme == 'Dark'
 
 # ------------------ Custom CSS (Light-first) ------------------
 colors_light = {
-    'primary':  '#2563eb',  # primary blue
-    'primary2': '#60a5fa',  # lighter blue gradient
-    'accent':   '#22c55e',  # accent green
-    'bg':       '#f5f6fa',  # very light gray app background
-    'card':     '#ffffff',  # cards
-    'card2':    '#eef2ff',  # subtle header tint
-    'text':     '#0f172a',  # dark text
-    'muted':    '#475569',  # secondary text
-    'border':   '#e5e7eb',  # light borders
+    'primary':  '#2563eb',
+    'primary2': '#60a5fa',
+    'accent':   '#22c55e',
+    'bg':       '#f5f6fa',
+    'card':     '#ffffff',
+    'card2':    '#eef2ff',
+    'text':     '#0f172a',
+    'muted':    '#475569',
+    'border':   '#e5e7eb',
 }
 colors_dark = {
     'primary':  '#60a5fa',
@@ -254,7 +254,6 @@ def load_bum_mapping():
             wb = load_workbook(filename=BytesIO(response.content))
             ws = wb.active
             
-            # قراءة البيانات
             data = []
             headers = [cell.value for cell in ws[1]]
             mr_idx = None
@@ -376,7 +375,6 @@ with st.container():
                             col_idx = df.columns.get_loc(col_to_split) + 1
                             unique_values = df[col_to_split].dropna().unique()
                             
-                            # Progress bar
                             progress_bar = st.progress(0)
                             status_text = st.empty()
                             
@@ -391,12 +389,10 @@ with st.container():
                                     new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=clean_name(value))
                                     
-                                    # Copy header with style
                                     for cell in ws[1]:
                                         dst = new_ws.cell(1, cell.column, cell.value)
                                         copy_cell_style(cell, dst)
                                     
-                                    # Copy matching rows
                                     row_out = 2
                                     for row in ws.iter_rows(min_row=2):
                                         if row[col_idx - 1].value == value:
@@ -405,7 +401,6 @@ with st.container():
                                                 copy_cell_style(src, dst)
                                             row_out += 1
                                     
-                                    # Copy column widths
                                     copy_column_widths(ws, new_ws)
                                     
                                     fb = BytesIO()
@@ -433,13 +428,11 @@ with st.container():
                                     new_ws = new_wb.create_sheet(title=sheet_name)
                                     src_ws = original_wb[sheet_name]
                                     
-                                    # Copy all rows with styles
                                     for row in src_ws.iter_rows():
                                         for src_cell in row:
                                             dst = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
                                             copy_cell_style(src_cell, dst)
                                     
-                                    # Copy merged cells
                                     for merged_range in src_ws.merged_cells.ranges:
                                         new_ws.merge_cells(str(merged_range))
                                     copy_column_widths(src_ws, new_ws)
@@ -489,7 +482,6 @@ with st.container():
                         all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
                         
                         if all_excel:
-                            # Create new workbook
                             merged_wb = Workbook()
                             merged_ws = merged_wb.active
                             merged_ws.title = "Merged_Data"
@@ -497,7 +489,6 @@ with st.container():
                             current_row = 1
                             headers_copied = False
                             
-                            # Progress bar
                             progress_bar = st.progress(0)
                             status_text = st.empty()
                             
@@ -509,7 +500,6 @@ with st.container():
                                 src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
                                 src_ws = src_wb.active
                                 
-                                # Copy headers from first file only
                                 if not headers_copied:
                                     for col, cell in enumerate(src_ws[1], start=1):
                                         dst_cell = merged_ws.cell(current_row, col, cell.value)
@@ -517,15 +507,13 @@ with st.container():
                                     current_row += 1
                                     headers_copied = True
                                 
-                                # Copy data rows with their styles
                                 for row in src_ws.iter_rows(min_row=2):
                                     for col, cell in enumerate(row, start=1):
-                                        if cell.value is not None:  # Only copy non-empty cells
+                                        if cell.value is not None:
                                             dst_cell = merged_ws.cell(current_row, col, cell.value)
                                             copy_cell_style(cell, dst_cell)
                                     current_row += 1
                             
-                            # Copy column widths from the first file
                             if merge_files:
                                 first_file_bytes = merge_files[0].getvalue()
                                 first_wb = load_workbook(filename=BytesIO(first_file_bytes), data_only=False)
@@ -535,7 +523,6 @@ with st.container():
                             status_text.empty()
                             progress_bar.empty()
                             
-                            # Save merged workbook
                             out = BytesIO()
                             merged_wb.save(out)
                             out.seek(0)
@@ -548,7 +535,6 @@ with st.container():
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             )
                         else:
-                            # Handle CSV files (simple merge without formatting)
                             all_dfs = []
                             for file in merge_files:
                                 ext = file.name.split(".")[-1].lower()
@@ -578,7 +564,6 @@ with st.container():
     st.markdown("### 🧰 Excel Processor Service")
     st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, add ID Numbers from uploaded mapping file (appears at the end), and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
     
-    # إضافة تحميل ملف أرقام البطاقات
     st.markdown("#### 📇 ID Numbers Mapping File (Optional)")
     st.markdown('<span class="hint">Upload an Excel file containing doctor names and their ID numbers. The file should have columns like "Doctor Name" and "ID Number". If not uploaded, ID Number column will not be added.</span>', unsafe_allow_html=True)
     
@@ -589,7 +574,6 @@ with st.container():
         key=f"id_uploader_{st.session_state.clear_counter}",
     )
     
-    # Load ID mapping with better name matching
     id_dict = {}
     
     if id_file:
@@ -597,7 +581,6 @@ with st.container():
             id_wb = load_workbook(id_file, data_only=False)
             id_ws = id_wb.active
             
-            # عرض عينة من البيانات للمساعدة في تحديد الأعمدة
             st.info("📊 Preview of ID file (first 5 rows):")
             preview_data = []
             for row in range(1, min(6, id_ws.max_row + 1)):
@@ -606,11 +589,9 @@ with st.container():
                     row_data.append(id_ws.cell(row, col).value)
                 preview_data.append(row_data)
             
-            # عرض المعاينة
             preview_df = pd.DataFrame(preview_data)
             st.dataframe(preview_df, use_container_width=True)
             
-            # البحث عن أعمدة الأسماء وأرقام الهوية
             headers = [str(id_ws.cell(1, col).value).lower() if id_ws.cell(1, col).value else "" for col in range(1, id_ws.max_column + 1)]
             
             doctor_col = None
@@ -627,26 +608,18 @@ with st.container():
                     st.write(f"✅ Found ID number column at position {id_col}: {headers[i]}")
             
             if doctor_col and id_col:
-                # قراءة جميع البيانات
                 for row in range(2, id_ws.max_row + 1):
                     doctor_name = id_ws.cell(row, doctor_col).value
                     id_number = id_ws.cell(row, id_col).value
                     
                     if doctor_name and id_number:
-                        # تنظيف الاسم (إزالة المسافات الزائدة وتحويل لحالة موحدة)
                         clean_name = str(doctor_name).strip()
-                        # تخزين الاسم الأصلي والنظيف للمقارنة
                         id_dict[clean_name] = str(id_number).strip()
-                        # أيضاً تخزين بصيغة lowercase للمقارنة غير حساسة لحالة الأحرف
                         id_dict[clean_name.lower()] = str(id_number).strip()
                 
                 st.success(f"✅ Loaded {len(id_dict)//2} doctor ID mappings")
             else:
                 st.warning(f"⚠️ Could not find Doctor Name or ID Number columns. Found headers: {headers}")
-                if not doctor_col:
-                    st.warning("Doctor name column not found. Please ensure column contains: Doctor, Name, اسم, etc.")
-                if not id_col:
-                    st.warning("ID number column not found. Please ensure column contains: ID, Number, رقم, etc.")
         except Exception as e:
             st.warning(f"⚠️ Error loading ID file: {e}")
     
@@ -657,7 +630,6 @@ with st.container():
         key=f"processor_uploader_{st.session_state.clear_counter}",
     )
 
-    # Load BUM mapping
     bum_df = load_bum_mapping()
     if not bum_df.empty:
         bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
@@ -695,7 +667,6 @@ with st.container():
     if proc_file:
         st.write("**File:**", proc_file.name)
         
-        # عرض عينة من البيانات للمساعدة
         if id_dict:
             st.info("📊 Preview of uploaded file (first 5 rows):")
             try:
@@ -706,20 +677,16 @@ with st.container():
         
         if st.button("⚙️ Start processing"):
             try:
-                # Load the workbook
                 wb = load_workbook(proc_file, data_only=False)
                 ws = wb.active
                 
-                # Get headers
                 headers = [ws.cell(1, col).value for col in range(1, ws.max_column + 1)]
                 header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
                 
-                # Create a new workbook for the result
                 new_wb = Workbook()
                 new_ws = new_wb.active
                 new_ws.title = "Processed_Data"
                 
-                # Find important column indices
                 mr_col_idx = None
                 bum_col_idx = None
                 crm_interval_idx = None
@@ -732,25 +699,31 @@ with st.container():
                         elif new_name == "BUM":
                             bum_col_idx = header_to_idx[old_name]
                 
-                # البحث عن عمود اسم الدكتور (أي عمود يحتوي على أسماء)
+                # البحث عن عمود اسم الدكتور - نبحث تحديداً عن "Professionl Accounts"
+                st.write("**Searching for doctor name column in uploaded file:**")
                 for col_name in headers:
                     if col_name:
-                        col_name_str = str(col_name).lower()
-                        if any(keyword in col_name_str for keyword in ['mr', 'doctor', 'name', 'اسم', 'physician', 'dr']):
+                        col_name_str = str(col_name).strip()
+                        # البحث عن العمود المطلوب بالضبط
+                        if col_name_str == "Professionl Accounts":
                             doctor_name_col_idx = header_to_idx[col_name]
-                            st.write(f"✅ Found doctor name column: {col_name} at position {doctor_name_col_idx}")
+                            st.write(f"✅ Found exact match: '{col_name}' at position {doctor_name_col_idx}")
                             break
+                        # البحث عن أي عمود يحتوي على الكلمات المفتاحية
+                        elif any(keyword in col_name_str.lower() for keyword in ['professionl', 'professional', 'account', 'doctor', 'name']):
+                            doctor_name_col_idx = header_to_idx[col_name]
+                            st.write(f"⚠️ Found potential doctor name column: '{col_name}' at position {doctor_name_col_idx}")
                 
-                # Find CRM Interval Date column
+                if not doctor_name_col_idx:
+                    st.warning("⚠️ Could not find 'Professionl Accounts' column in the uploaded file. ID Numbers will not be added.")
+                
                 for col_name in headers:
                     if col_name and "CRM Interval Date" in str(col_name):
                         crm_interval_idx = header_to_idx[col_name]
                         break
                 
-                # Prepare final columns list - نبدأ بقائمة فارغة
                 final_cols_info = []
                 
-                # 1. CRM Interval Date (move to beginning)
                 if crm_interval_idx:
                     final_cols_info.append({
                         'name': 'CRM Interval Date',
@@ -765,7 +738,6 @@ with st.container():
                         'value': ''
                     })
                 
-                # 2. Add remaining columns from FINAL_COLUMN_ORDER
                 for col_name in FINAL_COLUMN_ORDER[1:]:
                     if col_name == "BUM" and bum_col_idx:
                         final_cols_info.append({
@@ -795,7 +767,7 @@ with st.container():
                                 'original_name': col_name
                             })
                 
-                # 3. Add ID Number column at the END (آخر الشيت)
+                # إضافة عمود ID Number في النهاية
                 if id_dict and doctor_name_col_idx:
                     final_cols_info.append({
                         'name': 'ID Number',
@@ -804,7 +776,6 @@ with st.container():
                     })
                     st.info(f"✅ ID Number column will be added at the end. Found {len(id_dict)//2} doctor IDs in mapping.")
                 
-                # Copy headers with styles
                 for col_idx, col_info in enumerate(final_cols_info, start=1):
                     new_ws.cell(1, col_idx, col_info['name'])
                     if col_info.get('source_col'):
@@ -812,7 +783,6 @@ with st.container():
                         dst_cell = new_ws.cell(1, col_idx)
                         copy_cell_style(src_cell, dst_cell)
                 
-                # Process data rows
                 matched_count = 0
                 unmatched_doctors = []
                 
@@ -822,21 +792,16 @@ with st.container():
                             new_ws.cell(row_idx, col_idx, '')
                         
                         elif col_info['type'] == 'id_number':
-                            # ID Number column - fetch from mapping
                             if col_info.get('doctor_col'):
                                 doctor_name = ws.cell(row_idx, col_info['doctor_col']).value
                                 if doctor_name:
                                     clean_name = str(doctor_name).strip()
-                                    # البحث في الـ dict (الأسماء النظيفة والحساسية لحالة الأحرف)
                                     found_id = None
                                     
-                                    # البحث المباشر
                                     if clean_name in id_dict:
                                         found_id = id_dict[clean_name]
-                                    # البحث بالحروف الصغيرة
                                     elif clean_name.lower() in id_dict:
                                         found_id = id_dict[clean_name.lower()]
-                                    # البحث بتجاهل المسافات الزائدة
                                     elif clean_name.replace(" ", "") in id_dict:
                                         found_id = id_dict[clean_name.replace(" ", "")]
                                     
@@ -871,20 +836,17 @@ with st.container():
                             dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
                             copy_cell_style(src_cell, dst_cell)
                 
-                # عرض إحصائيات المطابقة
                 if id_dict and doctor_name_col_idx:
                     total_doctors = ws.max_row - 1
                     if matched_count > 0:
                         st.success(f"✅ Matched {matched_count} out of {total_doctors} doctors with ID numbers")
                     else:
-                        st.warning(f"⚠️ No matches found! Checked {total_doctors} doctors. Sample of names in your file:")
-                        # عرض عينة من الأسماء غير المتطابقة
+                        st.warning(f"⚠️ No matches found! Checked {total_doctors} doctors. Sample of names from 'Professionl Accounts' column:")
                         sample_unmatched = unmatched_doctors[:10]
                         for name in sample_unmatched:
                             st.write(f"- '{name}'")
                         st.info("Make sure the names in your ID file match exactly with these names (spaces, spelling).")
                 
-                # Copy column widths
                 for col_idx, col_info in enumerate(final_cols_info, start=1):
                     if col_info.get('source_col'):
                         src_col_letter = get_column_letter(col_info['source_col'])
@@ -895,7 +857,6 @@ with st.container():
                     else:
                         new_ws.column_dimensions[get_column_letter(col_idx)].width = 15
                 
-                # Save the processed workbook
                 out_buf = BytesIO()
                 new_wb.save(out_buf)
                 out_buf.seek(0)
@@ -903,7 +864,7 @@ with st.container():
                 success_msg = "✅ Processing completed: "
                 if bum_dict:
                     success_msg += "BUM column updated, "
-                if id_dict:
+                if id_dict and doctor_name_col_idx:
                     success_msg += f"ID Numbers added ({matched_count} matched), "
                 success_msg += "and CRM Interval Date moved to beginning"
                 
@@ -946,10 +907,8 @@ with st.container():
             if st.button("🖨️ Create PDF"):
                 with st.spinner("Creating PDF..."):
                     try:
-                        # Progress bar for images
                         progress_bar = st.progress(0)
                         
-                        # Open and convert images
                         images = []
                         for i, img_file in enumerate(uploaded_images):
                             img = Image.open(img_file)
@@ -958,7 +917,6 @@ with st.container():
                             images.append(img)
                             progress_bar.progress((i + 1) / len(uploaded_images))
                         
-                        # Create PDF
                         pdf_buffer = BytesIO()
                         images[0].save(
                             pdf_buffer,
