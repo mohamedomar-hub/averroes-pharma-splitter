@@ -441,10 +441,9 @@ with st.container():
                                     
                                     
             # ✅ Copy merged cells
-            for merged_range in src_ws.merged_cells.ranges:
-                new_ws.merge_cells(str(merged_range))
-copy_column_widths(src_ws, new_ws)
-                                    
+                                    for merged_range in src_ws.merged_cells.ranges:
+                                        new_ws.merge_cells(str(merged_range))
+                                    copy_column_widths(src_ws, new_ws)
                                     fb = BytesIO()
                                     new_wb.save(fb)
                                     fb.seek(0)
