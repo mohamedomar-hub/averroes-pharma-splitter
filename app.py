@@ -443,8 +443,12 @@ with st.container():
         # Copy merged cells automatically added
         for merged_range in src_ws.merged_cells.ranges:
             new_ws.merge_cells(str(merged_range))
-copy_column_widths(src_ws, new_ws)
-                                    
+
+        for col_letter in src_ws.column_dimensions:
+            width = src_ws.column_dimensions[col_letter].width
+            if width:
+                new_ws.column_dimensions[col_letter].width = width
+                
                                     fb = BytesIO()
                                     new_wb.save(fb)
                                     fb.seek(0)
