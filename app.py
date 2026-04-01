@@ -439,7 +439,11 @@ with st.container():
                                             dst = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
                                             copy_cell_style(src_cell, dst)
                                     
-                                    copy_column_widths(src_ws, new_ws)
+                                    
+        # Copy merged cells automatically added
+        for merged_range in src_ws.merged_cells.ranges:
+            new_ws.merge_cells(str(merged_range))
+copy_column_widths(src_ws, new_ws)
                                     
                                     fb = BytesIO()
                                     new_wb.save(fb)
