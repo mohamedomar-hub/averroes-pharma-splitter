@@ -604,8 +604,8 @@ proc_file = st.file_uploader(
 bum_df = load_bum_mapping()
 if not bum_df.empty:
     bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
-    else:
-        bum_dict = {}
+else:
+    bum_dict = {}
 
     COLUMN_RENAME_MAP = { 
         "L1 Emp Name": "MR", 
