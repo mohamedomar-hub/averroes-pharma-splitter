@@ -601,11 +601,11 @@ proc_file = st.file_uploader(
         key=f"processor_uploader_{st.session_state.clear_counter}",
     )
 
-bum_df = load_bum_mapping()
-if not bum_df.empty:
-    bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
-else:
-    bum_dict = {}
+    bum_df = load_bum_mapping()
+    if not bum_df.empty:
+        bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
+    else:
+        bum_dict = {}
 
     COLUMN_RENAME_MAP = { 
         "L1 Emp Name": "MR", 
@@ -760,7 +760,7 @@ else:
                 for row_idx in range(2, ws.max_row + 1):
                     for col_idx, col_info in enumerate(final_cols_info, start=1):
                         if col_info['type'] == 'new':
-                            new_ws.cell(row_idx, col_idx, str(found).replace(".0", ""))
+                            new_ws.cell(row_idx, col_idx, '')
                         
                         elif col_info['type'] == 'id_number':
                             if col_info.get('doctor_col'):
