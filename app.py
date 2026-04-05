@@ -1,434 +1,915 @@
-# ✅ FINAL CONSOLIDATED STREAMLIT APP
-# ✅ Includes: Split • Merge • Processor • Online Google Sheet Doctor IDs • PDF Tools
-# ✅ Fully merged from all 4 parts + corrected + structured
-# ✅ Ready to run immediately
+# -*- coding: utf-8 -*-
+"""
+Streamlit App — Light Theme Refresh (UI Polished, English UI)
+- Default: Light, clean palette (subtle gray background)
+- Optional: Dark mode toggle in sidebar
+- Tools: Split / Merge / Excel Processor / Images → PDF
+"""
 
 import streamlit as st
 import pandas as pd
-import requests
 from io import BytesIO
 from zipfile import ZipFile
 import re
 import os
 import base64
+import requests
 from datetime import datetime
-from openpyxl.styles import Font, PatternFill, Alignment, Border
+
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import NamedStyle
 from PIL import Image
 
-try:
-    from streamlit_lottie import st_lottie
-except:
-    st_lottie = None
-
-# =============================================================
-# ✅ GOOGLE SHEET: Doctor IDs (REPLACES ID FILE UPLOAD)
-# =============================================================
-GDRIVE_SHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/1-u3cegWgrsoXvJYWVwQQRJbyYbdYtjIMDIifnalwHqo/"
-    "export?format=xlsx"
-)
-
+# Google Sheet ID loader added automatically
 def load_online_doctor_ids():
+    import requests
+    from openpyxl import load_workbook
+    from io import BytesIO
+    GDRIVE_SHEET_URL = ("https://docs.google.com/spreadsheets/d/1-u3cegWgrsoXvJYWVwQQRJbyYbdYtjIMDIifnalwHqo/export?format=xlsx")
     try:
-        response = requests.get(GDRIVE_SHEET_URL)
-        if response.status_code != 200:
+        r = requests.get(GDRIVE_SHEET_URL)
+        if r.status_code != 200:
             return {}, "⚠️ Cannot access Google Sheet."
-
-        wb = load_workbook(BytesIO(response.content))
+        wb = load_workbook(BytesIO(r.content))
         ws = wb.active
-
-        headers = [str(ws.cell(1, col).value).strip().lower() if ws.cell(1, col).value else ""
-                   for col in range(1, ws.max_column + 1)]
-
-        doctor_col = None
-        id_col = None
-
-        for i, h in enumerate(headers):
-            if any(x in h for x in ["doctor", "اسم", "name", "دكتور"]):
-                doctor_col = i + 1
-            if any(x in h for x in ["id", "رقم", "بطاقة", "identity", "national"]):
-                id_col = i + 1
-
-        if not doctor_col or not id_col:
-            return {}, f"⚠️ Missing required columns: {headers}"
-
-        id_dict = {}
-        for row in range(2, ws.max_row + 1):
-            name = ws.cell(row, doctor_col).value
-            docid = ws.cell(row, id_col).value
-            if name and docid:
-                clean = str(name).strip()
-                id_dict[clean] = str(docid).strip()
-                id_dict[clean.lower()] = str(docid).strip()
-                id_dict[clean.replace(" ", "")] = str(docid).strip()
-
-        return id_dict, f"✅ Loaded {len(id_dict)//3} doctor IDs from online sheet"
-
+        headers=[str(ws.cell(1,c).value).strip().lower() if ws.cell(1,c).value else '' for c in range(1,ws.max_column+1)]
+        dcol=icol=None
+        for i,h in enumerate(headers):
+            if any(x in h for x in ['doctor','اسم','name','دكتور']): dcol=i+1
+            if any(x in h for x in ['id','رقم','بطاقة','national','identity']): icol=i+1
+        if not dcol or not icol: return {}, f"⚠️ Missing columns: {headers}"
+        idd={}
+        for r in range(2,ws.max_row+1):
+            n=ws.cell(r,dcol).value; v=ws.cell(r,icol).value
+            if n and v:
+                c=str(n).strip(); s=str(v).strip()
+                idd[c]=s; idd[c.lower()]=s; idd[c.replace(' ','')]=s
+        return idd, f"✅ Loaded {len(idd)//3} doctor IDs"
     except Exception as e:
         return {}, f"❌ Error: {e}"
 
-# Load once
-id_dict, id_message = load_online_doctor_ids()
-st.info(id_message)
+# Optional animations
+try:
+    from streamlit_lottie import st_lottie  # type: ignore
+except Exception:
+    st_lottie = None
 
-# =============================================================
-# ✅ Helper Functions
-# =============================================================
+
+def load_lottie_url(url: str):
+    try:
+        r = requests.get(url, timeout=8)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        return None
+    return None
+
+
+# ------------------ Page Setup ------------------
+st.set_page_config(
+    page_title="Tricks For Excel — Split/Merge & PDF Tools",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+LOTTIE_SPLIT = load_lottie_url("https://assets9.lottiefiles.com/packages/lf20_wx9z5gxb.json")
+LOTTIE_MERGE = load_lottie_url("https://assets10.lottiefiles.com/packages/lf20_cg3rwjul.json")
+
+
+# =================== THEME TOGGLE (optional) ===================
+if 'ui_theme' not in st.session_state:
+    st.session_state.ui_theme = 'Light'
+
+with st.sidebar:
+    st.markdown("### 🎨 Theme")
+    st.session_state.ui_theme = st.radio("Choose theme", ["Light", "Dark"], index=0)
+
+is_dark = st.session_state.ui_theme == 'Dark'
+
+
+# ------------------ Custom CSS (Light-first) ------------------
+colors_light = {
+    'primary':  '#2563eb',
+    'primary2': '#60a5fa',
+    'accent':   '#22c55e',
+    'bg':       '#f5f6fa',
+    'card':     '#ffffff',
+    'card2':    '#eef2ff',
+    'text':     '#0f172a',
+    'muted':    '#475569',
+    'border':   '#e5e7eb',
+}
+colors_dark = {
+    'primary':  '#60a5fa',
+    'primary2': '#93c5fd',
+    'accent':   '#34d399',
+    'bg':       '#0b1220',
+    'card':     '#111827',
+    'card2':    '#0f172a',
+    'text':     '#e5e7eb',
+    'muted':    '#94a3b8',
+    'border':   '#1f2937',
+}
+C = colors_dark if is_dark else colors_light
+
+custom_css = """
+<style>
+:root {
+  --primary: %(primary)s;
+  --primary-2: %(primary2)s;
+  --accent: %(accent)s;
+  --app-bg: %(bg)s;
+  --bg-elev: %(card)s;
+  --bg-elev-2: %(card2)s;
+  --text: %(text)s;
+  --muted: %(muted)s;
+  --border: %(border)s;
+}
+
+html, body { background: var(--app-bg) !important; }
+section.main > div { padding-top: 10px; }
+html, body, [class^="css"]  { font-family: 'Segoe UI', system-ui, -apple-system, Cairo, Tahoma, sans-serif; color: var(--text); }
+
+/* Header */
+.app-header {
+  display:flex; align-items:center; justify-content:center; gap:16px; padding:18px 20px;
+  background: linear-gradient(135deg, var(--bg-elev-2), #ffffff10);
+  border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(17,24,39,.06);
+}
+.app-titlewrap { text-align:center; }
+.app-title { margin:0; font-weight:800; letter-spacing:.2px; color: var(--text); }
+.app-sub { margin:6px 0 0; color: var(--muted); font-size: 14.5px; }
+.app-logo {
+  width: 170px; height: auto; border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(0,0,0,.12);
+}
+
+/* Section card */
+.card {
+  border:1px solid var(--border); border-radius:16px; padding:18px 18px 10px; background: var(--bg-elev);
+  margin: 10px 0 22px; box-shadow: 0 2px 12px rgba(17,24,39,.07);
+}
+.card h3, .card h2, .card h4 { margin-top:0; display:flex; align-items:center; gap:8px; color: var(--text); }
+
+/* Hints - clear & highlighted */
+.hint {
+  display:block;
+  background: var(--bg-elev-2);
+  border-left: 4px solid var(--primary);
+  color: var(--muted);
+  font-size: 14.5px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin: -4px 0 10px 0;
+}
+
+/* Buttons */
+.stButton > button {
+  border-radius:12px; padding:10px 14px; font-weight:600; border:1px solid transparent;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:#fff; box-shadow: 0 4px 14px rgba(45,114,217,.25);
+}
+.stButton > button:hover { filter:brightness(1.06); transform: translateY(-1px); }
+.stButton > button:active { transform: translateY(0); }
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+  background: var(--bg-elev-2);
+  padding:12px; border-radius: 12px; border:1px dashed var(--border);
+}
+
+/* Download buttons */
+.stDownloadButton > button {
+  border-radius:10px; border:1px solid var(--border); background: var(--bg-elev-2); color: var(--text);
+}
+
+/* Dataframe wrapper */
+.css-1m1b9qw, .stDataFrame { border-radius: 10px; overflow:hidden; border:1px solid var(--border); }
+
+/* Divider */
+hr { border: none; height: 1px; background: var(--border); margin: 14px 0; }
+
+/* Force app background containers */
+[data-testid="stAppViewContainer"] > .main { background: var(--app-bg); }
+[data-testid="stHeader"] { background: var(--app-bg); border-bottom: 0; }
+</style>
+""" % C
+st.markdown(custom_css, unsafe_allow_html=True)
+
+
+# ------------------ Helpers ------------------
+def display_uploaded_files(file_list, file_type="Files"):
+    if file_list:
+        st.markdown("**Uploaded files:**")
+        for i, f in enumerate(file_list):
+            st.caption(f"{i+1}. {f.name} — {f.size//1024} KB")
+
 def _safe_name(s):
     return re.sub(r"[^A-Za-z0-9_-]+", "_", str(s))
 
-
-def display_uploaded_files(files):
-    if files:
-        for i, f in enumerate(files):
-            st.caption(f"{i+1}. {f.name} — {f.size//1024} KB")
-
-
-def copy_cell_style(src, dst):
-    if not src.has_style:
-        return
+def get_image_as_base64(image_path):
     try:
-        if src.font: dst.font = src.font
-        if src.fill: dst.fill = src.fill
-        if src.border: dst.border = src.border
-        if src.alignment: dst.alignment = src.alignment
-        dst.number_format = src.number_format
-    except:
-        pass
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return None
 
+def copy_cell_style(src_cell, dst_cell):
+    """نسخ كل التنسيقات من خلية لأخرى"""
+    if src_cell.has_style:
+        try:
+            if src_cell.font:
+                dst_cell.font = Font(
+                    name=src_cell.font.name,
+                    size=src_cell.font.size,
+                    bold=src_cell.font.bold,
+                    italic=src_cell.font.italic,
+                    vertAlign=src_cell.font.vertAlign,
+                    underline=src_cell.font.underline,
+                    strike=src_cell.font.strike,
+                    color=src_cell.font.color
+                )
+            if src_cell.fill and src_cell.fill.fill_type:
+                dst_cell.fill = PatternFill(
+                    fill_type=src_cell.fill.fill_type,
+                    start_color=src_cell.fill.start_color,
+                    end_color=src_cell.fill.end_color
+                )
+            if src_cell.alignment:
+                dst_cell.alignment = Alignment(
+                    horizontal=src_cell.alignment.horizontal,
+                    vertical=src_cell.alignment.vertical,
+                    text_rotation=src_cell.alignment.text_rotation,
+                    wrap_text=src_cell.alignment.wrap_text,
+                    shrink_to_fit=src_cell.alignment.shrink_to_fit,
+                    indent=src_cell.alignment.indent
+                )
+            if src_cell.border:
+                dst_cell.border = Border(
+                    left=src_cell.border.left,
+                    right=src_cell.border.right,
+                    top=src_cell.border.top,
+                    bottom=src_cell.border.bottom,
+                    diagonal=src_cell.border.diagonal,
+                    diagonal_direction=src_cell.border.diagonal_direction,
+                    outline=src_cell.border.outline,
+                    vertical=src_cell.border.vertical,
+                    horizontal=src_cell.border.horizontal
+                )
+            dst_cell.number_format = src_cell.number_format
+        except Exception:
+            pass
 
 def copy_column_widths(src_ws, dst_ws):
-    for col in src_ws.column_dimensions:
-        width = src_ws.column_dimensions[col].width
-        if width:
-            dst_ws.column_dimensions[col].width = width
-
-# =============================================================
-# ✅ Page Config & UI
-# =============================================================
-st.set_page_config(
-    page_title="Tricks For Excel Tools",
-    page_icon="📊",
-    layout="wide",
-)
-
-st.markdown("## Tricks For Excel — Full Toolkit")
-st.markdown("Split • Merge • Processor • Google Sheet IDs • Images → PDF")
-
-# =============================================================
-# ✅ Split Tool
-# =============================================================
-st.markdown("---")
-st.markdown("### ✂️ Split Excel/CSV File")
-
-uploaded_file = st.file_uploader(
-    "📂 Upload Excel or CSV", type=["xlsx", "csv"],
-    key="splitter", accept_multiple_files=False
-)
-
-if uploaded_file:
-    display_uploaded_files([uploaded_file])
-
-    file_ext = uploaded_file.name.split(".")[-1].lower()
-
-    if file_ext == "csv":
-        df = pd.read_csv(uploaded_file)
-        st.dataframe(df.head())
-    else:
-        wb = load_workbook(uploaded_file, data_only=False)
-        sheet = st.selectbox("Select sheet", wb.sheetnames)
-        df = pd.read_excel(uploaded_file, sheet_name=sheet)
-        st.dataframe(df.head())
-
-    col = st.selectbox("Select column to split by", df.columns)
-
-    if st.button("🚀 Start Split"):
-        with st.spinner("Processing..."):
-            unique_vals = df[col].dropna().unique()
-            zip_buf = BytesIO()
-            with ZipFile(zip_buf, "w") as z:
-                for v in unique_vals:
-                    subset = df[df[col] == v]
-                    buf = BytesIO()
-                    subset.to_csv(buf, index=False, encoding="utf-8-sig")
-                    buf.seek(0)
-                    z.writestr(f"{_safe_name(v)}.csv", buf.read())
-
-            zip_buf.seek(0)
-            st.success("✅ Split complete!")
-            st.download_button(
-                "⬇️ Download ZIP",
-                zip_buf.getvalue(),
-                file_name=f"Split_{_safe_name(uploaded_file.name)}.zip",
-                mime="application/zip"
-            )
-
-# =============================================================
-# ✅ Merge Tool
-# =============================================================
-st.markdown("---")
-st.markdown("### 🔁 Merge Excel/CSV Files")
-
-merge_files = st.file_uploader(
-    "📂 Upload multiple Excel/CSV files", type=["xlsx", "csv"],
-    accept_multiple_files=True, key="merger"
-)
-
-if merge_files:
-    display_uploaded_files(merge_files)
-
-    if st.button("✨ Merge Files"):
-        try:
-            excel_only = all(f.name.endswith("xlsx") for f in merge_files)
-
-            if excel_only:
-                merged_wb = Workbook()
-                merged_ws = merged_wb.active
-                merged_ws.title = "Merged_Data"
-
-                row_ptr = 1
-                header_done = False
-
-                for file in merge_files:
-                    src_wb = load_workbook(file, data_only=False)
-                    src_ws = src_wb.active
-
-                    if not header_done:
-                        for c in src_ws[1]:
-                            dst = merged_ws.cell(row_ptr, c.column, c.value)
-                            copy_cell_style(c, dst)
-                        row_ptr += 1
-                        header_done = True
-
-                    for row in src_ws.iter_rows(min_row=2):
-                        for c in row:
-                            dst = merged_ws.cell(row_ptr, c.column, c.value)
-                            copy_cell_style(c, dst)
-                        row_ptr += 1
-
-                # Copy column widths
-                first_wb = load_workbook(merge_files[0], data_only=False)
-                copy_column_widths(first_wb.active, merged_ws)
-
-                out = BytesIO()
-                merged_wb.save(out)
-                out.seek(0)
-
-                st.download_button(
-                    "⬇️ Download Merged File",
-                    out.getvalue(), file_name="Merged.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
-            else:
-                dfs = [pd.read_csv(f) if f.name.endswith("csv") else pd.read_excel(f) for f in merge_files]
-                df_merged = pd.concat(dfs, ignore_index=True)
-                out = BytesIO()
-                df_merged.to_excel(out, index=False)
-                out.seek(0)
-
-                st.download_button(
-                    "⬇️ Download Merged File",
-                    out.getvalue(), file_name="Merged.xlsx"
-                )
-
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-
-# =============================================================
-# ✅ Processor Tool (BUM Update + Google Sheet IDs + CRM reorder)
-# =============================================================
-st.markdown("---")
-st.markdown("### 🧰 Excel Processor Service")
-
-proc_file = st.file_uploader(
-    "📂 Upload Excel file to process", type=["xlsx", "xlsm"], key="processor"
-)
-
-# Load BUM mapping
-BUM_URL = "https://docs.google.com/spreadsheets/d/1XQnQNDFHDKrWYn23ROAeFS2cELNbKurC/export?format=xlsx"
+    """نسخ عرض الأعمدة"""
+    try:
+        for col_letter in src_ws.column_dimensions:
+            col_width = src_ws.column_dimensions[col_letter].width
+            if col_width:
+                dst_ws.column_dimensions[col_letter].width = col_width
+    except Exception:
+        pass
 
 def load_bum_mapping():
+    """تحميل ملف BUM من Google Sheets"""
     try:
-        r = requests.get(BUM_URL)
-        wb = load_workbook(BytesIO(r.content))
-        ws = wb.active
-        data = []
-        headers = [c.value for c in ws[1]]
-        mr_idx = headers.index("MR") + 1
-        bum_idx = headers.index("BUM") + 1
-        for row in range(2, ws.max_row + 1):
-            mr = ws.cell(row, mr_idx).value
-            bum = ws.cell(row, bum_idx).value
-            if mr and bum:
-                data.append((str(mr).strip(), str(bum).strip()))
-        return dict(data)
-    except:
-        return {}
-
-bum_dict = load_bum_mapping()
-
-if proc_file:
-    st.write("File:", proc_file.name)
-
-    if st.button("⚙️ Start Processing"):
-        try:
-            wb = load_workbook(proc_file, data_only=False)
+        url = "https://docs.google.com/spreadsheets/d/1XQnQNDFHDKrWYn23ROAeFS2cELNbKurC/export?format=xlsx"
+        response = requests.get(url)
+        if response.status_code == 200:
+            wb = load_workbook(filename=BytesIO(response.content))
             ws = wb.active
+            
+            data = []
+            headers = [cell.value for cell in ws[1]]
+            mr_idx = None
+            bum_idx = None
+            
+            for i, header in enumerate(headers):
+                if header and "MR" in str(header):
+                    mr_idx = i + 1
+                elif header and "BUM" in str(header):
+                    bum_idx = i + 1
+            
+            if mr_idx and bum_idx:
+                for row in range(2, ws.max_row + 1):
+                    mr_value = ws.cell(row, mr_idx).value
+                    bum_value = ws.cell(row, bum_idx).value
+                    if mr_value and bum_value:
+                        data.append({
+                            'MR': str(mr_value).strip(),
+                            'BUM': str(bum_value).strip()
+                        })
+            
+            return pd.DataFrame(data)
+    except Exception as e:
+        st.warning(f"⚠️ Could not load BUM mapping: {e}")
+        return pd.DataFrame()
 
-            headers = [ws.cell(1, c).value for c in range(1, ws.max_column + 1)]
-            header_to_idx = {h: i+1 for i, h in enumerate(headers) if h}
 
-            COLUMN_RENAME_MAP = {
-                "L1 Emp Name": "MR",
-                "L2 Emp Name": "DM",
-                "L3 Emp Name": "AM",
-                "L4 Emp Name": "BUM",
-            }
+# ------------------ Header ------------------
+logo_b64 = get_image_as_base64("logo.png")
+header_html = f"""
+<div class="app-header">
+  {('<img class="app-logo" src="data:image/png;base64,' + logo_b64 + '" alt="Logo" />') if logo_b64 else ''}
+  <div class="app-titlewrap">
+    <h2 class="app-title">Tricks For Excel</h2>
+    <p class="app-sub">Quick tools for Excel & Images • Split • Merge • Processor • PDF</p>
+  </div>
+</div>
+"""
+st.markdown(header_html, unsafe_allow_html=True)
 
-            FINAL_COLUMNS = [
-                "CRM Interval Date", "Tracking Number", "MR", "DM", "AM",
-                "BUM", "Line", "Activity", "Description", "Account Number",
-                "Vendor", "Bank", "Cost", "Bricks", "Professionl Accounts",
-                "Request Professionals", "Specialities", "Request Date",
-            ]
+if 'clear_counter' not in st.session_state:
+    st.session_state.clear_counter = 0
 
-            new_wb = Workbook()
-            new_ws = new_wb.active
-            new_ws.title = "Processed_Data"
 
-            # Identify MR, BUM
-            mr_col = header_to_idx.get("L1 Emp Name")
-            bum_col = header_to_idx.get("L4 Emp Name")
+# ===================== Split Card =====================
+with st.container():
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("### ✂️ Split Excel/CSV File")
+    st.markdown('<span class="hint">Upload an Excel or CSV file, then select the column to split by. A ZIP will be generated with one file per value.</span>', unsafe_allow_html=True)
 
-            # Doctor name column
-            doc_col = header_to_idx.get("Professionl Accounts")
+    uploaded_file = st.file_uploader(
+        "📂 Upload Excel or CSV",
+        type=["xlsx", "csv"],
+        accept_multiple_files=False,
+        key=f"split_uploader_{st.session_state.clear_counter}",
+    )
 
-            # CRM column
-            crm_col = None
-            for h in headers:
-                if h and "CRM Interval Date" in str(h):
-                    crm_col = header_to_idx[h]
-                    break
+    if uploaded_file:
+        display_uploaded_files([uploaded_file])
+        c1, c2 = st.columns([1,1])
+        with c1:
+            if st.button("🧹 Clear file", key="clear_split"):
+                st.session_state.clear_counter += 1
+                st.rerun()
 
-            final_map = []
-
-            # CRM first
-            if crm_col:
-                final_map.append({"name": "CRM Interval Date", "type": "existing", "src": crm_col})
-            else:
-                final_map.append({"name": "CRM Interval Date", "type": "new", "value": ""})
-
-            # Remaining
-            for col in FINAL_COLUMNS[1:]:
-                if col == "BUM" and bum_col:
-                    final_map.append({"name": "BUM", "type": "bum", "src": bum_col, "mr": mr_col})
-                else:
-                    found = False
-                    for old, new in COLUMN_RENAME_MAP.items():
-                        if new == col and old in header_to_idx:
-                            final_map.append({"name": col, "type": "existing", "src": header_to_idx[old]})
-                            found = True
-                            break
-                    if not found and col in header_to_idx:
-                        final_map.append({"name": col, "type": "existing", "src": header_to_idx[col]})
-
-            # Add ID Number column
-            if doc_col:
-                final_map.append({"name": "ID Number", "type": "id", "doctor_col": doc_col})
-
-            # Write header row
-            for i, col in enumerate(final_map, start=1):
-                new_ws.cell(1, i, col["name"])
-
-            matched = 0
-            unmatched = []
-
-            # Process rows
-            for r in range(2, ws.max_row + 1):
-                for c, col in enumerate(final_map, start=1):
-                    if col["type"] == "new":
-                        new_ws.cell(r, c, "")
-
-                    elif col["type"] == "existing":
-                        new_ws.cell(r, c, ws.cell(r, col["src"]).value)
-
-                    elif col["type"] == "bum":
-                        mr_value = ws.cell(r, col["mr"]).value
-                        if mr_value and str(mr_value).strip() in bum_dict:
-                            new_ws.cell(r, c, bum_dict[str(mr_value).strip()])
-                        else:
-                            new_ws.cell(r, c, ws.cell(r, col["src"]).value)
-
-                    elif col["type"] == "id":
-                        doc = ws.cell(r, col["doctor_col"]).value
-                        if doc:
-                            clean = str(doc).strip()
-                            f = (
-                                id_dict.get(clean) or
-                                id_dict.get(clean.lower()) or
-                                id_dict.get(clean.replace(" ", ""))
-                            )
-                            if f:
-                                matched += 1
-                                new_ws.cell(r, c, f)
-                            else:
-                                new_ws.cell(r, c, "")
-                                if clean not in unmatched:
-                                    unmatched.append(clean)
-                        else:
-                            new_ws.cell(r, c, "")
-
-            out = BytesIO()
-            new_wb.save(out)
-            out.seek(0)
-
-            st.success(f"✅ Completed — {matched} IDs matched")
-            st.download_button(
-                "⬇️ Download Processed File",
-                out.getvalue(), file_name="processed_file.xlsx"
-            )
-
-            if unmatched:
-                st.warning("Unmatched doctors:")
-                for d in unmatched[:20]:
-                    st.write("-", d)
-
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-            st.exception(e)
-
-# =============================================================
-# ✅ Images → PDF Tool
-# =============================================================
-st.markdown("---")
-st.markdown("### 🖼️ Images → PDF Converter")
-
-imgs = st.file_uploader(
-    "Upload images", type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True, key="imgpdf"
-)
-
-if imgs:
-    if st.button("🖨️ Create PDF"):
         try:
-            pil_imgs = []
-            for img in imgs:
-                im = Image.open(img)
-                if im.mode != "RGB":
-                    im = im.convert("RGB")
-                pil_imgs.append(im)
+            file_ext = uploaded_file.name.split(".")[-1].lower()
+            if file_ext == "csv":
+                df = pd.read_csv(uploaded_file)
+                selected_sheet = "Sheet1"
+                st.success("✅ CSV file uploaded successfully")
+            else:
+                input_bytes = uploaded_file.getvalue()
+                original_wb = load_workbook(filename=BytesIO(input_bytes), data_only=False)
+                sheet_names = original_wb.sheetnames
+                selected_sheet = st.selectbox("Select sheet to split", sheet_names)
+                df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
 
-            pdf_buf = BytesIO()
-            pil_imgs[0].save(pdf_buf, save_all=True, append_images=pil_imgs[1:], format="PDF")
-            pdf_buf.seek(0)
-
-            st.download_button(
-                "⬇️ Download PDF",
-                pdf_buf.getvalue(), file_name="Images.pdf",
-                mime="application/pdf"
+            st.dataframe(df.head(200), use_container_width=True)
+            col_to_split = st.selectbox("Select column to split by", df.columns)
+            split_option = st.radio(
+                "Split method:",
+                ["Split by Column Values", "Split Each Sheet into Separate File"],
+                horizontal=True,
             )
+
+            if st.button("🚀 Start"):
+                with st.spinner("Processing..."):
+                    if st_lottie and LOTTIE_SPLIT:
+                        st_lottie(LOTTIE_SPLIT, height=110, key="lottie_split")
+
+                    def clean_name(name: str) -> str:
+                        name = str(name).strip()
+                        invalid_chars = r'[\\/*?:\[\]\n<>:"\']'
+                        cleaned = re.sub(invalid_chars, "_", name)
+                        return cleaned[:30] if cleaned else "Sheet"
+
+                    if file_ext == "csv":
+                        unique_values = df[col_to_split].dropna().unique()
+                        zip_buffer = BytesIO()
+                        with ZipFile(zip_buffer, "w") as zip_file:
+                            for value in unique_values:
+                                filtered_df = df[df[col_to_split] == value]
+                                csv_buffer = BytesIO()
+                                filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+                                csv_buffer.seek(0)
+                                zip_file.writestr(f"{clean_name(value)}.csv", csv_buffer.read())
+                        zip_buffer.seek(0)
+                        st.success("🎉 Split completed! ZIP is ready.")
+                        st.download_button(
+                            "⬇️ Download (ZIP)",
+                            zip_buffer.getvalue(),
+                            file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                            mime="application/zip"
+                        )
+                    else:
+                        ws = original_wb[selected_sheet]
+                        if split_option == "Split by Column Values":
+                            col_idx = df.columns.get_loc(col_to_split) + 1
+                            unique_values = df[col_to_split].dropna().unique()
+                            
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            zip_buffer = BytesIO()
+                            with ZipFile(zip_buffer, "w") as zip_file:
+                                for i, value in enumerate(unique_values):
+                                    status_text.text(f"Processing: {clean_name(value)}")
+                                    progress_bar.progress((i + 1) / len(unique_values))
+                                    
+                                    new_wb = Workbook()
+                                    default_ws = new_wb.active
+                                    new_wb.remove(default_ws)
+                                    new_ws = new_wb.create_sheet(title=clean_name(value))
+                                    
+                                    for cell in ws[1]:
+                                        dst = new_ws.cell(1, cell.column, cell.value)
+                                        copy_cell_style(cell, dst)
+                                    
+                                    row_out = 2
+                                    for row in ws.iter_rows(min_row=2):
+                                        if row[col_idx - 1].value == value:
+                                            for src in row:
+                                                dst = new_ws.cell(row_out, src.column, src.value)
+                                                copy_cell_style(src, dst)
+                                            row_out += 1
+                                    
+                                    copy_column_widths(ws, new_ws)
+                                    
+                                    fb = BytesIO()
+                                    new_wb.save(fb)
+                                    fb.seek(0)
+                                    zip_file.writestr(f"{clean_name(value)}.xlsx", fb.read())
+                            
+                            status_text.empty()
+                            progress_bar.empty()
+                            zip_buffer.seek(0)
+                            st.success("🎉 Split completed! ZIP is ready.")
+                            st.download_button(
+                                "⬇️ Download (ZIP)",
+                                zip_buffer.getvalue(),
+                                file_name=f"Split_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                                mime="application/zip"
+                            )
+                        else:
+                            zip_buffer = BytesIO()
+                            with ZipFile(zip_buffer, "w") as zip_file:
+                                for sheet_name in original_wb.sheetnames:
+                                    new_wb = Workbook()
+                                    default_ws = new_wb.active
+                                    new_wb.remove(default_ws)
+                                    new_ws = new_wb.create_sheet(title=sheet_name)
+                                    src_ws = original_wb[sheet_name]
+                                    
+                                    for row in src_ws.iter_rows():
+                                        for src_cell in row:
+                                            dst = new_ws.cell(src_cell.row, src_cell.column, src_cell.value)
+                                            copy_cell_style(src_cell, dst)
+                                    
+                                    for merged_range in src_ws.merged_cells.ranges:
+                                        new_ws.merge_cells(str(merged_range))
+                                    copy_column_widths(src_ws, new_ws)
+                                    fb = BytesIO()
+                                    new_wb.save(fb)
+                                    fb.seek(0)
+                                    zip_file.writestr(f"{_safe_name(sheet_name)}.xlsx", fb.read())
+                            zip_buffer.seek(0)
+                            st.success("🎉 Split by sheets completed! ZIP is ready.")
+                            st.download_button(
+                                "⬇️ Download (ZIP)",
+                                zip_buffer.getvalue(),
+                                file_name=f"SplitBySheets_{_safe_name(uploaded_file.name.rsplit('.',1)[0])}.zip",
+                                mime="application/zip"
+                            )
         except Exception as e:
-            st.error(f"❌ Error: {e}")
+            st.error(f"❌ Error while splitting: {e}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ===================== Merge Card =====================
+with st.container():
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("### 🔁 Merge Excel/CSV Files")
+    st.markdown('<span class="hint">Upload multiple files and they will be merged into one file with preserved formatting.</span>', unsafe_allow_html=True)
+
+    merge_files = st.file_uploader(
+        "📂 Upload Excel/CSV files to merge",
+        type=["xlsx", "csv"],
+        accept_multiple_files=True,
+        key=f"merge_uploader_{st.session_state.clear_counter}",
+    )
+
+    if merge_files:
+        display_uploaded_files(merge_files)
+        c1, c2 = st.columns([1,1])
+        with c1:
+            if st.button("🧹 Clear files", key="clear_merge"):
+                st.session_state.clear_counter += 1
+                st.rerun()
+        with c2:
+            if st.button("✨ Merge files"):
+                with st.spinner("Merging..."):
+                    if st_lottie and LOTTIE_MERGE:
+                        st_lottie(LOTTIE_MERGE, height=100, key="lottie_merge")
+                    try:
+                        all_excel = all(f.name.lower().endswith('.xlsx') for f in merge_files)
+                        
+                        if all_excel:
+                            merged_wb = Workbook()
+                            merged_ws = merged_wb.active
+                            merged_ws.title = "Merged_Data"
+                            
+                            current_row = 1
+                            headers_copied = False
+                            
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            for idx, file in enumerate(merge_files):
+                                status_text.text(f"Processing: {file.name}")
+                                progress_bar.progress((idx + 1) / len(merge_files))
+                                
+                                file_bytes = file.getvalue()
+                                src_wb = load_workbook(filename=BytesIO(file_bytes), data_only=False)
+                                src_ws = src_wb.active
+                                
+                                if not headers_copied:
+                                    for col, cell in enumerate(src_ws[1], start=1):
+                                        dst_cell = merged_ws.cell(current_row, col, cell.value)
+                                        copy_cell_style(cell, dst_cell)
+                                    current_row += 1
+                                    headers_copied = True
+                                
+                                for row in src_ws.iter_rows(min_row=2):
+                                    for col, cell in enumerate(row, start=1):
+                                        if cell.value is not None:
+                                            dst_cell = merged_ws.cell(current_row, col, cell.value)
+                                            copy_cell_style(cell, dst_cell)
+                                    current_row += 1
+                            
+                            if merge_files:
+                                first_file_bytes = merge_files[0].getvalue()
+                                first_wb = load_workbook(filename=BytesIO(first_file_bytes), data_only=False)
+                                first_ws = first_wb.active
+                                copy_column_widths(first_ws, merged_ws)
+                            
+                            status_text.empty()
+                            progress_bar.empty()
+                            
+                            out = BytesIO()
+                            merged_wb.save(out)
+                            out.seek(0)
+                            
+                            st.success("✅ Merge completed with preserved formatting")
+                            st.download_button(
+                                "⬇️ Download merged file",
+                                out.getvalue(),
+                                file_name="Merged_Consolidated_Formatted.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
+                        else:
+                            all_dfs = []
+                            for file in merge_files:
+                                ext = file.name.split(".")[-1].lower()
+                                df = pd.read_csv(file) if ext == "csv" else pd.read_excel(file)
+                                all_dfs.append(df)
+                            merged_df = pd.concat(all_dfs, ignore_index=True)
+                            
+                            out = BytesIO()
+                            merged_df.to_excel(out, index=False, engine='openpyxl')
+                            out.seek(0)
+                            
+                            st.success("✅ Merge completed")
+                            st.download_button(
+                                "⬇️ Download file",
+                                out.getvalue(),
+                                file_name="Merged_Consolidated.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
+                    except Exception as e:
+                        st.error(f"❌ Error while merging: {e}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ===================== Excel Processor Card =====================
+with st.container():
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("### 🧰 Excel Processor Service")
+    st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, add ID Numbers from uploaded mapping file (appears at the end), and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
+    
+    id_dict, id_message = load_online_doctor_ids()
+st.info(id_message)
+proc_file = st.file_uploader(
+        "📂 Upload Excel file to process (xlsx/xlsm)",
+        type=["xlsx", "xlsm"],
+        accept_multiple_files=False,
+        key=f"processor_uploader_{st.session_state.clear_counter}",
+    )
+
+    bum_df = load_bum_mapping()
+    if not bum_df.empty:
+        bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
+    else:
+        bum_dict = {}
+
+    COLUMN_RENAME_MAP = { 
+        "L1 Emp Name": "MR", 
+        "L2 Emp Name": "DM", 
+        "L3 Emp Name": "AM",
+        "L4 Emp Name": "BUM"
+    }
+
+    FINAL_COLUMN_ORDER = [
+        "CRM Interval Date",
+        "Tracking Number",
+        "MR",
+        "DM",
+        "AM",
+        "BUM",
+        "Line",
+        "Activity",
+        "Description",
+        "Account Number",
+        "Vendor",
+        "Bank",
+        "Cost",
+        "Bricks",
+        "Professionl Accounts",
+        "Request Professionals",
+        "Specialities",
+        "Request Date",
+    ]
+
+    if proc_file:
+        st.write("**File:**", proc_file.name)
+        
+        if id_dict:
+            st.info("📊 Preview of uploaded file (first 5 rows):")
+            try:
+                sample_df = pd.read_excel(proc_file, nrows=5)
+                st.dataframe(sample_df, use_container_width=True)
+            except:
+                pass
+        
+        if st.button("⚙️ Start processing"):
+            try:
+                wb = load_workbook(proc_file, data_only=False)
+                ws = wb.active
+                
+                headers = [ws.cell(1, col).value for col in range(1, ws.max_column + 1)]
+                header_to_idx = {h: i+1 for i, h in enumerate(headers) if h is not None}
+                
+                new_wb = Workbook()
+                new_ws = new_wb.active
+                new_ws.title = "Processed_Data"
+                
+                mr_col_idx = None
+                bum_col_idx = None
+                crm_interval_idx = None
+                doctor_name_col_idx = None
+                
+                for old_name, new_name in COLUMN_RENAME_MAP.items():
+                    if old_name in header_to_idx:
+                        if new_name == "MR":
+                            mr_col_idx = header_to_idx[old_name]
+                        elif new_name == "BUM":
+                            bum_col_idx = header_to_idx[old_name]
+                
+                # البحث عن عمود اسم الدكتور - نبحث تحديداً عن "Professionl Accounts"
+                st.write("**Searching for doctor name column in uploaded file:**")
+                for col_name in headers:
+                    if col_name:
+                        col_name_str = str(col_name).strip()
+                        # البحث عن العمود المطلوب بالضبط
+                        if col_name_str == "Professionl Accounts":
+                            doctor_name_col_idx = header_to_idx[col_name]
+                            st.write(f"✅ Found exact match: '{col_name}' at position {doctor_name_col_idx}")
+                            break
+                        # البحث عن أي عمود يحتوي على الكلمات المفتاحية
+                        elif any(keyword in col_name_str.lower() for keyword in ['professionl', 'professional', 'account', 'doctor', 'name']):
+                            doctor_name_col_idx = header_to_idx[col_name]
+                            st.write(f"⚠️ Found potential doctor name column: '{col_name}' at position {doctor_name_col_idx}")
+                
+                if not doctor_name_col_idx:
+                    st.warning("⚠️ Could not find 'Professionl Accounts' column in the uploaded file. ID Numbers will not be added.")
+                
+                for col_name in headers:
+                    if col_name and "CRM Interval Date" in str(col_name):
+                        crm_interval_idx = header_to_idx[col_name]
+                        break
+                
+                final_cols_info = []
+                
+                if crm_interval_idx:
+                    final_cols_info.append({
+                        'name': 'CRM Interval Date',
+                        'type': 'existing',
+                        'source_col': crm_interval_idx,
+                        'original_name': headers[crm_interval_idx - 1]
+                    })
+                else:
+                    final_cols_info.append({
+                        'name': 'CRM Interval Date',
+                        'type': 'new',
+                        'value': ''
+                    })
+                
+                for col_name in FINAL_COLUMN_ORDER[1:]:
+                    if col_name == "BUM" and bum_col_idx:
+                        final_cols_info.append({
+                            'name': 'BUM',
+                            'type': 'bum',
+                            'source_col': bum_col_idx,
+                            'mr_col': mr_col_idx
+                        })
+                    else:
+                        found = False
+                        for old_name, new_name in COLUMN_RENAME_MAP.items():
+                            if col_name == new_name and old_name in header_to_idx:
+                                final_cols_info.append({
+                                    'name': col_name,
+                                    'type': 'existing',
+                                    'source_col': header_to_idx[old_name],
+                                    'original_name': old_name
+                                })
+                                found = True
+                                break
+                        
+                        if not found and col_name in header_to_idx:
+                            final_cols_info.append({
+                                'name': col_name,
+                                'type': 'existing',
+                                'source_col': header_to_idx[col_name],
+                                'original_name': col_name
+                            })
+                
+                # إضافة عمود ID Number في النهاية
+                if id_dict and doctor_name_col_idx:
+                    final_cols_info.append({
+                        'name': 'ID Number',
+                        'type': 'id_number',
+                        'doctor_col': doctor_name_col_idx
+                    })
+                    st.info(f"✅ ID Number column will be added at the end. Found {len(id_dict)//2} doctor IDs in mapping.")
+                
+                for col_idx, col_info in enumerate(final_cols_info, start=1):
+                    new_ws.cell(1, col_idx, col_info['name'])
+                    if col_info.get('source_col'):
+                        src_cell = ws.cell(1, col_info['source_col'])
+                        dst_cell = new_ws.cell(1, col_idx)
+                        copy_cell_style(src_cell, dst_cell)
+                
+                matched_count = 0
+                unmatched_doctors = []
+                
+                for row_idx in range(2, ws.max_row + 1):
+                    for col_idx, col_info in enumerate(final_cols_info, start=1):
+                        if col_info['type'] == 'new':
+                            new_ws.cell(row_idx, col_idx, '')
+                        
+                        elif col_info['type'] == 'id_number':
+                            if col_info.get('doctor_col'):
+                                doctor_name = ws.cell(row_idx, col_info['doctor_col']).value
+                                if doctor_name:
+                                    clean_name = str(doctor_name).strip()
+                                    found_id = None
+                                    
+                                    if clean_name in id_dict:
+                                        found_id = id_dict[clean_name]
+                                    elif clean_name.lower() in id_dict:
+                                        found_id = id_dict[clean_name.lower()]
+                                    elif clean_name.replace(" ", "") in id_dict:
+                                        found_id = id_dict[clean_name.replace(" ", "")]
+                                    
+                                    if found_id:
+                                        new_ws.cell(row_idx, col_idx, found_id)
+                                        matched_count += 1
+                                    else:
+                                        new_ws.cell(row_idx, col_idx, '')
+                                        if clean_name not in unmatched_doctors:
+                                            unmatched_doctors.append(clean_name)
+                                else:
+                                    new_ws.cell(row_idx, col_idx, '')
+                            else:
+                                new_ws.cell(row_idx, col_idx, '')
+                        
+                        elif col_info['type'] == 'bum':
+                            src_cell = ws.cell(row_idx, col_info['source_col'])
+                            if col_info.get('mr_col'):
+                                mr_value = ws.cell(row_idx, col_info['mr_col']).value
+                                if mr_value and str(mr_value).strip() in bum_dict:
+                                    new_value = bum_dict[str(mr_value).strip()]
+                                    dst_cell = new_ws.cell(row_idx, col_idx, new_value)
+                                else:
+                                    dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
+                            else:
+                                dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
+                            copy_cell_style(src_cell, dst_cell)
+                        
+                        else:
+                            src_col = col_info['source_col']
+                            src_cell = ws.cell(row_idx, src_col)
+                            dst_cell = new_ws.cell(row_idx, col_idx, src_cell.value)
+                            copy_cell_style(src_cell, dst_cell)
+                
+                if id_dict and doctor_name_col_idx:
+                    total_doctors = ws.max_row - 1
+                    if matched_count > 0:
+                        st.success(f"✅ Matched {matched_count} out of {total_doctors} doctors with ID numbers")
+                    else:
+                        st.warning(f"⚠️ No matches found! Checked {total_doctors} doctors. Sample of names from 'Professionl Accounts' column:")
+                        sample_unmatched = unmatched_doctors[:10]
+                        for name in sample_unmatched:
+                            st.write(f"- '{name}'")
+                        st.info("Make sure the names in your ID file match exactly with these names (spaces, spelling).")
+                
+                for col_idx, col_info in enumerate(final_cols_info, start=1):
+                    if col_info.get('source_col'):
+                        src_col_letter = get_column_letter(col_info['source_col'])
+                        if src_col_letter in ws.column_dimensions:
+                            width = ws.column_dimensions[src_col_letter].width
+                            if width:
+                                new_ws.column_dimensions[get_column_letter(col_idx)].width = width
+                    else:
+                        new_ws.column_dimensions[get_column_letter(col_idx)].width = 15
+                
+                out_buf = BytesIO()
+                new_wb.save(out_buf)
+                out_buf.seek(0)
+                
+                success_msg = "✅ Processing completed: "
+                if bum_dict:
+                    success_msg += "BUM column updated, "
+                if id_dict and doctor_name_col_idx:
+                    success_msg += f"ID Numbers added ({matched_count} matched), "
+                success_msg += "and CRM Interval Date moved to beginning"
+                
+                st.success(success_msg)
+                base = os.path.splitext(proc_file.name)[0]
+                st.download_button(
+                    "⬇️ Download processed file",
+                    out_buf.getvalue(),
+                    file_name=f"{_safe_name(base)}_processed.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+            except Exception as e:
+                st.error(f"❌ Error while processing: {e}")
+                st.exception(e)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ===================== Images → PDF Card =====================
+with st.container():
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("### 🖼️ Convert Images to PDF")
+    st.markdown('<span class="hint">Upload one or more images and they will be combined into a single PDF file while preserving original quality.</span>', unsafe_allow_html=True)
+
+    uploaded_images = st.file_uploader(
+        "📂 Upload JPG/PNG images",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
+        key=f"image_uploader_{st.session_state.clear_counter}",
+    )
+
+    if uploaded_images:
+        display_uploaded_files(uploaded_images, "Images")
+        c1, c2 = st.columns([1,1])
+        with c1:
+            if st.button("🧹 Clear images", key="clear_images"):
+                st.session_state.clear_counter += 1
+                st.rerun()
+        with c2:
+            if st.button("🖨️ Create PDF"):
+                with st.spinner("Creating PDF..."):
+                    try:
+                        progress_bar = st.progress(0)
+                        
+                        images = []
+                        for i, img_file in enumerate(uploaded_images):
+                            img = Image.open(img_file)
+                            if img.mode != 'RGB':
+                                img = img.convert('RGB')
+                            images.append(img)
+                            progress_bar.progress((i + 1) / len(uploaded_images))
+                        
+                        pdf_buffer = BytesIO()
+                        images[0].save(
+                            pdf_buffer,
+                            format="PDF",
+                            save_all=True,
+                            append_images=images[1:],
+                            quality=95
+                        )
+                        pdf_buffer.seek(0)
+                        
+                        progress_bar.empty()
+                        st.success("✅ PDF created successfully")
+                        st.download_button(
+                            "⬇️ Download PDF",
+                            pdf_buffer.getvalue(),
+                            file_name="Images_Combined.pdf",
+                            mime="application/pdf"
+                        )
+                    except Exception as e:
+                        st.error(f"❌ Error while creating PDF: {e}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown("<hr>", unsafe_allow_html=True)
+st.caption("© Tricks For Excel — Contact: WhatsApp 01554694554")
