@@ -760,7 +760,7 @@ else:
                 for row_idx in range(2, ws.max_row + 1):
                     for col_idx, col_info in enumerate(final_cols_info, start=1):
                         if col_info['type'] == 'new':
-                            new_ws.cell(row_idx, col_idx, '')
+                            new_ws.cell(row_idx, col_idx, str(found).replace(".0", ""))
                         
                         elif col_info['type'] == 'id_number':
                             if col_info.get('doctor_col'):
