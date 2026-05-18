@@ -367,7 +367,7 @@ with st.container():
     st.markdown('<span class="hint">Upload an Excel or CSV file, then select the column to split by. A ZIP will be generated with one file per value.</span>', unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader(
-        " Upload Excel or CSV",
+        "📂 Upload Excel or CSV",
         type=["xlsx", "csv"],
         accept_multiple_files=False,
         key=f"split_uploader_{st.session_state.clear_counter}",
@@ -377,7 +377,7 @@ with st.container():
         display_uploaded_files([uploaded_file])
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button(" Clear file", key="clear_split"):
+            if st.button("🧹 Clear file", key="clear_split"):
                 st.session_state.clear_counter += 1
                 st.rerun()
 
@@ -439,13 +439,7 @@ with st.container():
                         ws = original_wb[selected_sheet]
                         if split_option == "Split by Column Values":
                             col_idx = df.columns.get_loc(col_to_split) + 1
-                            
-                            # FIX: Get unique values directly from openpyxl to ensure perfect match
-                            unique_values = set()
-                            for row in ws.iter_rows(min_row=2, max_col=col_idx, values_only=True):
-                                if row[col_idx - 1] is not None:
-                                    unique_values.add(row[col_idx - 1])
-                            unique_values = list(unique_values)
+                            unique_values = df[col_to_split].dropna().unique()
                             
                             progress_bar = st.progress(0)
                             status_text = st.empty()
@@ -461,25 +455,21 @@ with st.container():
                                     new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=clean_name(value))
                                     
-                                    # Copy Header (Row 1)
+                                    # Copy Header
                                     for cell in ws[1]:
                                         dst = new_ws.cell(1, cell.column, cell.value)
                                         copy_cell_style(cell, dst)
                                     
-                                    # Copy Data Rows with robust comparison
+                                    # Copy Data Rows with Robust Matching
                                     row_out = 2
-                                    rows_copied = 0
-                                    
                                     for row in ws.iter_rows(min_row=2):
                                         cell_value = row[col_idx - 1].value
-                                        
                                         # Use the new robust comparison function
                                         if _is_match(cell_value, value):
                                             for src in row:
                                                 dst = new_ws.cell(row_out, src.column, src.value)
                                                 copy_cell_style(src, dst)
                                             row_out += 1
-                                            rows_copied += 1
                                     
                                     copy_column_widths(ws, new_ws)
                                     
@@ -540,7 +530,7 @@ with st.container():
     st.markdown('<span class="hint">Upload multiple files and they will be merged into one file with preserved formatting.</span>', unsafe_allow_html=True)
 
     merge_files = st.file_uploader(
-        " Upload Excel/CSV files to merge",
+        "📂 Upload Excel/CSV files to merge",
         type=["xlsx", "csv"],
         accept_multiple_files=True,
         key=f"merge_uploader_{st.session_state.clear_counter}",
@@ -736,10 +726,10 @@ with st.container():
                         # البحث عن أي عمود يحتوي على الكلمات المفتاحية
                         elif any(keyword in col_name_str.lower() for keyword in ['professionl', 'professional', 'account', 'doctor', 'name']):
                             doctor_name_col_idx = header_to_idx[col_name]
-                            st.write(f"️ Found potential doctor name column: '{col_name}' at position {doctor_name_col_idx}")
+                            st.write(f"⚠️ Found potential doctor name column: '{col_name}' at position {doctor_name_col_idx}")
                 
                 if not doctor_name_col_idx:
-                    st.warning("️ Could not find 'Professionl Accounts' column in the uploaded file. ID Numbers will not be added.")
+                    st.warning("⚠️ Could not find 'Professionl Accounts' column in the uploaded file. ID Numbers will not be added.")
                 
                 for col_name in headers:
                     if col_name and "CRM Interval Date" in str(col_name):
@@ -924,7 +914,7 @@ with st.container():
         display_uploaded_files(uploaded_images, "Images")
         c1, c2 = st.columns([1,1])
         with c1:
-            if st.button(" Clear images", key="clear_images"):
+            if st.button("🧹 Clear images", key="clear_images"):
                 st.session_state.clear_counter += 1
                 st.rerun()
         with c2:
