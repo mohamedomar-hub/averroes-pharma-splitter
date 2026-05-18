@@ -308,6 +308,40 @@ def load_bum_mapping():
         st.warning(f"⚠️ Could not load BUM mapping: {e}")
         return pd.DataFrame()
 
+# ===================== NEW HELPER: Robust Value Comparison =====================
+def _is_match(cell_value, target_value):
+    """
+    مقارنة ذكية بين قيمة الخلية وقيمة الهدف
+    تتعامل مع الأرقام، النصوص، والمسافات بدقة
+    """
+    # Handle None/Empty cases
+    if cell_value is None and target_value is None:
+        return True
+    if cell_value is None or target_value is None:
+        return False
+    
+    # Convert both to string for text comparison (strip whitespace)
+    str_cell = str(cell_value).strip()
+    str_target = str(target_value).strip()
+    
+    # Direct string match
+    if str_cell == str_target:
+        return True
+    
+    # Handle numeric comparison (int vs float)
+    try:
+        if float(cell_value) == float(target_value):
+            return True
+    except (ValueError, TypeError):
+        pass
+    
+    # Case-insensitive match for strings
+    if str_cell.lower() == str_target.lower():
+        return True
+        
+    return False
+# =============================================================================
+
 
 # ------------------ Header ------------------
 logo_b64 = get_image_as_base64("logo.png")
@@ -361,7 +395,11 @@ with st.container():
                 df = pd.read_excel(BytesIO(input_bytes), sheet_name=selected_sheet)
 
             st.dataframe(df.head(200), use_container_width=True)
+            
+            # Ensure column names are strings for selection
+            df.columns = df.columns.astype(str)
             col_to_split = st.selectbox("Select column to split by", df.columns)
+            
             split_option = st.radio(
                 "Split method:",
                 ["Split by Column Values", "Split Each Sheet into Separate File"],
@@ -417,13 +455,17 @@ with st.container():
                                     new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=clean_name(value))
                                     
+                                    # Copy Header
                                     for cell in ws[1]:
                                         dst = new_ws.cell(1, cell.column, cell.value)
                                         copy_cell_style(cell, dst)
                                     
+                                    # Copy Data Rows with Robust Matching
                                     row_out = 2
                                     for row in ws.iter_rows(min_row=2):
-                                        if row[col_idx - 1].value == value:
+                                        cell_value = row[col_idx - 1].value
+                                        # Use the new robust comparison function
+                                        if _is_match(cell_value, value):
                                             for src in row:
                                                 dst = new_ws.cell(row_out, src.column, src.value)
                                                 copy_cell_style(src, dst)
@@ -593,19 +635,20 @@ with st.container():
     st.markdown('<span class="hint">Process Excel file: Update BUM column (L4 Emp Name) based on MR name, add ID Numbers from uploaded mapping file (appears at the end), and move CRM Interval Date to the beginning.</span>', unsafe_allow_html=True)
     
     id_dict, id_message = load_online_doctor_ids()
-st.info(id_message)
-proc_file = st.file_uploader(
+    st.info(id_message)
+    
+    proc_file = st.file_uploader(
         "📂 Upload Excel file to process (xlsx/xlsm)",
         type=["xlsx", "xlsm"],
         accept_multiple_files=False,
         key=f"processor_uploader_{st.session_state.clear_counter}",
     )
 
-bum_df = load_bum_mapping()
-if not bum_df.empty:
-    bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
-else:
-    bum_dict = {}
+    bum_df = load_bum_mapping()
+    if not bum_df.empty:
+        bum_dict = dict(zip(bum_df['MR'], bum_df['BUM']))
+    else:
+        bum_dict = {}
 
     COLUMN_RENAME_MAP = { 
         "L1 Emp Name": "MR", 
