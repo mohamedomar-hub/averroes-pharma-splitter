@@ -22,7 +22,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.styles import NamedStyle
 from PIL import Image
 
-# Google Sheet ID loader added automatically
+# Google Sheet ID loader - FIXED to read all rows properly
 def load_online_doctor_ids():
     import requests
     from openpyxl import load_workbook
@@ -34,19 +34,49 @@ def load_online_doctor_ids():
             return {}, "⚠️ Cannot access Google Sheet."
         wb = load_workbook(BytesIO(r.content))
         ws = wb.active
-        headers=[str(ws.cell(1,c).value).strip().lower() if ws.cell(1,c).value else '' for c in range(1,ws.max_column+1)]
-        dcol=icol=None
-        for i,h in enumerate(headers):
-            if any(x in h for x in ['doctor','اسم','name','دكتور']): dcol=i+1
-            if any(x in h for x in ['id','رقم','بطاقة','national','identity']): icol=i+1
-        if not dcol or not icol: return {}, f"⚠️ Missing columns: {headers}"
-        idd={}
-        for r in range(2,ws.max_row+1):
-            n=ws.cell(r,dcol).value; v=ws.cell(r,icol).value
-            if n and v:
-                c=str(n).strip(); s=str(v).strip()
-                idd[c]=s; idd[c.lower()]=s; idd[c.replace(' ','')]=s
-        return idd, f"✅ Loaded {len(idd)//3} doctor IDs"
+        
+        # Find columns dynamically
+        headers = []
+        for col in range(1, ws.max_column + 1):
+            val = ws.cell(1, col).value
+            headers.append(str(val).strip().lower() if val else '')
+        
+        dcol = icol = None
+        for i, h in enumerate(headers):
+            if any(x in h for x in ['doctor', 'اسم', 'name', 'دكتور']):
+                dcol = i + 1
+            if any(x in h for x in ['id', 'رقم', 'بطاقة', 'national', 'identity']):
+                icol = i + 1
+        
+        if not dcol or not icol:
+            return {}, f"⚠️ Missing columns: {headers}"
+        
+        idd = {}
+        total_processed = 0
+        matched_entries = 0
+        
+        # FIX: Use iter_rows for reliable iteration through all rows
+        for row in ws.iter_rows(min_row=2, min_col=1, max_col=ws.max_column, values_only=False):
+            total_processed += 1
+            name_cell = row[dcol - 1]
+            id_cell = row[icol - 1]
+            
+            n = name_cell.value
+            v = id_cell.value
+            
+            # FIX: Better handling of values - convert to string and strip properly
+            if n is not None and v is not None:
+                c = str(n).strip()
+                s = str(v).strip()
+                
+                # Only add if both have actual content after stripping
+                if c and s:
+                    idd[c] = s
+                    idd[c.lower()] = s
+                    idd[c.replace(' ', '')] = s
+                    matched_entries += 1
+        
+        return idd, f"✅ Loaded {matched_entries} doctor IDs from {total_processed} rows processed"
     except Exception as e:
         return {}, f"❌ Error: {e}"
 
@@ -788,7 +818,7 @@ with st.container():
                         'type': 'id_number',
                         'doctor_col': doctor_name_col_idx
                     })
-                    st.info(f"✅ ID Number column will be added at the end. Found {len(id_dict)//2} doctor IDs in mapping.")
+                    st.info(f"✅ ID Number column will be added at the end. Found {len(id_dict)//3} doctor IDs in mapping.")
                 
                 for col_idx, col_info in enumerate(final_cols_info, start=1):
                     new_ws.cell(1, col_idx, col_info['name'])
