@@ -3,7 +3,7 @@
 Streamlit App — Light Theme Refresh (UI Polished, English UI)
 - Default: Light, clean palette (subtle gray background)
 - Optional: Dark mode toggle in sidebar
-- Tools: Split / Merge / Excel Processor / Images → PDF
+- Tools: Split / Merge / Excel Processor
 """
 
 import streamlit as st
@@ -20,7 +20,6 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl import load_workbook, Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import NamedStyle
-from PIL import Image
 
 # Google Sheet ID loader - FIXED to read all rows properly
 def load_online_doctor_ids():
@@ -99,7 +98,7 @@ def load_lottie_url(url: str):
 
 # ------------------ Page Setup ------------------
 st.set_page_config(
-    page_title="Tricks For Excel — Split/Merge & PDF Tools",
+    page_title="Tricks For Excel — Split/Merge & Tools",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -344,28 +343,23 @@ def _is_match(cell_value, target_value):
     مقارنة ذكية بين قيمة الخلية وقيمة الهدف
     تتعامل مع الأرقام، النصوص، والمسافات بدقة
     """
-    # Handle None/Empty cases
     if cell_value is None and target_value is None:
         return True
     if cell_value is None or target_value is None:
         return False
     
-    # Convert both to string for text comparison (strip whitespace)
     str_cell = str(cell_value).strip()
     str_target = str(target_value).strip()
     
-    # Direct string match
     if str_cell == str_target:
         return True
     
-    # Handle numeric comparison (int vs float)
     try:
         if float(cell_value) == float(target_value):
             return True
     except (ValueError, TypeError):
         pass
     
-    # Case-insensitive match for strings
     if str_cell.lower() == str_target.lower():
         return True
         
@@ -380,7 +374,7 @@ header_html = f"""
   {('<img class="app-logo" src="data:image/png;base64,' + logo_b64 + '" alt="Logo" />') if logo_b64 else ''}
   <div class="app-titlewrap">
     <h2 class="app-title">Tricks For Excel</h2>
-    <p class="app-sub">Quick tools for Excel & Images • Split • Merge • Processor • PDF</p>
+    <p class="app-sub">Quick tools for Excel • Split • Merge • Processor</p>
   </div>
 </div>
 """
@@ -426,7 +420,6 @@ with st.container():
 
             st.dataframe(df.head(200), use_container_width=True)
             
-            # Ensure column names are strings for selection
             df.columns = df.columns.astype(str)
             col_to_split = st.selectbox("Select column to split by", df.columns)
             
@@ -485,16 +478,13 @@ with st.container():
                                     new_wb.remove(default_ws)
                                     new_ws = new_wb.create_sheet(title=clean_name(value))
                                     
-                                    # Copy Header
                                     for cell in ws[1]:
                                         dst = new_ws.cell(1, cell.column, cell.value)
                                         copy_cell_style(cell, dst)
                                     
-                                    # Copy Data Rows with Robust Matching
                                     row_out = 2
                                     for row in ws.iter_rows(min_row=2):
                                         cell_value = row[col_idx - 1].value
-                                        # Use the new robust comparison function
                                         if _is_match(cell_value, value):
                                             for src in row:
                                                 dst = new_ws.cell(row_out, src.column, src.value)
@@ -743,17 +733,14 @@ with st.container():
                         elif new_name == "BUM":
                             bum_col_idx = header_to_idx[old_name]
                 
-                # البحث عن عمود اسم الدكتور - نبحث تحديداً عن "Professionl Accounts"
                 st.write("**Searching for doctor name column in uploaded file:**")
                 for col_name in headers:
                     if col_name:
                         col_name_str = str(col_name).strip()
-                        # البحث عن العمود المطلوب بالضبط
                         if col_name_str == "Professionl Accounts":
                             doctor_name_col_idx = header_to_idx[col_name]
                             st.write(f"✅ Found exact match: '{col_name}' at position {doctor_name_col_idx}")
                             break
-                        # البحث عن أي عمود يحتوي على الكلمات المفتاحية
                         elif any(keyword in col_name_str.lower() for keyword in ['professionl', 'professional', 'account', 'doctor', 'name']):
                             doctor_name_col_idx = header_to_idx[col_name]
                             st.write(f"⚠️ Found potential doctor name column: '{col_name}' at position {doctor_name_col_idx}")
@@ -811,7 +798,6 @@ with st.container():
                                 'original_name': col_name
                             })
                 
-                # إضافة عمود ID Number في النهاية
                 if id_dict and doctor_name_col_idx:
                     final_cols_info.append({
                         'name': 'ID Number',
@@ -926,62 +912,6 @@ with st.container():
                 st.exception(e)
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ===================== Images → PDF Card =====================
-with st.container():
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🖼️ Convert Images to PDF")
-    st.markdown('<span class="hint">Upload one or more images and they will be combined into a single PDF file while preserving original quality.</span>', unsafe_allow_html=True)
-
-    uploaded_images = st.file_uploader(
-        "📂 Upload JPG/PNG images",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        key=f"image_uploader_{st.session_state.clear_counter}",
-    )
-
-    if uploaded_images:
-        display_uploaded_files(uploaded_images, "Images")
-        c1, c2 = st.columns([1,1])
-        with c1:
-            if st.button("🧹 Clear images", key="clear_images"):
-                st.session_state.clear_counter += 1
-                st.rerun()
-        with c2:
-            if st.button("🖨️ Create PDF"):
-                with st.spinner("Creating PDF..."):
-                    try:
-                        progress_bar = st.progress(0)
-                        
-                        images = []
-                        for i, img_file in enumerate(uploaded_images):
-                            img = Image.open(img_file)
-                            if img.mode != 'RGB':
-                                img = img.convert('RGB')
-                            images.append(img)
-                            progress_bar.progress((i + 1) / len(uploaded_images))
-                        
-                        pdf_buffer = BytesIO()
-                        images[0].save(
-                            pdf_buffer,
-                            format="PDF",
-                            save_all=True,
-                            append_images=images[1:],
-                            quality=95
-                        )
-                        pdf_buffer.seek(0)
-                        
-                        progress_bar.empty()
-                        st.success("✅ PDF created successfully")
-                        st.download_button(
-                            "⬇️ Download PDF",
-                            pdf_buffer.getvalue(),
-                            file_name="Images_Combined.pdf",
-                            mime="application/pdf"
-                        )
-                    except Exception as e:
-                        st.error(f"❌ Error while creating PDF: {e}")
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown("<hr>", unsafe_allow_html=True)
