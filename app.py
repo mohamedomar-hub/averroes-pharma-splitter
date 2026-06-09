@@ -3,7 +3,7 @@
 Streamlit App — Light Theme Refresh (UI Polished, English UI)
 - Default: Light, clean palette (subtle gray background)
 - Optional: Dark mode toggle in sidebar
-- Tools: Split / Merge / Excel Processor / AI Dashboard & Chat
+- Tools: Split / Merge / Excel Processor
 """
 
 import streamlit as st
@@ -15,9 +15,6 @@ import os
 import base64
 import requests
 from datetime import datetime
-import json
-import plotly.express as px
-import plotly.graph_objects as go
 
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl import load_workbook, Workbook
@@ -855,174 +852,6 @@ with st.container():
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             except Exception as e:
                 st.error(f"❌ Error while processing: {e}")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ===================== AI Dashboard & Chat Card =====================
-with st.container():
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🤖 AI Dashboard & Chat")
-    st.markdown('<span class="hint">Upload any Excel/CSV file — get automatic charts + chat with your data using AI. Ask questions in Arabic or English!</span>', unsafe_allow_html=True)
-
-    # API Key input    
-    api_key_input = st.secrets["ANTHROPIC_API_KEY"]
-    ai_file = st.file_uploader(
-        "📂 Upload Excel or CSV for AI analysis",
-        type=["xlsx", "csv"],
-        accept_multiple_files=False,
-        key=f"ai_uploader_{st.session_state.clear_counter}",
-    )
-
-    if ai_file:
-        if ai_file.size > 50 * 1024 * 1024:
-            st.error("❌ File too large! Max allowed: 50MB")
-        else:
-            try:
-                # قراءة الملف
-                file_ext = ai_file.name.split(".")[-1].lower()
-                if file_ext == "csv":
-                    ai_df = pd.read_csv(ai_file)
-                else:
-                    ai_df = pd.read_excel(ai_file)
-
-                # إحصائيات سريعة
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("📋 Rows", f"{len(ai_df):,}")
-                col2.metric("📊 Columns", len(ai_df.columns))
-                col3.metric("🔢 Numeric Cols", len(ai_df.select_dtypes(include='number').columns))
-                col4.metric("📝 Text Cols", len(ai_df.select_dtypes(include='object').columns))
-
-                st.markdown("---")
-
-                # Auto Charts
-                st.markdown("#### 📊 Auto-Generated Charts")
-                auto_generate_charts(ai_df, is_dark)
-
-                st.markdown("---")
-
-                # Data Preview
-                with st.expander("👁️ Data Preview"):
-                    st.dataframe(ai_df.head(50), use_container_width=True)
-
-                st.markdown("---")
-
-                # AI Chat Section
-                st.markdown("#### 💬 Chat with Your Data")
-
-                if not api_key_input:
-                    st.warning("⚠️ Please enter your Anthropic API Key above to use the AI chat.")
-                else:
-                    # Initialize chat history
-                    if 'ai_chat_history' not in st.session_state:
-                        st.session_state.ai_chat_history = []
-                    if 'ai_df_context' not in st.session_state:
-                        st.session_state.ai_df_context = ""
-
-                    # تحديث الـ context لو الملف اتغيّر
-                    current_context = df_to_context(ai_df)
-                    if st.session_state.ai_df_context != current_context:
-                        st.session_state.ai_df_context = current_context
-                        st.session_state.ai_chat_history = []
-
-                    # عرض المحادثة
-                    chat_container = st.container()
-                    with chat_container:
-                        for msg in st.session_state.ai_chat_history:
-                            if msg["role"] == "user":
-                                st.markdown(f'<div class="chat-label">You</div><div class="chat-bubble-user">{msg["content"]}</div>', unsafe_allow_html=True)
-                            else:
-                                st.markdown(f'<div class="chat-label">🤖 AI</div><div class="chat-bubble-ai">{msg["content"]}</div>', unsafe_allow_html=True)
-
-                    # Quick Suggestions
-                    st.markdown("**💡 Quick questions:**")
-                    suggestions = [
-                        "ما هي أهم الإحصائيات في هذه البيانات؟",
-                        "What are the top 5 values?",
-                        "هل في قيم مكررة أو بيانات ناقصة؟",
-                        "Summarize the data in 3 points",
-                    ]
-                    cols = st.columns(2)
-                    for i, suggestion in enumerate(suggestions):
-                        if cols[i % 2].button(suggestion, key=f"suggest_{i}"):
-                            # إرسال السؤال المقترح
-                            system_prompt = f"""You are a helpful data analyst assistant. 
-The user has uploaded a dataset with the following information:
-
-{st.session_state.ai_df_context}
-
-Answer questions about this data clearly and concisely.
-If the user writes in Arabic, respond in Arabic.
-If the user writes in English, respond in English.
-Use numbers and specific examples from the data when possible."""
-
-                            messages_to_send = [{"role": "user", "content": system_prompt}]
-                            for h in st.session_state.ai_chat_history:
-                                messages_to_send.append(h)
-                            messages_to_send.append({"role": "user", "content": suggestion})
-
-                            with st.spinner("🤖 Thinking..."):
-                                response = ask_claude(api_key_input, [
-                                    {"role": "user", "content": system_prompt + "\n\nUser question: " + suggestion}
-                                ])
-
-                            st.session_state.ai_chat_history.append({"role": "user", "content": suggestion})
-                            st.session_state.ai_chat_history.append({"role": "assistant", "content": response})
-                            st.rerun()
-
-                    # Chat Input
-                    user_question = st.text_input(
-                        "💬 Ask anything about your data...",
-                        placeholder="مثال: ما هو متوسط التكلفة؟ / What is the total by region?",
-                        key=f"ai_chat_input_{len(st.session_state.ai_chat_history)}"
-                    )
-
-                    c1, c2 = st.columns([1, 4])
-                    with c1:
-                        send_btn = st.button("📤 Send", key="send_ai_msg")
-                    with c2:
-                        if st.button("🗑️ Clear Chat", key="clear_ai_chat"):
-                            st.session_state.ai_chat_history = []
-                            st.rerun()
-
-                    if send_btn and user_question.strip():
-                        system_prompt = f"""You are a helpful data analyst assistant.
-The user has uploaded a dataset with the following information:
-
-{st.session_state.ai_df_context}
-
-Answer questions about this data clearly and concisely.
-If the user writes in Arabic, respond in Arabic.
-If the user writes in English, respond in English.
-Use numbers and specific examples from the data when possible."""
-
-                        # بناء المحادثة الكاملة
-                        full_messages = []
-                        if st.session_state.ai_chat_history:
-                            # أول رسالة تحتوي الـ context
-                            full_messages.append({
-                                "role": "user",
-                                "content": system_prompt + f"\n\nUser question: {st.session_state.ai_chat_history[0]['content']}"
-                            })
-                            if len(st.session_state.ai_chat_history) > 1:
-                                full_messages.append(st.session_state.ai_chat_history[1])
-                            # باقي المحادثة
-                            for h in st.session_state.ai_chat_history[2:]:
-                                full_messages.append(h)
-                        
-                        full_messages.append({"role": "user", "content": user_question})
-
-                        with st.spinner("🤖 Thinking..."):
-                            response = ask_claude(api_key_input, full_messages if full_messages else [
-                                {"role": "user", "content": system_prompt + f"\n\nUser question: {user_question}"}
-                            ])
-
-                        st.session_state.ai_chat_history.append({"role": "user", "content": user_question})
-                        st.session_state.ai_chat_history.append({"role": "assistant", "content": response})
-                        st.rerun()
-
-            except Exception as e:
-                st.error(f"❌ Error reading file: {e}")
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 
