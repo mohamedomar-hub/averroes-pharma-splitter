@@ -865,7 +865,7 @@ with st.container():
     st.markdown('<span class="hint">Upload any Excel/CSV file — get automatic charts + chat with your data using AI. Ask questions in Arabic or English!</span>', unsafe_allow_html=True)
 
     # API Key input
-    api_key_input = st.text_input(
+    api_key_input = st.secrets["ANTHROPIC_API_KEY"]
         "🔑 Anthropic API Key",
         type="password",
         placeholder="sk-ant-api03-...",
