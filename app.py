@@ -25,7 +25,7 @@ from openpyxl.styles import NamedStyle
 @st.cache_data(ttl=3600)
 def load_online_doctor_ids():
     from openpyxl import load_workbook
-    GDRIVE_SHEET_URL = ("https://docs.google.com/spreadsheets/d/1G_oofRjYWWTu6AlWsVeSwSjugOThLPWl/export")
+    GDRIVE_SHEET_URL = ("https://docs.google.com/spreadsheets/d/1-u3cegWgrsoXvJYWVwQQRJbyYbdYtjIMDIifnalwHqo/export?format=xlsx")
     try:
         r = requests.get(GDRIVE_SHEET_URL)
         if r.status_code != 200:
@@ -260,29 +260,41 @@ def copy_column_widths(src_ws, dst_ws):
     except Exception:
         pass
 
+# ===================== FIX: BUM mapping loader =====================
+# - Updated to the new Google Sheet link (old one was broken / inaccessible)
+# - Always returns a pandas DataFrame (even on failure) so that
+#   `if not bum_df.empty:` never crashes with AttributeError on None
 @st.cache_data(ttl=3600)
 def load_bum_mapping():
+    url = "https://docs.google.com/spreadsheets/d/1G_oofRjYWWTu6AlWsVeSwSjugOThLPWl/export?format=xlsx"
     try:
-        url = "https://docs.google.com/spreadsheets/d/1XQnQNDFHDKrWYn23ROAeFS2cELNbKurC/export?format=xlsx"
-        response = requests.get(url)
-        if response.status_code == 200:
-            wb = load_workbook(filename=BytesIO(response.content))
-            ws = wb.active
-            data = []
-            headers = [cell.value for cell in ws[1]]
-            mr_idx = bum_idx = None
-            for i, header in enumerate(headers):
-                if header and "MR" in str(header):
-                    mr_idx = i + 1
-                elif header and "BUM" in str(header):
-                    bum_idx = i + 1
-            if mr_idx and bum_idx:
-                for row in range(2, ws.max_row + 1):
-                    mr_value = ws.cell(row, mr_idx).value
-                    bum_value = ws.cell(row, bum_idx).value
-                    if mr_value and bum_value:
-                        data.append({'MR': str(mr_value).strip(), 'BUM': str(bum_value).strip()})
-            return pd.DataFrame(data)
+        response = requests.get(url, timeout=20)
+        if response.status_code != 200:
+            st.warning(f"⚠️ Could not load BUM mapping (HTTP {response.status_code}).")
+            return pd.DataFrame()
+
+        wb = load_workbook(filename=BytesIO(response.content))
+        ws = wb.active
+        data = []
+        headers = [cell.value for cell in ws[1]]
+        mr_idx = bum_idx = None
+        for i, header in enumerate(headers):
+            if header and "MR" in str(header):
+                mr_idx = i + 1
+            elif header and "BUM" in str(header):
+                bum_idx = i + 1
+
+        if not mr_idx or not bum_idx:
+            st.warning(f"⚠️ BUM mapping sheet is missing 'MR' or 'BUM' column. Found headers: {headers}")
+            return pd.DataFrame()
+
+        for row in range(2, ws.max_row + 1):
+            mr_value = ws.cell(row, mr_idx).value
+            bum_value = ws.cell(row, bum_idx).value
+            if mr_value and bum_value:
+                data.append({'MR': str(mr_value).strip(), 'BUM': str(bum_value).strip()})
+
+        return pd.DataFrame(data)
     except Exception as e:
         st.warning(f"⚠️ Could not load BUM mapping: {e}")
         return pd.DataFrame()
@@ -333,7 +345,7 @@ def df_to_context(df: pd.DataFrame, max_rows: int = 100) -> str:
     """تحويل الـ DataFrame لنص يفهمه الـ AI"""
     context = f"Dataset has {len(df)} rows and {len(df.columns)} columns.\n"
     context += f"Columns: {', '.join(df.columns.tolist())}\n\n"
-    
+
     # إحصائيات سريعة للأعمدة الرقمية
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
     if numeric_cols:
@@ -341,7 +353,7 @@ def df_to_context(df: pd.DataFrame, max_rows: int = 100) -> str:
         for col in numeric_cols[:5]:
             context += f"  - {col}: min={df[col].min()}, max={df[col].max()}, avg={df[col].mean():.2f}, sum={df[col].sum():.2f}\n"
         context += "\n"
-    
+
     # عينة من البيانات
     sample = df.head(max_rows)
     context += f"Data sample (first {min(max_rows, len(df))} rows):\n"
@@ -353,9 +365,9 @@ def auto_generate_charts(df: pd.DataFrame, is_dark: bool):
     plotly_theme = "plotly_dark" if is_dark else "plotly_white"
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
     categorical_cols = df.select_dtypes(include='object').columns.tolist()
-    
+
     charts_made = 0
-    
+
     # Chart 1: Bar chart لأول عمود categorical + أول عمود رقمي
     if categorical_cols and numeric_cols and charts_made < 3:
         cat_col = categorical_cols[0]
