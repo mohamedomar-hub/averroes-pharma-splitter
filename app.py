@@ -25,7 +25,7 @@ from openpyxl.styles import NamedStyle
 @st.cache_data(ttl=3600)
 def load_online_doctor_ids():
     from openpyxl import load_workbook
-    GDRIVE_SHEET_URL = ("https://docs.google.com/spreadsheets/d/1-u3cegWgrsoXvJYWVwQQRJbyYbdYtjIMDIifnalwHqo/export?format=xlsx")
+    GDRIVE_SHEET_URL = ("https://docs.google.com/spreadsheets/d/1G_oofRjYWWTu6AlWsVeSwSjugOThLPWl/export")
     try:
         r = requests.get(GDRIVE_SHEET_URL)
         if r.status_code != 200:
